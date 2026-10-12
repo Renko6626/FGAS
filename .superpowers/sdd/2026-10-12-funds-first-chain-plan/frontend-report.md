@@ -21,3 +21,9 @@ Implemented approved Vue3 + TypeScript + Vite + Naive UI functional shell, with 
 - No permanent UI tests, automated browser clicks/forms or PostgreSQL start/stop. Controller owns runtime launch and desktop/mobile screenshots.
 
 Expected frontend URL: http://localhost:5173; same-origin /api proxy defaults to http://127.0.0.1:8000. UI end-to-end acceptance and browser interactions are unverified. Retry keys are in-memory; reload or identity switch clears drafts, so uncertain outcomes should be checked in records before starting another submission. The prototype uses number-valued integer fen from current backend JSON, with formatting via BigInt; amounts beyond JavaScript safe-integer precision remain an existing JSON contract limit.
+
+## Medium review Important correction
+
+Captured a copied transfer payload and its serialized stamp before awaiting preview. An arriving response is accepted only while the current form matches that request; edits therefore leave submission unavailable until their own valid preview. Busy guards prevent overlapping previews/submissions, and confirmation is disabled while any request is outstanding. Existing failed-submit payload locking and idempotency keys remain intact. Expanded the changed state-changing functions for readability; the review's broader Minor source-formatting observation remains non-blocking.
+
+Worker `npm run build`: passed, vue-tsc and Vite 7.3.7, 2671 modules, 417.29 kB JS; no browser interactions or extra permanent tests. Preview response/request ordering was inspected in the changed production functions; deferred-request UI interaction was not executed.
