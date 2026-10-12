@@ -1,7 +1,7 @@
 """Cohesive persistence adapter for the development identity, catalogs and funds."""
 from sqlalchemy import select, text, func
-from backend.infrastructure.database import Session
-from backend.infrastructure.models import User, LoginSession, Account, FundAccount, Location, Transfer, JournalLine, Audit
+from backend.infrastructure.database import Session, engine
+from backend.infrastructure.models import Base, User, LoginSession, Account, FundAccount, Location, Transfer, JournalLine, Audit
 
 def transaction():
     with Session() as db:
@@ -76,11 +76,18 @@ def fund_balances(db):
     rows = db.execute(text("SELECT a.id,a.name,a.kind,a.tags,COALESCE(SUM(j.debit_minor-j.credit_minor),0) AS balance_minor FROM ledger_accounts a JOIN fund_accounts f ON f.account_id=a.id LEFT JOIN journal_lines j ON j.account_id=a.id GROUP BY a.id ORDER BY a.name")).mappings().all()
     return [dict(r, balance_minor=int(r['balance_minor']), is_fund=True) for r in rows]
 
+def create_schema():
+    Base.metadata.create_all(engine)
+
+def reset_schema():
+    Base.metadata.drop_all(engine)
+    create_schema()
+
 def seed_development(admin_id, admin_name):
     with Session.begin() as db:
         for identifier, name, role in [(admin_id, admin_name, 'admin'), ('trusted', '受信任成员', 'trusted'), ('untrusted', '待审批成员', 'untrusted')]:
             if not get_user(db, identifier): db.add(User(id=identifier, display_name=name, role=role, active=True))
-        for identifier, name, kind, fund in [('bank', '银行账户', 'asset', True), ('cash', '现金', 'asset', True), ('income', '收入', 'income', False), ('expense', '费用', 'expense', False), ('opening', '期初权益', 'equity', False)]:
+        for identifier, name, kind, fund in [('fund_pool', '社团资金池', 'asset', True), ('income', '其它收入', 'income', False), ('expense', '其它费用', 'expense', False), ('opening', '期初权益', 'equity', False)]:
             if not get_account(db, identifier):
                 db.add(Account(id=identifier, name=name, kind=kind, tags=['示例'])); db.flush()
                 if fund: db.add(FundAccount(account_id=identifier))

@@ -6,7 +6,7 @@
 
 **Architecture:** 延续模块化单体与中央权威账本。资金和数量流水通过统一过账提交，业务服务编排实际动作；查询读取正式事实或可重建结果。按完整业务增量推进，每个增量包含必要录入与查询，不先一次建完所有抽象层。
 
-**Tech Stack:** FastAPI + Vue 已确认；TypeScript / Vite / Naive UI、Pydantic、SQLAlchemy 2 / Alembic / PostgreSQL、私有附件与 Docker Compose 沿用文档方向。认证复用现有 Casdoor SSO，三档权限由本系统管理。当前服务器开发测试，另一台服务器全新正式部署；Casdoor 具体接入配置待落实。
+**Tech Stack:** FastAPI + Vue 已确认；TypeScript / Vite / Naive UI、Pydantic、SQLAlchemy 2 / PostgreSQL（当前直接建表，正式迁移后续落实）、私有附件与 Docker Compose 沿用文档方向。认证复用现有 Casdoor SSO，三档权限由本系统管理。当前服务器开发测试，另一台服务器全新正式部署；Casdoor 具体接入配置待落实。
 
 **Spec:** [architecture.md](../../../architecture.md)，v0.4，Part 1。
 
@@ -45,7 +45,7 @@
 
 ## 2. 第一条链：期初资金、收付与账户转账
 
-- [x] 随本增量建立最小项目、数据库迁移、身份入口及实际需要的分层目录。
+- [x] 随本增量建立最小项目、开发数据库直接建表、身份入口及实际需要的分层目录。
 - [x] 建立资金账户、科目、凭证和分录，实现期初、收款、付款及内部转账。
 - [x] 提供分类选择来源、去向和金额的自由录入；可修改预设只预填，正式分录由明确选择的对象及账户语义生成。
 - [x] 统一资金转移模式覆盖收付、转账、垫付和偿还；内核不识别垫付业务，逐笔标记与匹配作为外层附加能力在下一增量补齐。

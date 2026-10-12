@@ -8,7 +8,7 @@
 
 **Architecture:** 资金内核只记录明确来源、去向及金额，并保存平衡分录。外层办理身份、批准、实际确认和审计，统一协调事务；垫付、偿还使用同一资金模式，逐笔标记及匹配在下一增量增加。
 
-**Tech Stack:** 沿用 FastAPI / Pydantic、Vue 3 / TypeScript / Vite / Naive UI、SQLAlchemy 2 / Alembic / PostgreSQL。复用 Casdoor SSO，本系统管理权限。具体认证客户端、版本与部署配置在执行对应任务前落实。
+**Tech Stack:** 沿用 FastAPI / Pydantic、Vue 3 / TypeScript / Vite / Naive UI、SQLAlchemy 2 / PostgreSQL。复用 Casdoor SSO，本系统管理权限。具体认证客户端、版本与部署配置在执行对应任务前落实。
 
 **Spec:** [architecture.md](../../../architecture.md)，v0.4 / Part 1；[总路线图](2026-10-12-part1-roadmap.md)。
 
@@ -73,7 +73,7 @@
 | `backend/infrastructure/persistence/models.py` / `database.py` | SQLAlchemy 映射、事务和锁 |
 | `backend/infrastructure/auth/casdoor.py` | 认证适配，具体客户端待确定 |
 | `backend/entrypoints/http/funds.py` / `auth.py` / `users.py` | HTTP 适配，不实现独立账务逻辑 |
-| `backend/migrations/` | 实际使用的 Schema 迁移 |
+| `backend/infrastructure/store.py` | 开发 Schema 直接建表与显式重建 |
 | `frontend/src/api/funds.ts` | 资金接口类型与调用 |
 | `frontend/src/views/FundsView.vue` / `ApprovalsView.vue` | 账户、录入、流水、审批和追溯 |
 
@@ -81,11 +81,11 @@
 
 ## Task 1：金额、账户与统一转移模型
 
-**Files:** `money.py`、`accounting/models.py`、`accounting/ledger.py`、持久化模型及迁移。
+**Files:** `money.py`、`accounting/models.py`、`accounting/ledger.py`、持久化模型及开发初始化。
 
 **Interfaces:** 推荐 `parse_cny(text: str) -> int`；`MoneyTransfer` 使用上表字段；`build_entry(transfer: MoneyTransfer) -> JournalEntry` 不接收业务说明来选择账户。
 
-- [ ] 确认人民币按分存储、一源一去一金额及账户绑定关系，再写迁移。
+- [ ] 确认人民币按分存储、一源一去一金额及账户绑定关系，再实现开发建表。
 - [ ] 实现精确金额转换、账户引用及通用分录表示，确保每笔借贷平衡。
 - [ ] 建立账户、转移、凭证和分录的持久化及唯一来源关系，不保存可手改余额；外层批准内容与版本用独立记录保存，供后续过账读取。
 - [ ] 用 `12.34` 元等于 `1234` 分、资金账户间转移 `10000` 分生成平衡记录的行为用例验证；不测试每个字段组合。
@@ -156,7 +156,7 @@
 - [ ] 显示预览、账户余额、交易历史及详情；审批页展示待审批的同一笔转移。
 - [ ] 管理员提供最小权限管理入口；页面可见性随角色变化，权限仍由后端执行。
 - [ ] 运行相关后端检查和前端构建，必要时截图查看；不新增常规 UI 永久测试，不自动点击或填表验收。
-- [ ] 记录启动、迁移、SSO 配置及共同样例使用方法，不声称仅构建成功就完成业务验收。
+- [ ] 记录启动、开发建表、SSO 配置及共同样例使用方法，不声称仅构建成功就完成业务验收。
 
 **完成标志：** 基础资金录入与追溯可用；本增量的关键行为有实际数据库证据，界面可构建。
 
@@ -165,7 +165,7 @@
 执行时建立项目实际脚本，以下是推荐入口，不表示当前已存在或已运行：
 
 - 后端：`python -m pytest backend/tests/test_funds.py`，集中验证金额、批准、幂等、回滚、冲销和余额；复用真实数据库夹具，不跨层重复整个场景。
-- 数据库：`alembic upgrade head`，在隔离测试数据库验证实际迁移。
+- 数据库：`python -m backend.application.initialize`，在隔离测试数据库直接建表；本机开发数据可用 `npm run dev -- --reset-db` 显式重建，正式部署迁移后续落实。
 - 前端：在 `frontend/` 运行 `npm run build`，验证类型和构建。
 
 不添加大规模压力、随机状态化或全部异常组合测试。必要测试随所属任务写入，普通项目配置、页面文案和布局不因改变而新增测试。

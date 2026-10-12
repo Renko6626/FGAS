@@ -2,7 +2,9 @@ import {spawn} from 'node:child_process'
 import {existsSync} from 'node:fs'
 import {loadEnvFile} from 'node:process'
 if(existsSync('.env')) loadEnvFile('.env')
-const children=[spawn('bash',['scripts/run-backend.sh'],{stdio:'inherit',env:process.env,detached:true}),spawn('npm',['--prefix','frontend','run','dev'],{stdio:'inherit',env:process.env,detached:true})]
+const reset=process.argv.includes('--reset-db')
+if(reset && process.env.AUTH_MODE!=='development') throw new Error('Database reset requires AUTH_MODE=development')
+const children=reset ? [spawn('.venv/bin/python',['-m','backend.application.initialize','--reset'],{stdio:'inherit',env:process.env,detached:true})] : [spawn('bash',['scripts/run-backend.sh'],{stdio:'inherit',env:process.env,detached:true}),spawn('npm',['--prefix','frontend','run','dev'],{stdio:'inherit',env:process.env,detached:true})]
 let stopping=false
 function stop(code=0){if(stopping)return;stopping=true;for(const child of children){if(child.pid)try{process.kill(-child.pid,'SIGTERM')}catch{}}process.exitCode=code}
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>stop())
