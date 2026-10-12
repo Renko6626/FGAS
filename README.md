@@ -1,6 +1,6 @@
 # FGAS funds prototype
 
-FastAPI / PostgreSQL development shell for one organization, CNY. `backend/kernel` contains pure amount and balanced-line rules; `modules/funds` builds transfer plans; `application` owns approval, transactions and posting; `infrastructure` owns SQLAlchemy persistence; `entrypoints` exposes HTTP. Stock locations are a directory only.
+FastAPI / PostgreSQL development shell for one organization, CNY. `backend/kernel` contains pure amount and balanced-line rules; `modules/funds` builds transfer plans; `application` owns approval, transactions and posting; `infrastructure/store.py` owns transaction boundaries, PostgreSQL locking, ORM persistence and query execution; `application/identity.py` and `application/catalogs.py` own identity and directory operations; `entrypoints` exposes HTTP and delegates to application functions. Stock locations are a directory only.
 
 ## Local development
 
