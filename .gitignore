@@ -1,0 +1,12 @@
+# Git metadata fallback for the managed workspace
+.fgas-git/
+.worktrees/
+.superpowers/
+.runtime/
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+frontend/node_modules/
+frontend/dist/
