@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
@@ -8,11 +9,13 @@ from backend.kernel.accounting import DomainError
 from backend.application import funds
 from backend.entrypoints.schemas import *
 
-app = FastAPI(title='FGAS development funds prototype')
 AUTH_MODE = os.getenv('AUTH_MODE', '')
-@app.on_event('startup')
-def check_mode():
+@asynccontextmanager
+async def lifespan(app):
     if AUTH_MODE != 'development': raise RuntimeError('Only explicit AUTH_MODE=development is available in this prototype')
+    yield
+
+app = FastAPI(title='FGAS development funds prototype', lifespan=lifespan)
 @app.exception_handler(DomainError)
 async def domain_error(request, exc): return JSONResponse(status_code=exc.status, content={'detail': str(exc)})
 def database():

@@ -15,7 +15,7 @@ The local script creates an isolated `.runtime/postgres` cluster with trust auth
 
 `AUTH_MODE=development` must be explicit for application startup and initialization. This prototype has no production authentication adapter; other modes fail startup. Development login chooses a persisted active identity, with roles resolved from the database. It is intended for isolated development only. `deploy/compose.yaml` provides a clean development installation (`POSTGRES_PASSWORD` required); it does not turn this identity adapter into production authentication.
 
-If a sandbox permits Unix sockets but denies TCP, start PostgreSQL with `pg_ctl -D .runtime/postgres -o '-h "" -k ABSOLUTE_SOCKET_DIRECTORY -p 55438' start` and use `postgresql+psycopg2://fgas@/fgas?host=ABSOLUTE_SOCKET_DIRECTORY&port=55438`. Both server and client need socket permission.
+The DB script accepts `FGAS_PG_PORT`, `FGAS_PG_SOCKET` (absolute path), and `FGAS_PG_HOST`; empty `FGAS_PG_HOST` disables TCP. Set `DATABASE_URL` consistently for backend startup. Only one process namespace should own cluster start/stop. If a sandbox permits Unix sockets but denies TCP, start PostgreSQL with `pg_ctl -D .runtime/postgres -o '-h "" -k ABSOLUTE_SOCKET_DIRECTORY -p 55438' start` and use `postgresql+psycopg2://fgas@/fgas?host=ABSOLUTE_SOCKET_DIRECTORY&port=55438`. Both server and client need socket permission.
 
 ## HTTP contract
 
