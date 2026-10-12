@@ -74,3 +74,5 @@ Four real PostgreSQL scenarios cover balances and reversal, pending approval and
 本环境的 `.git` 目录只读，Git 元数据实际保存在 `.fgas-git`。在根目录查看版本可用 `git --git-dir=.fgas-git --work-tree=. status`；当前代码已合回 `main`。普通可写环境中的 Git 不需要这个额外路径。
 
 当前验证包括四个真实 PostgreSQL 行为用例、前端类型检查与构建、开发服务健康检查。没有执行浏览器自动点击、填表或端到端交互验收；Compose 安装与正式身份认证尚未验证。
+
+阶段交付范围、检查点及下一步见 [阶段记录](docs/prototype-status.md)。
