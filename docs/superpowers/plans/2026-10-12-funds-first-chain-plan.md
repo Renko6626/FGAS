@@ -181,3 +181,20 @@
 ## 自检
 
 架构中本增量涉及的资金记录、身份、三档批准、期初、追溯和最小更正均有任务归属。库存、逐笔垫付、成本、恢复及外部集成留在总路线图的对应增量，不宣称已经完成 Part 1。账户形状和接口仍标为推荐，未安装依赖、搭建项目或编写产品代码。
+
+
+## 原型实施记录
+
+已按用户授权完成第一条资金链原型，具体路径按清晰职责做了紧凑实现，不机械创建计划中每一个目录：
+
+- `backend/kernel/accounting.py`：精确金额、通用转移和平衡分录，不依赖 ORM 或 HTTP。
+- `backend/modules/funds/plans.py`：构建通用资金转移方案。
+- `backend/application/funds.py`、`catalog.py`、`identity.py`：资金工作流、目录及身份应用入口。
+- `backend/infrastructure/store.py`、`models.py`、`database.py`：查询、事务、锁、持久化和开发会话。
+- `backend/entrypoints/http.py`、`schemas.py`：HTTP 适配与输入输出。
+- `frontend/src/api/`、`components/`、`views/`：接口、转移弹窗、端点选择器和原型页面。
+- `scripts/dev.mjs`：根目录 `npm run dev` 同时启动 FastAPI 与 Vite。
+
+阶段开发由 gpt-6.1-sol low 执行，阶段及整体审阅由 gpt-6.1-sol medium 执行。验证只保留四个真实 PostgreSQL 行为用例、前端类型与构建、开发服务健康检查；未做浏览器自动交互。
+
+本增量支持开发三档账户、资金端点与标签、位置目录与标签、转移预览与记录、自动或人工批准、冲销和追溯。垫付标记与偿还匹配、库存数量流水、Casdoor、对账和恢复仍按总路线图继续，不能把当前原型宣称为完整 Part 1 或生产就绪。
