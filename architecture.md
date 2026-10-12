@@ -165,7 +165,6 @@ project/
 │   │   ├── persistence/
 │   │   ├── files/
 │   │   └── backup/
-│   ├── migrations/
 │   └── tests/
 ├── frontend/
 ├── deploy/
