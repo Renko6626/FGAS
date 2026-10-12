@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: fgas
+      POSTGRES_USER: fgas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fgas"]
+      interval: 5s
+      retries: 10
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    environment:
+      AUTH_MODE: development
+      DATABASE_URL: postgresql+psycopg2://fgas:${POSTGRES_PASSWORD}@db:5432/fgas
+      INITIAL_ADMIN_ID: ${INITIAL_ADMIN_ID:-admin}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-管理员}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  postgres-data:
