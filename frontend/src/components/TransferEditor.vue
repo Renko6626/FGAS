@@ -1,0 +1,17 @@
+<script setup lang="ts">
+import {computed,ref,watch} from 'vue'
+import {NButton,NInput,NModal} from 'naive-ui'
+import {api,money,statuses,type Account,type Preview,type TransferInput} from '../api/funds'
+import EndpointSelector from './EndpointSelector.vue'
+const props=defineProps<{show:boolean;accounts:Account[];opening?:boolean}>()
+const emit=defineEmits<{close:[];saved:[string]}>()
+const form=ref<TransferInput>({source_account_id:'',destination_account_id:'',amount:'',effective_date:new Date().toLocaleDateString('sv-SE'),description:'',counterparty:null})
+const preview=ref<Preview|null>(null),error=ref(''),busy=ref(false),key=ref(''),locked=ref(false)
+const snapshot=ref('')
+watch(()=>props.show,value=>{if(value&&!locked.value){form.value={source_account_id:props.opening?(props.accounts.find(a=>a.kind==='equity')?.id||''):'',destination_account_id:props.opening?(props.accounts.find(a=>a.is_fund)?.id||''):'',amount:'',effective_date:new Date().toLocaleDateString('sv-SE'),description:props.opening?'期初资金':'',counterparty:null};preview.value=null;error.value='';key.value='';locked.value=false}})
+watch(form,()=>{preview.value=null},{deep:true})
+const validPreview=computed(()=>preview.value&&snapshot.value===JSON.stringify(form.value))
+async function runPreview(){busy.value=true;error.value='';try{preview.value=await api.preview(form.value);snapshot.value=JSON.stringify(form.value)}catch(e){error.value=(e as Error).message}finally{busy.value=false}}
+async function submit(){if(!validPreview.value)return;busy.value=true;error.value='';key.value ||= crypto.randomUUID();locked.value=true;try{const result=await api.submit(form.value,key.value);locked.value=false;emit('saved',statuses[result.status]||result.status);emit('close')}catch(e){error.value=(e as Error).message+'。可使用相同标识重试；若结果不确定，请先检查流水记录。'}finally{busy.value=false}}
+</script>
+<template><NModal :show="show" preset="card" title="资金划转" class="dialog" @close="emit('close')"><fieldset :disabled="locked"><div class="pair"><EndpointSelector v-model="form.source_account_id" :accounts="accounts" :disabled="locked" label="来源"/><EndpointSelector v-model="form.destination_account_id" :accounts="accounts" :disabled="locked" label="去向"/></div><label>金额（元）<NInput v-model:value="form.amount" placeholder="例如 100.25" :disabled="locked"/></label><label>业务日期<input v-model="form.effective_date" type="date"></label><label>说明<NInput v-model:value="form.description" :disabled="locked"/></label><label>往来方（可选）<NInput :value="form.counterparty||''" :disabled="locked" @update:value="form.counterparty=$event||null"/></label></fieldset><p v-if="error" class="error">{{error}}</p><div v-if="preview" class="preview"><strong>{{preview.source_account_name}} → {{preview.destination_account_name}}，¥{{money(preview.amount_minor)}}</strong><p>提交后：{{statuses[preview.status]}}。来源贷记、去向借记；各对象余额按类别正常方向计算。</p><table><thead><tr><th>对象</th><th>借方</th><th>贷方</th></tr></thead><tbody><tr v-for="line in preview.journal_lines" :key="line.account_id"><td>{{accounts.find(a=>a.id===line.account_id)?.name}} ({{line.account_id}})</td><td>{{money(line.debit_minor)}}</td><td>{{money(line.credit_minor)}}</td></tr></tbody></table></div><small v-if="key">提交标识：{{key}}，重试将保持相同内容。</small><div class="actions"><NButton :loading="busy" :disabled="locked" @click="runPreview">预览</NButton><NButton type="primary" :loading="busy" :disabled="!validPreview" @click="submit">{{locked?'使用相同标识重试':'确认提交'}}</NButton></div></NModal></template>

@@ -17,6 +17,21 @@ The local script creates an isolated `.runtime/postgres` cluster with trust auth
 
 The DB script accepts `FGAS_PG_PORT`, `FGAS_PG_SOCKET` (absolute path), and `FGAS_PG_HOST`; empty `FGAS_PG_HOST` disables TCP. Set `DATABASE_URL` consistently for backend startup. Only one process namespace should own cluster start/stop. If a sandbox permits Unix sockets but denies TCP, start PostgreSQL with `pg_ctl -D .runtime/postgres -o '-h "" -k ABSOLUTE_SOCKET_DIRECTORY -p 55438' start` and use `postgresql+psycopg2://fgas@/fgas?host=ABSOLUTE_SOCKET_DIRECTORY&port=55438`. Both server and client need socket permission.
 
+## Frontend development
+
+Use Node.js 22 or newer. Install the approved Vue 3 / TypeScript / Vite / Naive UI shell and start both processes from the repository root:
+
+```bash
+cd frontend
+npm install
+cd ..
+npm run dev
+```
+
+Prepare PostgreSQL separately before starting. The root launcher loads an existing `.env`, forwards `DATABASE_URL`, `AUTH_MODE` and `API_PORT`, and terminates its backend/frontend process groups on interruption. It does not manage PostgreSQL. Frontend: http://localhost:5173; API defaults to http://127.0.0.1:8000. Set `VITE_API_PROXY_TARGET` if the API uses another address. The browser calls same-origin `/api` through Vite, including the session cookie. `scripts/run-frontend.sh` starts only Vite; export the proxy setting when using this separate command.
+
+Run `npm run build` at the root for TypeScript validation and a production frontend build. Development account selection, fund book balances, catalogs, transfer preview/submission, records/details/reversal, approval and persisted user roles are available. A failed transfer submission retains its payload and idempotency key for retry while the same account/editor is active; check records before retrying an uncertain outcome. Reloading the page or switching identity clears that in-memory draft.
+
 ## HTTP contract
 
 All business routes require the cookie session. Public development identity routes: `GET /api/auth/users`, `POST /api/auth/login {user_id}`, `POST /api/auth/logout`; `GET /api/auth/me` returns the persisted identity. Admin-only `GET /api/users` and `PATCH /api/users/{id} {role?,active?}` manage existing users.
