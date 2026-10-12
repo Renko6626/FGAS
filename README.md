@@ -59,3 +59,14 @@ FGAS_TEST_DATABASE=1 .venv/bin/python -m pytest backend/tests/test_funds.py -q
 ```
 
 Four real PostgreSQL scenarios cover balances and reversal, pending approval and role restrictions, idempotency/precision, and rollback under an induced PostgreSQL journal trigger failure. No browser interaction tests.
+
+
+## 当前服务器试用
+
+原型已在 FGAS 根目录安装依赖，并配置忽略提交的 `.env`。PostgreSQL 使用根目录 `.runtime` 的 Unix socket，端口 55438；这只是本机开发环境。根目录运行 `npm run dev` 同时启动 FastAPI（8000）和 Vue（5173）。开发账户选择器提供管理员、受信任用户和不受信任用户。
+
+资金初始余额为零。可以选择“期初”端点转入银行或现金，再录入收支和转账。资金账户与库存位置目录支持标签；库存位置目前不提供数量账，垫付标记与逐笔偿还匹配仍属下一增量。
+
+本环境的 `.git` 目录只读，Git 元数据实际保存在 `.fgas-git`。在根目录查看版本可用 `git --git-dir=.fgas-git --work-tree=. status`；当前代码已合回 `main`。普通可写环境中的 Git 不需要这个额外路径。
+
+当前验证包括四个真实 PostgreSQL 行为用例、前端类型检查与构建、开发服务健康检查。没有执行浏览器自动点击、填表或端到端交互验收；Compose 安装与正式身份认证尚未验证。

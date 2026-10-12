@@ -189,7 +189,7 @@
 
 - `backend/kernel/accounting.py`：精确金额、通用转移和平衡分录，不依赖 ORM 或 HTTP。
 - `backend/modules/funds/plans.py`：构建通用资金转移方案。
-- `backend/application/funds.py`、`catalog.py`、`identity.py`：资金工作流、目录及身份应用入口。
+- `backend/application/funds.py`、`catalogs.py`、`identity.py`：资金工作流、目录及身份应用入口。
 - `backend/infrastructure/store.py`、`models.py`、`database.py`：查询、事务、锁、持久化和开发会话。
 - `backend/entrypoints/http.py`、`schemas.py`：HTTP 适配与输入输出。
 - `frontend/src/api/`、`components/`、`views/`：接口、转移弹窗、端点选择器和原型页面。
