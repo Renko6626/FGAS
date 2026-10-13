@@ -91,7 +91,7 @@ Tests clear application rows and require the dedicated `fgas_test` database. The
 Final inventory consolidation on 2026-10-13: `./tools/run_tests.sh` verified `fgas_test`, exit 0, **23 passed in 11.76s**. Frontend compilation evidence from Task 6 (`037cc98`): `npm run build` in `frontend`, vue-tsc and Vite passed, 2,691 modules, 5.73s. Documentation changes do not repeat that unchanged build. These checks are not browser acceptance; no screenshots, interactive flows, services or deployment were performed for the stock increment.
 
 
-## 当前服务器试用
+## 早期服务器试用记录（2026-10-12）
 
 原型已在 FGAS 根目录安装依赖，并配置忽略提交的 `.env`。PostgreSQL 使用根目录 `.runtime` 的 Unix socket，端口 55438；这只是本机开发环境。根目录运行 `npm run dev` 同时启动 FastAPI（8000）和 Vue（5173）。开发账户选择器提供管理员、受信任用户和不受信任用户。
 
@@ -143,7 +143,7 @@ UI writes retain only a busy flag, an error message and normal refresh. There is
 
 ## 阶段盘点
 
-资金与货物盘点已在 `feature/stocktakes` 隔离分支实现，尚未合并或部署。实际薄表为 `fund_stocktakes` 和 `stock_stocktakes`；盘点只保存名称、说明、状态、创建信息及专属盈亏端点，不改变账面金额或数量。盘点页复用原 Transfer 列表与编辑器，正式变化仍经原审批、过账或手动完成流程。
+资金与货物盘点实现提交 `1ba8bf0` 已阶段性合并到 `main`，尚未部署。实际薄表为 `fund_stocktakes` 和 `stock_stocktakes`；盘点只保存名称、说明、状态、创建信息及专属盈亏端点，不改变账面金额或数量。盘点页复用原 Transfer 列表与编辑器，正式变化仍经原审批、过账或手动完成流程。
 
 active 登录用户可读，受信任用户和管理员可创建、修改说明及结束。`/api/fund-stocktakes` 和 `/api/stock-stocktakes` 各提供 GET 列表（可选 `status`）、POST 创建、GET `/{id}` 详情、PATCH `/{id}` 说明和 POST `/{id}/end`。详情返回 `{stocktake,transfers}`；资金查询包含原记录的冲销，结束后新记录仍可查。
 

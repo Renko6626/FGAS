@@ -185,3 +185,9 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 - `git diff --check`：退出 0，无输出。原始输出与退出状态保存在 `.superpowers/sdd/2026-10-14-stocktakes-plan/task-3-checks.log`。
 
 这些是测试套件与编译证据，不代表浏览器产品验收。本轮未截图、自动点击或填表，未启动服务、初始化或重置日常库、合并、推送或部署。新表沿用 metadata 建表；实际日常库启用尚待后续交付。
+
+### 2026-10-14 阶段保存与主线合并
+
+用户在实现与审阅完成后授权阶段性提交、合并及推送。实现提交 `1ba8bf0`（`feat: add transfer-centered funds and stock stocktakes`）已快进合并到 `main`，包含此前确认的 Transfer 产品原则、操作说明和盘点模型文档。逐任务及最终审阅均通过，无必修问题。
+
+主工作区此前的文档草稿与实施基线一致，已以命名 stash 保留备份，最终文档由本阶段提交完整纳入。合并后的代码与集中验证版本相同，未重复运行同一套检查；本次阶段交付没有重启服务、初始化日常数据库或部署。隔离工作树及审阅/验证记录保留。
