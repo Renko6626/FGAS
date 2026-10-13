@@ -177,3 +177,38 @@ class StockAudit(Base):
     idempotency_key: Mapped[str | None] = mapped_column(String, nullable=True)
     request_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+class StockConfirmation(Base):
+    __tablename__ = 'stock_confirmations'
+    __table_args__ = (
+        UniqueConstraint('actor_id', 'idempotency_key'),
+        CheckConstraint("status IN ('pending','completed','rejected','invalidated')"),
+        Index('one_pending_stock_confirmation', 'transfer_id', unique=True, postgresql_where=text("status = 'pending'")),
+        Index('one_completed_stock_confirmation', 'transfer_id', unique=True, postgresql_where=text("status = 'completed'")),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
+    content_version: Mapped[int] = mapped_column(Integer)
+    execution_version: Mapped[int] = mapped_column(Integer)
+    actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    effective_date: Mapped[object] = mapped_column(Date)
+    basis: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
+    execution_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON)
+    idempotency_key: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+class StockMove(Base):
+    __tablename__ = 'stock_moves'
+    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id'), UniqueConstraint('transfer_line_id'), CheckConstraint('quantity_minor > 0 AND quantity_minor <= 9007199254740991'))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    confirmation_id: Mapped[str] = mapped_column(ForeignKey('stock_confirmations.id'))
+    transfer_line_id: Mapped[str] = mapped_column(ForeignKey('stock_transfer_lines.id'))
+    sku_id: Mapped[str] = mapped_column(ForeignKey('skus.id'))
+    source_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
+    destination_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
+    quantity_minor: Mapped[int] = mapped_column(BigInteger)
+    effective_date: Mapped[object] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

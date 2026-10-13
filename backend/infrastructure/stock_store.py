@@ -55,3 +55,17 @@ def audit_events(db, identifier):
 def existing_action(db, actor_id, action, key):
     if not key: return None
     return db.scalar(select(StockAudit).where(StockAudit.actor_id == actor_id, StockAudit.action == action, StockAudit.idempotency_key == key))
+
+from sqlalchemy import func
+from backend.infrastructure.models import StockConfirmation, StockMove
+
+def confirmations(db, identifier):
+    return list(db.scalars(select(StockConfirmation).where(StockConfirmation.transfer_id == identifier).order_by(StockConfirmation.created_at, StockConfirmation.id)))
+def existing_completion(db, actor_id, key):
+    return db.scalar(select(StockConfirmation).where(StockConfirmation.actor_id == actor_id, StockConfirmation.idempotency_key == key))
+def available(db, location_id, sku_id):
+    incoming = db.scalar(select(func.coalesce(func.sum(StockMove.quantity_minor), 0)).where(StockMove.destination_location_id == location_id, StockMove.sku_id == sku_id))
+    outgoing = db.scalar(select(func.coalesce(func.sum(StockMove.quantity_minor), 0)).where(StockMove.source_location_id == location_id, StockMove.sku_id == sku_id))
+    return incoming - outgoing
+
+def moves(db): return list(db.scalars(select(StockMove).order_by(StockMove.created_at, StockMove.id)))

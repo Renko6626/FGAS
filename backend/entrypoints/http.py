@@ -164,3 +164,19 @@ def reject_stock_transfer(identifier: str, data: StockRejection, user=Depends(id
 @app.post('/api/stock-transfers/{identifier}/cancel')
 def cancel_stock_transfer(identifier: str, data: StockRejection, user=Depends(identity), db=Depends(database)):
     return warehouse.cancel_transfer(db, user, identifier, data.model_dump(mode='json'))
+
+@app.post('/api/stock-transfers/{identifier}/completion')
+def complete_stock_transfer(identifier: str, data: CompletionInput, user=Depends(identity), db=Depends(database)):
+    return warehouse.request_completion(db, user, identifier, data.model_dump(mode='json'))
+@app.post('/api/stock-confirmations/{identifier}/approve')
+def approve_stock_completion(identifier: str, data: StockApproval, user=Depends(identity), db=Depends(database)):
+    return warehouse.decide_completion(db, user, identifier, data.model_dump(mode='json'))
+@app.post('/api/stock-confirmations/{identifier}/reject')
+def reject_stock_completion(identifier: str, data: StockRejection, user=Depends(identity), db=Depends(database)):
+    return warehouse.decide_completion(db, user, identifier, data.model_dump(mode='json'), rejection=True)
+@app.get('/api/inventory')
+def stock_inventory(sku_id: str | None=None, location_id: str | None=None, member_id: str | None=None, user=Depends(identity), db=Depends(database)):
+    return warehouse.inventory(db, dict(sku_id=sku_id, location_id=location_id, member_id=member_id))
+@app.get('/api/stock-moves')
+def stock_moves(user=Depends(identity), db=Depends(database)):
+    return warehouse.list_moves(db)

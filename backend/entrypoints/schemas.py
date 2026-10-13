@@ -118,3 +118,13 @@ class StockApproval(Input):
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=200)
 class StockRejection(StockApproval):
     reason: str = Field(min_length=1)
+
+class StockObservation(Input):
+    line_id: str
+    observed_quantity: str
+    basis: str = Field(min_length=1)
+class CompletionInput(StockApproval):
+    effective_date: date
+    basis: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    observations: list[StockObservation] = Field(default_factory=list)
