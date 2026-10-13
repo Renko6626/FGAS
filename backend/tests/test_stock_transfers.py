@@ -329,3 +329,112 @@ def test_stock_fund_references_do_not_change_money(client):
     assert client.post(f"/api/transfers/{claim['id']}/reverse",json=dict(reason='冲销垫付',idempotency_key='reverse-claim')).status_code == 201
     assert all(client.get(f"/api/stock-transfers/{item['id']}").json()['fund_references'][0]['status'] == 'reversed' for item in receipts)
     assert balances(client)[target,sku] == '20'
+
+
+def operation_payload(client, key='combined'):
+    source = client.post('/api/locations',json=dict(name='供应商',kind='external',external_kind='supplier')).json()['id']
+    target = client.post('/api/locations',json=dict(name='仓库')).json()['id']
+    sku = client.post('/api/skus',json=dict(name='书',unit='本')).json()['id']
+    return dict(idempotency_key=key, stock=dict(source_location_id=source,destination_location_id=target,
+        action_kind='arrival',effective_date='2026-10-13',basis='到货单',lines=[dict(sku_id=sku,quantity='100')],
+        idempotency_key='caller-stock'),money=dict(kind='fund_transfer',data=dict(source_account_id='fund_pool',
+        destination_account_id='expense',amount='1000',effective_date='2026-10-13',idempotency_key='caller-money')))
+
+
+def test_money_first_operation_replay_and_independent_completion(client):
+    from backend.tests.test_funds import transfer
+    from backend.infrastructure.models import StockOperation,Transfer
+    assert transfer(client,'opening','fund_pool','2000','opening-money').status_code == 201
+    payload = operation_payload(client)
+    response = client.post('/api/stock-operations',json=payload)
+    assert response.status_code == 201,response.text
+    result = response.json()
+    stock, money = result['stock_transfer'], result['fund_transfer']
+    assert money['status'] == 'posted' and stock['status'] == 'in_transit'
+    assert stock['fund_references'][0]['id'] == money['id']
+    assert client.get('/api/funds/summary').json()['total_minor'] == 100000
+    assert client.get('/api/stock-moves').json() == []
+    for changed in (payload | {'stock':payload['stock'] | {'idempotency_key':'other'}},
+                    payload | {'money':payload['money'] | {'data':payload['money']['data'] | {'idempotency_key':'other'}}}):
+        assert client.post('/api/stock-operations',json=changed).status_code == 409
+    finished = complete(client,stock,'arrived').json()
+    assert finished['status'] == 'completed'
+    assert complete(client,stock,'arrived').status_code == 200
+    retry = client.post('/api/stock-operations',json=payload).json()
+    assert retry['stock_transfer']['id'] == stock['id'] and retry['fund_transfer']['id'] == money['id']
+    assert retry['stock_transfer']['status'] == 'completed'
+    assert list(balances(client).values()) == ['100']
+    assert client.get('/api/funds/summary').json()['total_minor'] == 100000
+    assert client.post('/api/stock-operations',json=payload | {'idempotency_key':'refs','stock':payload['stock'] | {'fund_transfer_ids':[money['id']]}}).status_code == 400
+    with Session() as db:
+        operation = db.scalar(select(StockOperation))
+        assert operation.payload['stock']['idempotency_key'] == 'caller-stock'
+        assert operation.payload['money']['data']['idempotency_key'] == 'caller-money'
+        assert db.scalar(select(func.count()).select_from(Transfer)) == 2
+
+
+def test_combined_claim_and_ordinary_approval_boundaries(client):
+    from backend.tests.test_member_claims import member,claim_payload
+    payload = operation_payload(client)
+    m = member(client)
+    claim_request = payload | {'money':dict(kind='member_claim',data=claim_payload(m,confirm=True))}
+    client.post('/api/auth/login',json={'user_id':'untrusted'})
+    assert client.post('/api/stock-operations',json=claim_request).status_code == 403
+    pending = client.post('/api/stock-operations',json=payload).json()
+    assert pending['stock_transfer']['status'] == pending['fund_transfer']['status'] == 'pending'
+    client.post('/api/auth/login',json={'user_id':'trusted'})
+    money = pending['fund_transfer']
+    assert client.post(f"/api/transfers/{money['id']}/approve",json=dict(expected_version=money['version'])).status_code == 200
+    assert client.get(f"/api/stock-transfers/{pending['stock_transfer']['id']}").json()['status'] == 'pending'
+    claim = client.post('/api/stock-operations',json=claim_request).json()
+    assert claim['claim']['confirmed_minor'] == claim['claim']['outstanding_minor'] == 100000
+    assert claim['fund_transfer']['status'] == 'posted'
+    stock = claim['stock_transfer']
+    assert stock['status'] == 'in_transit'
+    assert client.post(f"/api/stock-transfers/{stock['id']}/cancel",json=dict(expected_content_version=stock['content_version'],expected_execution_version=stock['execution_version'],reason='未到货',idempotency_key='cancel-claim-stock')).status_code == 200
+    assert client.get(f"/api/member-claims/{claim['claim']['id']}").json()['status'] == 'posted'
+
+
+def test_combined_operation_database_failures_leave_no_halves(client):
+    import pytest
+    from sqlalchemy import text
+    from backend.infrastructure.database import engine
+    from backend.infrastructure.models import StockOperation,Transfer,Audit,MemberClaim,StockAudit,StockTransferFundReference
+    payload = operation_payload(client)
+    from backend.tests.test_member_claims import member,claim_payload
+    m = member(client)
+    claim_request = payload | {'money':dict(kind='member_claim',data=claim_payload(m,confirm=True))}
+    tables = [StockOperation,Transfer,JournalLine,Audit,MemberClaim,StockTransfer,StockTransferLine,StockAudit,StockTransferFundReference]
+    for target in ('stock_operations','journal_lines','stock_transfer_lines'):
+        with engine.begin() as db:
+            db.execute(text("CREATE FUNCTION fail_combined() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'induced combined failure'; END $$"))
+            db.execute(text(f'CREATE TRIGGER fail_combined BEFORE INSERT ON {target} FOR EACH ROW EXECUTE FUNCTION fail_combined()'))
+        try:
+            for request in (payload,claim_request):
+                with pytest.raises(Exception,match='induced combined failure'):
+                    client.post('/api/stock-operations',json=request)
+                with Session() as db:
+                    assert all(db.scalar(select(func.count()).select_from(table)) == 0 for table in tables)
+        finally:
+            with engine.begin() as db:
+                db.execute(text(f'DROP TRIGGER fail_combined ON {target}'))
+                db.execute(text('DROP FUNCTION fail_combined()'))
+    assert client.post('/api/stock-operations',json=payload).status_code == 201
+
+
+def test_combined_server_child_identity_avoids_existing_public_keys(client, monkeypatch):
+    from backend.application import stock_workflows
+    from backend.tests.test_funds import transfer
+    payload = operation_payload(client)
+    assert transfer(client,'opening','fund_pool','2000','stock-operation:money-collision:money').status_code == 201
+    previous = client.post('/api/stock-transfers',json=payload['stock'] | {'idempotency_key':'stock-operation:stock-collision:stock'}).json()
+    candidates = iter(('money-collision','stock-collision','fresh-operation'))
+    monkeypatch.setattr(stock_workflows,'new_id',lambda: next(candidates))
+    result = client.post('/api/stock-operations',json=payload)
+    assert result.status_code == 201,result.text
+    result = result.json()
+    assert result['stock_transfer']['id'] != previous['id']
+    assert result['fund_transfer']['amount_minor'] == 100000
+    assert client.get('/api/funds/summary').json()['total_minor'] == 100000
+    # Public submissions were not overwritten or adopted as the child records.
+    assert client.get(f"/api/stock-transfers/{previous['id']}").json()['fund_references'] == []

@@ -87,3 +87,8 @@ def adjustments(db, difference_id):
 def adjustment_difference(db, transfer_id):
     link = db.get(StockDifferenceAdjustment,transfer_id)
     return db.get(StockDifference,link.difference_id) if link else None
+
+from backend.infrastructure.models import StockOperation
+
+def existing_operation(db, actor_id, key):
+    return db.scalar(select(StockOperation).where(StockOperation.actor_id == actor_id, StockOperation.idempotency_key == key))

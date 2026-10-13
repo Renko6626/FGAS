@@ -234,3 +234,15 @@ class StockDifferenceAdjustment(Base):
     __tablename__ = 'stock_difference_adjustments'
     stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'), primary_key=True)
     difference_id: Mapped[str] = mapped_column(ForeignKey('stock_differences.id'))
+
+class StockOperation(Base):
+    """Replay record for one atomic money/stock submission, without a lifecycle."""
+    __tablename__ = 'stock_operations'
+    __table_args__ = (UniqueConstraint('actor_id', 'idempotency_key'),)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    idempotency_key: Mapped[str] = mapped_column(String)
+    payload: Mapped[dict] = mapped_column(JSON)
+    stock_transfer_id: Mapped[str | None] = mapped_column(ForeignKey('stock_transfers.id'), nullable=True)
+    fund_transfer_id: Mapped[str | None] = mapped_column(ForeignKey('transfers.id'), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

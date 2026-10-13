@@ -144,3 +144,14 @@ class StockAdjustmentInput(Input):
 class StockFundReferenceInput(Input):
     fund_transfer_id: str
     idempotency_key: str = Field(min_length=1)
+
+class StockFundMoney(Input):
+    kind: Literal['fund_transfer']
+    data: Submit
+class StockClaimMoney(Input):
+    kind: Literal['member_claim']
+    data: ClaimSubmit
+class StockOperationInput(Input):
+    stock: StockTransferInput
+    money: StockFundMoney | StockClaimMoney = Field(discriminator='kind')
+    idempotency_key: str = Field(min_length=1, max_length=200)

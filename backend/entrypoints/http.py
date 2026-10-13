@@ -198,3 +198,8 @@ def stock_difference_detail(identifier: str,user=Depends(identity),db=Depends(da
 @app.post('/api/stock-differences/{identifier}/adjustment',status_code=201)
 def adjust_stock_difference(identifier: str,data: StockAdjustmentInput,user=Depends(identity),db=Depends(database)):
     return stock_differences.create_adjustment(db,user,identifier,data.model_dump(mode='json'))
+
+@app.post('/api/stock-operations', status_code=201)
+def submit_stock_operation(data: StockOperationInput, user=Depends(identity), db=Depends(database)):
+    from backend.application.stock_workflows import submit_stock_with_money
+    return submit_stock_with_money(db, user, data.model_dump(mode='json'))
