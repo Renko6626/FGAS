@@ -1,4 +1,5 @@
 """Cohesive persistence adapter for the development identity, catalogs and funds."""
+from contextlib import contextmanager
 from sqlalchemy import select, text, func
 from backend.infrastructure.database import Session, engine
 from backend.infrastructure.models import Base, User, LoginSession, Account, FundAccount, Location, Transfer, JournalLine, Audit, Member, MemberClaim, Repayment, RepaymentAllocation
@@ -148,7 +149,7 @@ def repayment_allocations(db, identifier):
 def repayments(db, member_id=None):
     query = select(Repayment).join(Transfer, Transfer.id == Repayment.transfer_id)
     if member_id: query = query.where(Repayment.member_id == member_id)
-    return list(db.scalars(query.order_by(Transfer.created_at, Transfer.id)))
+    return list(db.scalars(query.order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))
 
 
 def claim_has_pending_repayment_reversal(db, identifier):
@@ -156,3 +157,54 @@ def claim_has_pending_repayment_reversal(db, identifier):
     return db.scalar(select(Transfer.id).join(original, Transfer.reversal_of == original.c.id).join(
         RepaymentAllocation, RepaymentAllocation.repayment_id == original.c.id).where(
         RepaymentAllocation.claim_id == identifier, Transfer.status == 'pending').limit(1)) is not None
+
+
+@contextmanager
+def read_snapshot(db):
+    """Own a separate read-only snapshot; authentication may have read in db."""
+    bind = db.get_bind()
+    owner = bind.engine if hasattr(bind, 'engine') else bind
+    with owner.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
+        with connection.begin():
+            connection.execute(text('SET TRANSACTION READ ONLY'))
+            with Session(bind=connection) as snapshot:
+                yield snapshot
+
+
+def member_overview(db, member):
+    # All six amounts are read together; other movements are traced journal lines.
+    row = db.execute(text("""
+        WITH owned AS (
+            SELECT transfer_id AS id FROM member_claims WHERE member_id=:member
+            UNION SELECT transfer_id FROM repayments WHERE member_id=:member
+        ), business_lines AS (
+            SELECT id FROM owned UNION
+            SELECT id FROM transfers WHERE reversal_of IN (SELECT id FROM owned)
+        ), claimed AS (
+            SELECT COALESCE(SUM(CASE WHEN t.status='pending' THEN c.declared_minor ELSE 0 END),0) pending,
+                   COALESCE(SUM(CASE WHEN t.status='posted' THEN c.confirmed_minor ELSE 0 END),0) confirmed
+            FROM member_claims c JOIN transfers t ON t.id=c.transfer_id WHERE c.member_id=:member
+        ), paid AS (
+            SELECT COALESCE(SUM(a.amount_minor),0) repaid FROM repayment_allocations a
+            JOIN transfers t ON t.id=a.repayment_id JOIN member_claims c ON c.transfer_id=a.claim_id
+            WHERE c.member_id=:member AND t.status='posted'
+        ), ledger AS (
+            SELECT COALESCE(SUM(j.credit_minor-j.debit_minor),0) balance,
+                   COALESCE(SUM(CASE WHEN j.transfer_id NOT IN (SELECT id FROM business_lines)
+                                    THEN j.credit_minor-j.debit_minor ELSE 0 END),0) other
+            FROM journal_lines j WHERE j.account_id=:account
+        )
+        SELECT pending AS pending_minor, confirmed AS confirmed_minor, repaid AS repaid_minor,
+               confirmed-repaid AS outstanding_minor, balance AS ledger_balance_minor,
+               other AS other_movements_minor FROM claimed CROSS JOIN paid CROSS JOIN ledger
+    """), dict(member=member.id, account=member.account_id)).mappings().one()
+    return {key: int(value) for key, value in row.items()}
+
+
+def member_other_transfers(db, member):
+    owned = select(MemberClaim.transfer_id).where(MemberClaim.member_id == member.id).union(
+        select(Repayment.transfer_id).where(Repayment.member_id == member.id))
+    return list(db.scalars(select(Transfer).join(JournalLine, JournalLine.transfer_id == Transfer.id).where(
+        JournalLine.account_id == member.account_id, Transfer.id.not_in(owned),
+        (Transfer.reversal_of.is_(None) | Transfer.reversal_of.not_in(owned))
+    ).distinct().order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))

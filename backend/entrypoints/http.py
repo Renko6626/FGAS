@@ -124,3 +124,8 @@ def repayments(member_id: str | None=None, user=Depends(identity), db=Depends(da
 @app.get('/api/repayments/{identifier}')
 def repayment_detail(identifier: str, user=Depends(identity), db=Depends(database)):
     return member_claims.get_repayment(db, identifier)
+
+
+@app.get('/api/members/{identifier}')
+def member_detail(identifier: str, user=Depends(identity), db=Depends(database)):
+    return member_claims.member_detail(db, identifier)

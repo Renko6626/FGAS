@@ -69,15 +69,36 @@ def test_claim_destination_and_unmarked_member_transfer(client):
     claim = response.json()
     assert claim['outstanding_minor'] == 100000
     assert client.get('/api/funds/summary').json()['total_minor'] == 100000
+    initial_detail = client.get(f"/api/members/{m['id']}").json()
+    assert initial_detail['outstanding_minor'] == initial_detail['confirmed_minor'] == 100000
+    assert initial_detail['ledger_balance_minor'] == 100000
+    assert initial_detail['pending_minor'] == initial_detail['repaid_minor'] == initial_detail['other_movements_minor'] == 0
     ordinary = transfer(client, 'fund_pool', m['account_id'], '100', 'ordinary-member')
     assert ordinary.status_code == 201 and ordinary.json()['business'] is None
     accounts = client.get('/api/accounts').json()
     assert next(a for a in accounts if a['id'] == m['account_id'])['balance_minor'] == 90000
     current = client.get(f"/api/member-claims/{claim['id']}").json()
     assert current['outstanding_minor'] == 100000 and current['repaid_minor'] == 0
+    overview = client.get(f"/api/members/{m['id']}").json()
+    assert overview['outstanding_minor'] == 100000
+    assert overview['other_movements_minor'] == -10000
+    assert overview['ledger_balance_minor'] == 90000
+    assert [t['id'] for t in overview['other_transfers']] == [ordinary.json()['id']]
     other = client.post('/api/member-claims', json=claim_payload(m, 'opening', key='non-expense', confirm=True))
     assert other.status_code == 201 and other.json()['transfer']['destination_account_id'] == 'opening'
     assert len(client.get('/api/member-claims', params={'member_id': m['id'], 'status': 'posted'}).json()) == 2
+    b = member(client)
+    marked = client.post('/api/member-claims', json=dict(
+        claim_payload(m, b['account_id'], key='member-destination', confirm=True), amount='50'))
+    assert marked.status_code == 201
+    a_detail = client.get(f"/api/members/{m['id']}").json()
+    b_detail = client.get(f"/api/members/{b['id']}").json()
+    assert a_detail['outstanding_minor'] == 205000 and a_detail['ledger_balance_minor'] == 195000
+    assert a_detail['other_movements_minor'] == -10000
+    assert b_detail['outstanding_minor'] == 0 and b_detail['other_movements_minor'] == -5000
+    assert b_detail['ledger_balance_minor'] == -5000 and b_detail['claims'] == []
+    assert [t['id'] for t in b_detail['other_transfers']] == [marked.json()['id']]
+
 
 
 def test_claim_reversal_refreshes_preloaded_pending_amount(client):

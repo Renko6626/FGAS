@@ -181,3 +181,14 @@ def get_repayment(db, identifier: str) -> dict:
 
 def list_repayments(db, member_id: str | None=None) -> list[dict]:
     return [get_repayment(db, item.transfer_id) for item in store.repayments(db, member_id)]
+
+
+def member_detail(db, identifier: str) -> dict:
+    from backend.application import funds
+    with store.read_snapshot(db) as snapshot:
+        item = store.get_member(snapshot, identifier)
+        if not item: raise DomainError('成员不存在', 404)
+        return dict(member=member_view(item), **store.member_overview(snapshot, item),
+                    claims=list_claims(snapshot, identifier), repayments=list_repayments(snapshot, identifier),
+                    other_transfers=[funds.transfer_view(snapshot, transfer, True)
+                                     for transfer in store.member_other_transfers(snapshot, item)])
