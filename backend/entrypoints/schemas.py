@@ -36,3 +36,43 @@ class Rejection(Approval): reason: str = Field(min_length=1)
 class Reversal(Input):
     reason: str = Field(min_length=1)
     idempotency_key: str = Field(min_length=1, max_length=200)
+
+class MemberCreate(Input):
+    name: str = Field(min_length=1, max_length=200)
+    note: str = ''
+class MemberPatch(Input):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    note: str | None = None
+
+class ClaimSubmit(Input):
+    member_id: str
+    destination_account_id: str
+    amount: str
+    effective_date: date
+    description: str = ''
+    basis: str = Field(min_length=1)
+    confirm_now: bool = False
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    confirmed_amount: str | None = None
+    confirmation_reason: str = ''
+class ClaimConfirmation(Approval):
+    confirmed_amount: str
+    confirmation_reason: str = ''
+
+class RepaymentAllocationInput(Input):
+    claim_id: str
+    amount: str
+class RepaymentAllocationSubmit(RepaymentAllocationInput):
+    expected_version: int
+class RepaymentPreview(Input):
+    member_id: str
+    source_account_id: str
+    amount: str
+    effective_date: date
+    description: str = ''
+    basis: str = Field(min_length=1)
+    allocation_mode: Literal['oldest_first', 'manual'] = 'oldest_first'
+    allocations: list[RepaymentAllocationInput] | None = None
+class RepaymentSubmit(RepaymentPreview):
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    allocations: list[RepaymentAllocationSubmit]

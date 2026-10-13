@@ -40,9 +40,9 @@ npm run dev
 
 重置入口仅在 `AUTH_MODE=development` 下执行，清空配置数据库中的 FGAS 应用表并重新初始化。它不自动在每次启动时运行，也不管理 PostgreSQL 服务。
 
-## 验证与未验证项
+## 2026-10-12 检查点验证与未验证项
 
-- 最近代码改动运行 `./tools/run_tests.sh`：4 passed in 1.31s，使用独立 PostgreSQL 测试数据库。
+- 2026-10-12 代码改动运行 `./tools/run_tests.sh`：4 passed in 1.31s，使用独立 PostgreSQL 测试数据库。
 - 保留用例覆盖资金余额与冲销、审批及权限、重复提交与金额精度、真实数据库写入失败回滚。额外测试资金端点由用例显式创建，不作为产品默认对象。
 - 前端 `npm run build` 的类型检查与构建在资金链交付时通过；本次默认对象和建表方式调整未改变 Vue 源码。
 - 开发库已按授权重置并重启；本次阶段保存时再次检查 `/api/health`，返回正常、开发认证、人民币。
@@ -69,3 +69,40 @@ npm run dev
 用户确认由受信任用户主要代录，并确认成员、垫付标记及偿还匹配方案；同时明确垫付去向不增加类别限制，垫付和偿还始终采用同一资金转移模式。费用去向仅为样例，成员转入资金池时应按实际端点增加资金。
 
 [阶段设计](superpowers/specs/2026-10-13-member-claims-design.md) 已据此修订，[实施计划](superpowers/plans/2026-10-13-member-claims-plan.md) 已完成编写和自检，待审阅后开始开发。本次只更新文档，不代表垫付或偿还功能已交付，未修改数据库或运行产品测试。
+
+
+## 2026-10-13：成员垫付与偿还实现检查点（权限开放前记录）
+
+用户确认设计及实施计划后，选择逐任务委派，开发使用 gpt-6.1-sol low、审阅使用 medium。代码位于隔离的 `feature/member-claims` 分支，尚未合并或部署。任务 1–4 及其修复的逐任务审阅完成；任务 5 最终集中代码审阅及修复复审已通过。
+
+已实现独立业务成员、开放去向的垫付申报与金额确认、默认最早确认优先及手动偿还匹配、部分和跨多笔偿还、受保护的冲销、成员一致快照总览和前端操作入口。全部复用现有资金提交与唯一过账路径。普通成员往来不自动匹配；未结垫付与全部往来余额分别显示，其他往来提供实际流水引用。费用样例与成员转入资金池样例、权限、重试及 HTTP 契约见 [README](../README.md#member-claims-and-repayments)。
+
+实际检查证据：
+
+- 最近真实 `./tools/run_tests.sh`（任务 2）在初始化时退出 1：连接 `.runtime/.s.PGSQL.55438` 报 `Operation not permitted`，未执行任何测试。环境自动拒绝提权；后续没有绕过、重置数据库或重复运行已知受阻检查。
+- `.venv/bin/python -m pytest backend/tests/test_funds.py backend/tests/test_member_claims.py --collect-only -q` 成功，任务 4 报告为 `10 tests collected in 0.07s`，仅证明收集成功。
+- `.venv/bin/python -m compileall -q backend` 成功；真实生产纯规则检查通过，其范围仅为金额、匹配与平衡分录规则，不证明数据库行为。
+- 最新 `npm run build` 在任务 4 修复后退出 0：vue-tsc 与 Vite 成功，2678 modules，4.22s。没有截图、服务启动、健康检查或浏览器交互验收。
+
+真实 PostgreSQL 的事务、幂等、竞争偿还、回滚、SQL 快照和余额核对仍待获准环境执行；产品验收未完成。2026-10-12 的四个通过用例及健康检查只属于旧资金池检查点。当前不宣称生产可用。
+
+备用金、代收款专门追踪、库存数量、正式身份认证、附件上传、备份恢复仍未实现或验收。本阶段只记录文本或单据编号依据，不新增附件系统，不保存数据库、`.env`、运行会话或依赖。
+
+### 最终代码审阅记录
+
+2026-10-13，整分支审阅及 `ef5d792` 的定向复审由 gpt-6.1-sol medium 完成，代码审阅批准。审阅发现的锁后状态刷新、冲销读取最新金额及表单错误恢复问题已修复；未放宽垫付去向，也未新增独立过账路径。
+
+最终后端可用检查为 `.venv/bin/python -m compileall -q backend` 通过，以及两个数据库测试文件 `pytest --collect-only -q` 收集十个用例；最新前端 `npm run build` 在页面修复后通过，此后没有前端修改。真实 PostgreSQL 用例仍未执行，截图和浏览器交互验收未进行。沙箱外执行测试的申请被当前自动审批策略拒绝，未绕过限制。
+
+保留 `feature/member-claims` 和隔离工作区供后续验收；在获准连接本机测试数据库的终端中，从该工作区运行 `./tools/run_tests.sh`。本轮没有启动应用、修改开发数据库、合并 main 或部署。
+
+## 2026-10-13：权限开放后的数据库验证与公开交付
+
+公开仓库：[Renko6626/FGAS](https://github.com/Renko6626/FGAS)。用户授权阶段保存、创建 PR 并合并；本节替代上文“数据库受阻”的当前状态，上文保留为当时的历史记录。
+
+- 权限开放后第一次真实执行为 8 passed、2 failed：成员明细查询使用 `DISTINCT transfers.*`，包含的 PostgreSQL JSON 字段没有等值比较运算符。
+- `ff994e7` 将其改为按流水 ID 子查询过滤，不更改 Schema、成员归属过滤或测试断言；gpt-6.1-sol medium 定向审阅通过，无新问题。定向检查 2 passed；完整 `./tools/run_tests.sh` 为 **10 passed in 3.23s**。
+- `npm run build` 通过前端类型检查和生产构建，2678 modules，4.50s。
+- 仍未进行截图、浏览器自动交互、Compose 安装或正式部署验收。测试使用独立 `fgas_test`，未清空开发库。
+
+原阶段标签 `checkpoint/member-claims-20261013` 保存权限开放前的实现；验证完成后的主线将另存 `checkpoint/member-claims-verified-20261013`，不改写原标签。

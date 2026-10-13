@@ -67,3 +67,32 @@ class Audit(Base):
     action: Mapped[str] = mapped_column(String)
     detail: Mapped[str] = mapped_column(String, default='')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+class Member(Base):
+    __tablename__ = 'members'
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String)
+    note: Mapped[str] = mapped_column(String, default='')
+    account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'), unique=True)
+class MemberClaim(Base):
+    __tablename__ = 'member_claims'
+    __table_args__ = (CheckConstraint('declared_minor > 0'), CheckConstraint('confirmed_minor IS NULL OR (confirmed_minor > 0 AND confirmed_minor <= declared_minor)'))
+    transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
+    member_id: Mapped[str] = mapped_column(ForeignKey('members.id'))
+    declared_minor: Mapped[int] = mapped_column(BigInteger)
+    confirmed_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    basis: Mapped[str] = mapped_column(String)
+    confirmation_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+class Repayment(Base):
+    __tablename__ = 'repayments'
+    transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
+    member_id: Mapped[str] = mapped_column(ForeignKey('members.id'))
+    basis: Mapped[str] = mapped_column(String)
+    allocation_mode: Mapped[str] = mapped_column(String)
+class RepaymentAllocation(Base):
+    __tablename__ = 'repayment_allocations'
+    __table_args__ = (CheckConstraint('amount_minor > 0'),)
+    repayment_id: Mapped[str] = mapped_column(ForeignKey('repayments.transfer_id'), primary_key=True)
+    claim_id: Mapped[str] = mapped_column(ForeignKey('member_claims.transfer_id'), primary_key=True)
+    amount_minor: Mapped[int] = mapped_column(BigInteger)

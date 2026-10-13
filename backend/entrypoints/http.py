@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from backend.infrastructure.store import transaction as database
 from backend.kernel.accounting import DomainError
-from backend.application import funds, catalogs, identity as identities
+from backend.application import funds, catalogs, member_claims, identity as identities
 from backend.entrypoints.schemas import *
 
 AUTH_MODE = os.getenv('AUTH_MODE', '')
@@ -85,3 +85,47 @@ def reverse(identifier: str, data: Reversal, user=Depends(identity), db=Depends(
 @app.get('/api/funds/summary')
 def summary(user=Depends(identity), db=Depends(database)):
     return funds.summary(db)
+
+@app.get('/api/members')
+def members(user=Depends(identity), db=Depends(database)):
+    return member_claims.list_members(db)
+@app.post('/api/members', status_code=201)
+def create_member(data: MemberCreate, user=Depends(identity), db=Depends(database)):
+    return member_claims.create_member(db, user, data.model_dump())
+@app.patch('/api/members/{identifier}')
+def patch_member(identifier: str, data: MemberPatch, user=Depends(identity), db=Depends(database)):
+    return member_claims.update_member(db, user, identifier, data.model_dump(exclude_none=True))
+
+@app.get('/api/member-claims')
+def claims(member_id: str | None=None, status: str | None=None, user=Depends(identity), db=Depends(database)):
+    return member_claims.list_claims(db, member_id, status)
+@app.post('/api/member-claims', status_code=201)
+def submit_claim(data: ClaimSubmit, user=Depends(identity), db=Depends(database)):
+    return member_claims.submit_claim(db, user, data.model_dump(mode='json'))
+@app.get('/api/member-claims/{identifier}')
+def claim_detail(identifier: str, user=Depends(identity), db=Depends(database)):
+    return member_claims.get_claim(db, identifier)
+@app.post('/api/member-claims/{identifier}/confirm')
+def confirm_claim(identifier: str, data: ClaimConfirmation, user=Depends(identity), db=Depends(database)):
+    return member_claims.confirm_claim(db, user, identifier, data.expected_version, data.confirmed_amount, data.confirmation_reason)
+@app.post('/api/member-claims/{identifier}/reject')
+def reject_claim(identifier: str, data: Rejection, user=Depends(identity), db=Depends(database)):
+    return member_claims.reject_claim(db, user, identifier, data.expected_version, data.reason)
+
+@app.post('/api/repayments/preview')
+def preview_repayment(data: RepaymentPreview, user=Depends(identity), db=Depends(database)):
+    return member_claims.preview_repayment(db, user, data.model_dump(mode='json'))
+@app.post('/api/repayments', status_code=201)
+def submit_repayment(data: RepaymentSubmit, user=Depends(identity), db=Depends(database)):
+    return member_claims.submit_repayment(db, user, data.model_dump(mode='json'))
+@app.get('/api/repayments')
+def repayments(member_id: str | None=None, user=Depends(identity), db=Depends(database)):
+    return member_claims.list_repayments(db, member_id)
+@app.get('/api/repayments/{identifier}')
+def repayment_detail(identifier: str, user=Depends(identity), db=Depends(database)):
+    return member_claims.get_repayment(db, identifier)
+
+
+@app.get('/api/members/{identifier}')
+def member_detail(identifier: str, user=Depends(identity), db=Depends(database)):
+    return member_claims.member_detail(db, identifier)
