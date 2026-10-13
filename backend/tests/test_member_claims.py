@@ -101,10 +101,12 @@ def test_claim_destination_and_unmarked_member_transfer(client):
 
 
 
-def test_claim_reversal_refreshes_preloaded_pending_amount(client):
+def test_claim_decisions_and_reversal_refresh_preloaded_pending_state(client):
+    import pytest
     from backend.application import funds
     from backend.infrastructure import store
     from backend.infrastructure.database import Session
+    from backend.kernel.accounting import DomainError
 
     m = member(client)
     pending = client.post('/api/member-claims', json=claim_payload(m)).json()
@@ -129,6 +131,31 @@ def test_claim_reversal_refreshes_preloaded_pending_amount(client):
     retry = client.post(f'/api/transfers/{identifier}/reverse', json=dict(
         reason='撤回垫付', idempotency_key='stale-reversal'))
     assert retry.status_code == 201 and retry.json()['id'] == reversal['id']
+
+    # Both decisions start with a retained pending Transfer before a separate
+    # transaction confirms the full amount, so no amount mismatch masks the race.
+    for index, rejection in enumerate([None, '拒绝垫付']):
+        decision_member = member(client)
+        pending = client.post('/api/member-claims', json=claim_payload(
+            decision_member, key=f'stale-decision-{index}')).json()
+        identifier = pending['id']
+        with Session.begin() as db:
+            stale_original = store.get_transfer(db, identifier)
+            user = store.get_user(db, 'trusted')
+            assert stale_original.status == 'pending' and stale_original.version == pending['version']
+            confirmed = client.post(f'/api/member-claims/{identifier}/confirm', json=dict(
+                expected_version=pending['version'], confirmed_amount='1000'))
+            assert confirmed.status_code == 200
+            assert stale_original.status == 'pending' and stale_original.version == pending['version']
+            with pytest.raises(DomainError) as conflict:
+                funds.decide(db, user, identifier, pending['version'], rejection=rejection)
+            assert conflict.value.status == 409
+        current = client.get(f'/api/member-claims/{identifier}').json()
+        assert current['status'] == 'posted' and current['outstanding_minor'] == 100000
+        assert len(current['transfer']['journal_lines']) == 2
+        assert sum(line['debit_minor'] for line in current['transfer']['journal_lines']) == 100000
+        overview = client.get(f"/api/members/{decision_member['id']}").json()
+        assert overview['ledger_balance_minor'] == overview['outstanding_minor'] == 100000
 
 
 def repayment_payload(client, m, amount, key, allocations=None):

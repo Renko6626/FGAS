@@ -198,6 +198,7 @@ def decide(db, user, identifier, version, rejection=None):
     require_trusted(user)
     if not user.active: raise DomainError('用户已停用', 403)
     item = get_transfer(db, identifier)
+    store.refresh(db, item)
     if item.version != version or item.status != 'pending': raise DomainError('版本已变化或流水已处理', 409)
     if rejection is None: post(db, item, user, 'manual')
     else:
