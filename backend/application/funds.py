@@ -200,7 +200,10 @@ def list_transfers(db, status=None):
     return [transfer_view(db, item) for item in store.transfers(db, status)]
 
 def reverse(db, user, identifier, reason, key):
+    store.lock(db)
     original = get_transfer(db, identifier)
+    # Confirmation can change a pending claim's amount before this lock is acquired.
+    store.refresh(db, original)
     payload = dict(source_account_id=original.destination_account_id, destination_account_id=original.source_account_id, amount=f'{original.amount_minor // 100}.{original.amount_minor % 100:02d}', effective_date=original.effective_date.isoformat(), description=f'冲销：{original.description}', counterparty=original.counterparty, idempotency_key=key)
     return transfer_view(db, submit(db, user, payload, original.id, reason), True)
 

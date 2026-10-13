@@ -78,3 +78,33 @@ def test_claim_destination_and_unmarked_member_transfer(client):
     other = client.post('/api/member-claims', json=claim_payload(m, 'opening', key='non-expense', confirm=True))
     assert other.status_code == 201 and other.json()['transfer']['destination_account_id'] == 'opening'
     assert len(client.get('/api/member-claims', params={'member_id': m['id'], 'status': 'posted'}).json()) == 2
+
+
+def test_claim_reversal_refreshes_preloaded_pending_amount(client):
+    from backend.application import funds
+    from backend.infrastructure import store
+    from backend.infrastructure.database import Session
+
+    m = member(client)
+    pending = client.post('/api/member-claims', json=claim_payload(m)).json()
+    identifier = pending['id']
+    # Two real transactions: reversal's identity map retains the pre-confirmation
+    # amount while the HTTP confirmation commits a different recognized amount.
+    with Session.begin() as db:
+        stale_original = store.get_transfer(db, identifier)
+        user = store.get_user(db, 'trusted')
+        assert stale_original.status == 'pending' and stale_original.amount_minor == 100000
+        response = client.post(f'/api/member-claims/{identifier}/confirm', json=dict(
+            expected_version=pending['version'], confirmed_amount='800', confirmation_reason='部分认可'))
+        assert response.status_code == 200
+        assert stale_original.amount_minor == 100000
+        reversal = funds.reverse(db, user, identifier, '撤回垫付', 'stale-reversal')
+        assert reversal['amount_minor'] == 80000
+        assert sum(line['debit_minor'] for line in reversal['journal_lines']) == 80000
+        assert stale_original.amount_minor == 80000 and stale_original.status == 'reversed'
+    assert client.get(f'/api/member-claims/{identifier}').json()['outstanding_minor'] == 0
+    accounts = client.get('/api/accounts').json()
+    assert next(a for a in accounts if a['id'] == m['account_id'])['balance_minor'] == 0
+    retry = client.post(f'/api/transfers/{identifier}/reverse', json=dict(
+        reason='撤回垫付', idempotency_key='stale-reversal'))
+    assert retry.status_code == 201 and retry.json()['id'] == reversal['id']
