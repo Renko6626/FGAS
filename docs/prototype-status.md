@@ -210,4 +210,4 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 
 运行状态：已停止旧后端，使用 `.env` 中确认的 `fgas` 开发库执行 `npm run dev -- --reset-db`，然后 `npm run dev` 启动新服务。旧 Alembic 版本表、旧账户和其相关退役表已清除，不增加迁移兼容。重建后 `transfers/stock_transfers/journal_lines/stock_moves/settlement_matches` 均为零，保留新开发种子。后端 `/api/health` 返回 `status=ok/auth_mode=development/currency=CNY`，前端 5173 返回 HTTP 200。
 
-未执行浏览器截图、自动点击或填表，HTTP 可访问和构建通过不等于完整 UI 交互验收。正式 Casdoor、附件、生产部署及备份恢复仍未验收。本轮在 `feature/flexible-transfer-core` 保存，尚未合并或发布到正式环境。
+未执行浏览器截图、自动点击或填表，HTTP 可访问和构建通过不等于完整 UI 交互验收。正式 Casdoor、附件、生产部署及备份恢复仍未验收。代码提交 `dfd47ca` 已推送 `feature/flexible-transfer-core`，并按用户要求快进合并、推送到 `main`。合并没有改变已验证的代码内容，未重复运行测试或重建数据库；尚未发布到正式环境。
