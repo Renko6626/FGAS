@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import {ref, watch, computed} from 'vue'
+import {ref, watch, computed, onBeforeUnmount} from 'vue'
 import {NButton, NInput, NModal, NSelect} from 'naive-ui'
 import type {Location, Transfer} from '../api/funds'
 import {money, statuses as fundStatuses} from '../api/funds'
 import {
   warehouse, versions, key, failure, today, stockStatuses, actions,
-  type StockTransfer, type Difference
+  isDefinitiveStockConflict, type StockTransfer, type Difference
 } from '../api/warehouse'
 import StockCompletionEditor from '../components/StockCompletionEditor.vue'
 import StockDifferenceEditor from '../components/StockDifferenceEditor.vue'
@@ -32,7 +32,12 @@ const adjust = ref<Difference | null>(null)
 const external = ref('')
 const basis = ref('')
 const date = ref(today())
-let actionPending: {path: string; body: Record<string, unknown>} | null = null
+let actionPending: {path: string; body: Record<string, unknown>; transferId: string} | null = null
+const conflict = ref(false)
+const currentRecord = ref<StockTransfer | null>(null)
+let disposed = false
+let detailReadSerial = 0
+onBeforeUnmount(() => { disposed = true })
 const retrying = ref(false)
 const fundOptions = computed(() => props.funds.map(f => ({
   label: `${f.description || f.id}（${fundStatuses[f.status]}）`, value: f.id
@@ -58,15 +63,16 @@ async function open(id: string) {
     error.value = '请先核对并重试当前详情保留的原请求。'
     return
   }
+  const readSerial = ++detailReadSerial
   try {
     detailShow.value = true
     const result = await warehouse.detail(id)
     // A query started earlier must not replace an editor submitted while it was in flight.
-    if ((childPending.value || actionPending) && detail.value?.id !== id) return
+    if (disposed || readSerial !== detailReadSerial || ((childPending.value || actionPending) && detail.value?.id !== id)) return
     detail.value = result
     error.value = ''
   } catch (e) {
-    error.value = (e as Error).message
+    if (!disposed) error.value = (e as Error).message
   }
 }
 watch(() => props.focus, id => { if (id) open(id) }, {immediate: true})
@@ -77,31 +83,74 @@ async function changed() {
 }
 
 async function run(path: string, body: Record<string, unknown>) {
-  if (actionPending || childPending.value || busy.value) return
-  actionPending = {path, body}
+  if (actionPending || childPending.value || busy.value || !detail.value) return
+  actionPending = {path, body, transferId: detail.value.id}
   await retry()
 }
 
 async function retry() {
   if (!actionPending || childPending.value || busy.value) return
   busy.value = true
+  conflict.value = false
+  currentRecord.value = null
   try {
     await warehouse.action(actionPending.path, actionPending.body)
+    if (disposed) return
     actionPending = null
     retrying.value = false
     adjust.value = null
     await changed()
   } catch (e) {
-    error.value = failure(e)
+    if (disposed) return
+    conflict.value = isDefinitiveStockConflict(e)
+    error.value = conflict.value
+      ? (e as Error).message + '。这次尝试未提交，请读取当前记录后核对处理。'
+      : failure(e)
     retrying.value = true
     if ([400, 422].includes((e as {status?: number}).status || 0)) {
       actionPending = null
+      conflict.value = false
       retrying.value = false
       error.value = (e as Error).message + '。请修正输入后提交。'
     }
   } finally {
     busy.value = false
   }
+}
+
+function reconcileDetail(result: StockTransfer) {
+  if (!disposed && detail.value?.id === result.id) {
+    detailReadSerial++
+    detail.value = result
+  }
+}
+
+async function readCurrent() {
+  if (!actionPending || !conflict.value || childPending.value || busy.value) return
+  const attempt = actionPending
+  busy.value = true
+  currentRecord.value = null
+  try {
+    const result = await warehouse.detail(attempt.transferId)
+    if (disposed || actionPending !== attempt) return
+    currentRecord.value = result
+    reconcileDetail(result)
+  } catch (e) {
+    if (!disposed) error.value = (e as Error).message + '。读取失败，原请求仍保留。'
+  } finally {
+    busy.value = false
+  }
+}
+
+function acknowledgeConflict() {
+  if (!actionPending || !conflict.value || !currentRecord.value || busy.value) return
+  reconcileDetail(currentRecord.value)
+  actionPending = null
+  conflict.value = false
+  currentRecord.value = null
+  retrying.value = false
+  adjust.value = null
+  emit('changed')
 }
 
 function decide(item: StockTransfer, action: string, confirmationId?: string) {
@@ -135,6 +184,18 @@ function adjustment() {
   <div v-if="retrying" class="banner">
     <p>原操作内容已保留。先刷新详情核对结果；重试只发送同一请求，不需要再次交货。</p>
     <NButton :loading="busy" @click="retry">重试原操作</NButton>
+    <section v-if="conflict">
+      <p>这次操作已被服务器拒绝。读取当前转移、完成申报及差异调整后，确认结束失败尝试。</p>
+      <NButton :disabled="busy" @click="readCurrent">读取当前记录</NButton>
+      <template v-if="currentRecord">
+        <p>当前货物状态：{{stockStatuses[currentRecord.status]}}。</p>
+        <p v-for="c in currentRecord.confirmations" :key="c.id">完成申报：{{stockStatuses[c.status]||c.status}}，{{c.effective_date}}，{{c.basis}}</p>
+        <p v-for="d in currentRecord.differences" :key="d.id">{{d.sku_name}} 差异 {{d.delta}}，{{stockStatuses[d.status]}}。</p>
+        <p>当前详情已更新，可查看原记录、已有申报及关联调整。</p>
+        <NButton :disabled="busy" @click="acknowledgeConflict">已核对当前记录，结束失败尝试</NButton>
+        <p>此操作不会认定原请求成功，也不要求再次交货；新的操作需按当前状态重新准备。</p>
+      </template>
+    </section>
   </div>
   <div class="table-wrap">
     <table>
@@ -195,6 +256,7 @@ function adjustment() {
         :item="detail"
         :trusted="trusted"
         @pending="completionPending=$event"
+        @current="reconcileDetail"
         @changed="changed"
       />
       <div v-for="c in detail.confirmations" :key="c.id">
@@ -230,6 +292,7 @@ function adjustment() {
         :key="detail.id"
         :item="detail"
         @pending="differencePending=$event"
+        @current="reconcileDetail"
         @changed="changed"
       />
       <h3 v-if="detail.differences.length">数量差异</h3>

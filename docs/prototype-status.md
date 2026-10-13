@@ -132,7 +132,7 @@ npm run dev
 AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initialize-stock-profiles
 ```
 
-这是非重置、幂等初始化，只补缺少的 physical profile、输出位置 ID，不清空数据、不匹配成员；普通初始化不补 profile。本轮未在根目录开发数据库执行此命令或重置数据。当前库存表仅在隔离实现/测试环境建立，不把早期临时分数量方案列作当前生产迁移阻塞。
+这是非重置、幂等初始化：命令先建表并补齐开发默认资料，库存 profile 步骤仅补缺少的 physical profile、输出位置 ID；不清空数据、不匹配成员，普通初始化不补 profile。本轮未在根目录开发数据库执行此命令或重置数据。当前库存表仅在隔离实现/测试环境建立，不把早期临时分数量方案列作当前生产迁移阻塞。
 
 实际验证证据：
 

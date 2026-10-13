@@ -13,5 +13,17 @@ export const actions:Record<string,string>={opening:'期初入库',arrival:'到�
 export const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`} 
 export const key=()=>crypto.randomUUID()
 export function failure(e:unknown){return (e as Error).message+((e as {status?:number}).status===409?'。请刷新查看当前状态；原请求已保留，请核对后重试。':'。原请求已保留；结果不确定时先刷新查询记录，再重试原请求，不要再次实际交货。')}
+// These backend conflicts occur only after same-key replay found no committed action.
+// Key-content conflicts and transport/server failures remain unresolved and must replay.
+const noncommittingConflicts = new Set([
+  '货物转移版本已变化', '货物转移状态不允许该操作', '当前不能申请完成',
+  '确认状态已变化', '确认绑定版本已变化', '原转移尚未完成',
+  '该完成明细位置已登记差异', '差异已有有效调整',
+  '位置未配置或已停用', 'SKU 不存在或已停用', 'SKU 已停用'
+])
+export function isDefinitiveStockConflict(error: unknown) {
+  return (error as {status?: number}).status === 409 &&
+    noncommittingConflicts.has((error as Error).message)
+}
 export const versions=(t:StockTransfer)=>({expected_content_version:t.content_version,expected_execution_version:t.execution_version})
 export const warehouse={skus:()=>request<Sku[]>('/skus'),transfers:()=>request<StockTransfer[]>('/stock-transfers'),detail:(id:string)=>request<StockTransfer>('/stock-transfers/'+id),submit:(body:StockInput)=>request<StockTransfer>('/stock-transfers','POST',body),operation:(body:OperationInput)=>request<{stock_transfer:StockTransfer}>('/stock-operations','POST',body),action:(path:string,body:unknown)=>request<StockTransfer>(path,'POST',body),inventory:(filters:Record<string,string>)=>request<{snapshot_at:string;quantities:InventoryRow[];totals:{sku_id:string;quantity:string;valuation:string}[]}>('/inventory?'+new URLSearchParams(Object.entries(filters).filter(([,v])=>v)))}
