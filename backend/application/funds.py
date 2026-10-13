@@ -56,8 +56,8 @@ def validate_business_post(db, item, user) -> None:
         require_trusted(user)
         if claim:
             if item.reversal_of:
-                if store.claim_repaid_minor(db, original.id) or store.claim_has_pending_repayment_reversal(db, original.id):
-                    raise DomainError('垫付已有有效偿还或关联冲销未完成，不能冲销', 409)
+                if store.claim_repaid_minor(db, original.id):
+                    raise DomainError('垫付已有有效偿还，不能冲销', 409)
             else:
                 member = store.get_member(db, claim.member_id)
                 if not member or item.source_account_id != member.account_id:
@@ -76,10 +76,10 @@ def validate_business_post(db, item, user) -> None:
                 member = store.get_member(db, repayment.member_id)
                 if not member or item.destination_account_id != member.account_id or not store.is_fund(db, item.source_account_id):
                     raise DomainError('偿还须从组织资金付至该成员往来科目')
-                validate_repayment_current(db, item.payload['business'], item.amount_minor)
-                persisted = [(a.claim_id, a.amount_minor) for a in store.repayment_allocations(db, item.id)]
-                requested = [(a['claim_id'], a['amount_minor']) for a in item.payload['business']['allocations']]
-                if sorted(persisted) != sorted(requested): raise DomainError('偿还匹配与原请求不一致', 409)
+                from backend.modules.member_claims.rules import validate_allocations
+                allocations = [(a.claim_id, a.amount_minor) for a in store.repayment_allocations(db, item.id)]
+                validate_allocations(store.open_claims(db, repayment.member_id), repayment.member_id,
+                                     item.amount_minor, allocations)
 
 
 def validate_repayment_current(db, business, amount_minor):
@@ -160,18 +160,6 @@ def submit(db, user, data, reversal_of=None, reason=None, *, business: dict | No
     store.refresh(db, user)
     if not user.active: raise DomainError('用户已停用', 403)
     if business is not None or defer_post: require_trusted(user)
-    # Internal controls are part of the original request, server timestamps are not.
-    from copy import deepcopy
-    payload = deepcopy(dict(data, reversal_of=reversal_of, reason=reason))
-    if business is not None:
-        payload['business'] = deepcopy({key: value for key, value in business.items() if key != 'confirmed_at'})
-        payload['defer_post'] = defer_post
-    elif defer_post:
-        payload['defer_post'] = True
-    old = store.existing_submission(db, user.id, data['idempotency_key'])
-    if old:
-        if old.payload != payload: raise DomainError('幂等标识已用于不同内容', 409)
-        return old
     lines = validate(db, data['source_account_id'], data['destination_account_id'], data['amount'])
     if business is not None:
         if reversal_of: raise DomainError('冲销不能新建业务标记')
@@ -184,8 +172,8 @@ def submit(db, user, data, reversal_of=None, reason=None, *, business: dict | No
         existing = store.existing_reversal(db, reversal_of)
         if original.status != 'posted' or existing: raise DomainError('流水已有冲销或不可冲销', 409)
     from datetime import date
-    values = {k: data[k] for k in ('source_account_id', 'destination_account_id', 'description', 'counterparty', 'idempotency_key')}
-    values.update(effective_date=date.fromisoformat(data['effective_date']), amount_minor=lines[0].credit_minor, actor_id=user.id, status='pending', payload=payload, reversal_of=reversal_of, reason=reason)
+    values = {k: data[k] for k in ('source_account_id', 'destination_account_id', 'description', 'counterparty')}
+    values.update(effective_date=date.fromisoformat(data['effective_date']), amount_minor=lines[0].credit_minor, actor_id=user.id, status='pending', reversal_of=reversal_of, reason=reason)
     item = store.create_transfer(db, values)
     if business is not None: save_business(db, item, business)
     store.audit(db, item.id, user.id, 'submitted', reason or '')
@@ -238,12 +226,12 @@ def preview(db, user, data):
 def list_transfers(db, status=None):
     return [transfer_view(db, item) for item in store.transfers(db, status)]
 
-def reverse(db, user, identifier, reason, key):
+def reverse(db, user, identifier, reason):
     store.lock(db)
     original = get_transfer(db, identifier)
     # Confirmation can change a pending claim's amount before this lock is acquired.
     store.refresh(db, original)
-    payload = dict(source_account_id=original.destination_account_id, destination_account_id=original.source_account_id, amount=f'{original.amount_minor // 100}.{original.amount_minor % 100:02d}', effective_date=original.effective_date.isoformat(), description=f'冲销：{original.description}', counterparty=original.counterparty, idempotency_key=key)
+    payload = dict(source_account_id=original.destination_account_id, destination_account_id=original.source_account_id, amount=f'{original.amount_minor // 100}.{original.amount_minor % 100:02d}', effective_date=original.effective_date.isoformat(), description=f'冲销：{original.description}', counterparty=original.counterparty)
     return transfer_view(db, submit(db, user, payload, original.id, reason), True)
 
 def summary(db):

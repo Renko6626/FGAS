@@ -250,7 +250,7 @@ def test_stock_fund_references_do_not_change_money(client):
     m = member(client)
     claim = client.post('/api/member-claims',json=claim_payload(m,'fund_pool',confirm=True)).json()
     assert claim['confirmed_minor'] == 100000
-    repayment = client.post('/api/repayments',json=repayment_payload(client,m,'100','repayment')).json()
+    repayment = client.post('/api/repayments',json=repayment_payload(client, m, '100')).json()
     baseline = (client.get('/api/funds/summary').json(),client.get(f"/api/members/{m['id']}").json(),client.get(f"/api/member-claims/{claim['id']}").json(),client.get('/api/repayments').json())
     source = client.post('/api/locations',json=dict(name='供应商',kind='external',external_kind='supplier')).json()['id']
     target = client.post('/api/locations',json=dict(name='仓库')).json()['id']
@@ -271,26 +271,26 @@ def test_stock_fund_references_do_not_change_money(client):
         assert client.post(path,json={'fund_transfer_id':'missing'}).status_code == 404
     assert (client.get('/api/funds/summary').json(),client.get(f"/api/members/{m['id']}").json(),client.get(f"/api/member-claims/{claim['id']}").json(),client.get('/api/repayments').json()) == baseline
     # Reverse the matched repayment first, then claim; stock links survive both money facts.
-    assert client.post(f"/api/transfers/{repayment['id']}/reverse",json=dict(reason='退回偿还',idempotency_key='reverse-repayment')).status_code == 201
-    assert client.post(f"/api/transfers/{claim['id']}/reverse",json=dict(reason='冲销垫付',idempotency_key='reverse-claim')).status_code == 201
+    assert client.post(f"/api/transfers/{repayment['id']}/reverse",json=dict(reason='退回偿还')).status_code == 201
+    assert client.post(f"/api/transfers/{claim['id']}/reverse",json=dict(reason='冲销垫付')).status_code == 201
     assert all(client.get(f"/api/stock-transfers/{item['id']}").json()['fund_references'][0]['status'] == 'reversed' for item in receipts)
     assert balances(client)[target,sku] == '20'
 
 
-def operation_payload(client, key='combined'):
+def operation_payload(client):
     source = client.post('/api/locations',json=dict(name='供应商',kind='external',external_kind='supplier')).json()['id']
     target = client.post('/api/locations',json=dict(name='仓库')).json()['id']
     sku = client.post('/api/skus',json=dict(name='书',unit='本')).json()['id']
     return dict(stock=dict(source_location_id=source,destination_location_id=target,
         action_kind='arrival',effective_date='2026-10-13',basis='到货单',lines=[dict(sku_id=sku,quantity='100')],
         ),money=dict(kind='fund_transfer',data=dict(source_account_id='fund_pool',
-        destination_account_id='expense',amount='1000',effective_date='2026-10-13',idempotency_key='caller-money')))
+        destination_account_id='expense',amount='1000',effective_date='2026-10-13')))
 
 
 def test_money_first_operation_and_independent_completion(client):
     from backend.tests.test_funds import transfer
     from backend.infrastructure.models import Transfer
-    assert transfer(client,'opening','fund_pool','2000','opening-money').status_code == 201
+    assert transfer(client, 'opening', 'fund_pool', '2000').status_code == 201
     payload = operation_payload(client)
     response = client.post('/api/stock-operations',json=payload)
     assert response.status_code == 201,response.text
@@ -300,7 +300,6 @@ def test_money_first_operation_and_independent_completion(client):
     assert stock['fund_references'][0]['id'] == money['id']
     assert client.get('/api/funds/summary').json()['total_minor'] == 100000
     assert client.get('/api/stock-moves').json() == []
-    assert client.post('/api/stock-operations',json=payload).status_code == 409
     finished = complete(client,stock,'arrived').json()
     assert finished['status'] == 'completed'
     assert complete(client,stock,'arrived').status_code == 409

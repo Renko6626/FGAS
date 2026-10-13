@@ -48,8 +48,6 @@ def create_location(db, values):
     item = Location(**values); db.add(item); db.flush()
     return item
 
-def existing_submission(db, actor_id, key):
-    return db.scalar(select(Transfer).where(Transfer.actor_id == actor_id, Transfer.idempotency_key == key))
 def existing_reversal(db, identifier):
     return db.scalar(select(Transfer).where(Transfer.reversal_of == identifier, Transfer.status.in_(['pending', 'posted'])))
 def create_transfer(db, values):
@@ -150,13 +148,6 @@ def repayments(db, member_id=None):
     query = select(Repayment).join(Transfer, Transfer.id == Repayment.transfer_id)
     if member_id: query = query.where(Repayment.member_id == member_id)
     return list(db.scalars(query.order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))
-
-
-def claim_has_pending_repayment_reversal(db, identifier):
-    original = Transfer.__table__.alias('repayment_original')
-    return db.scalar(select(Transfer.id).join(original, Transfer.reversal_of == original.c.id).join(
-        RepaymentAllocation, RepaymentAllocation.repayment_id == original.c.id).where(
-        RepaymentAllocation.claim_id == identifier, Transfer.status == 'pending').limit(1)) is not None
 
 
 @contextmanager

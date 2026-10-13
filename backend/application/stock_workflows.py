@@ -1,6 +1,5 @@
 """Money and stock share the HTTP transaction; their lifecycles stay independent."""
 from backend.application import funds, member_claims, warehouse
-from backend.infrastructure import store, stock_store
 from backend.kernel.accounting import DomainError
 
 
@@ -9,8 +8,6 @@ def submit_stock_with_money(db, user, data):
     if data['stock'].get('fund_transfer_ids'):
         raise DomainError('新建钱货操作不能同时引用已有资金流水')
     money = data['money']['data']
-    if store.existing_submission(db, user.id, money['idempotency_key']):
-        raise DomainError('资金请求已有记录，请先查询原记录', 409)
     if data['money']['kind'] == 'member_claim':
         fund_id = member_claims.submit_claim(db, user, money)['id']
     elif data['money']['kind'] == 'fund_transfer':

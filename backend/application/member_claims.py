@@ -75,12 +75,11 @@ def submit_claim(db, user, data: dict) -> dict:
     confirmed = yuan_to_minor(confirmation_input) if confirm_now else None
     if confirmed is not None: validate_confirmation(declared, confirmed, reason)
     business = dict(kind='member_claim', member_id=member.id, declared_minor=declared,
-                    confirmed_minor=confirmed, basis=data['basis'], confirmation_reason=reason,
-                    confirmed_amount=data.get('confirmed_amount'), declared_amount=data['amount'], confirm_now=confirm_now)
+                    confirmed_minor=confirmed, basis=data['basis'], confirmation_reason=reason)
     values = dict(source_account_id=member.account_id, destination_account_id=data['destination_account_id'],
                   amount=data['amount'] if confirmed is None else f'{confirmed // 100}.{confirmed % 100:02d}',
                   effective_date=data['effective_date'], description=data.get('description', ''),
-                  counterparty=None, idempotency_key=data['idempotency_key'])
+                  counterparty=None)
     item = funds.submit(db, user, values, business=business, defer_post=not confirm_now)
     return get_claim(db, item.id)
 
@@ -155,11 +154,9 @@ def submit_repayment(db, user, data: dict) -> dict:
     from backend.application import funds
     from backend.kernel.accounting import yuan_to_minor
     values = repayment_values(db, data)
-    values['idempotency_key'] = data['idempotency_key']
-    # Original amount strings and expected versions are immutable request facts.
     business = dict(kind='repayment', member_id=data['member_id'], basis=data['basis'],
                     allocation_mode=data['allocation_mode'], allocations=[dict(
-                        claim_id=a['claim_id'], amount=a['amount'], amount_minor=yuan_to_minor(a['amount']),
+                        claim_id=a['claim_id'], amount_minor=yuan_to_minor(a['amount']),
                         expected_version=a['expected_version']) for a in data['allocations']])
     item = funds.submit(db, user, values, business=business)
     return get_repayment(db, item.id)

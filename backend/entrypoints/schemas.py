@@ -49,12 +49,11 @@ class Preview(Input):
     effective_date: date
     description: str = ''
     counterparty: str | None = None
-class Submit(Preview): idempotency_key: str = Field(min_length=1, max_length=200)
+class Submit(Preview): pass
 class Approval(Input): expected_version: int
 class Rejection(Approval): reason: str = Field(min_length=1)
 class Reversal(Input):
     reason: str = Field(min_length=1)
-    idempotency_key: str = Field(min_length=1, max_length=200)
 
 class MemberCreate(Input):
     name: str = Field(min_length=1, max_length=200)
@@ -71,7 +70,6 @@ class ClaimSubmit(Input):
     description: str = ''
     basis: str = Field(min_length=1)
     confirm_now: bool = False
-    idempotency_key: str = Field(min_length=1, max_length=200)
     confirmed_amount: str | None = None
     confirmation_reason: str = ''
 class ClaimConfirmation(Approval):
@@ -93,7 +91,6 @@ class RepaymentPreview(Input):
     allocation_mode: Literal['oldest_first', 'manual'] = 'oldest_first'
     allocations: list[RepaymentAllocationInput] | None = None
 class RepaymentSubmit(RepaymentPreview):
-    idempotency_key: str = Field(min_length=1, max_length=200)
     allocations: list[RepaymentAllocationSubmit]
 
 class StockLineInput(Input):

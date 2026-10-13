@@ -8,12 +8,12 @@ def member(client):
     return response.json()
 
 
-def claim_payload(m, destination='expense', key='claim', confirm=False):
+def claim_payload(m, destination='expense', confirm=False):
     return dict(member_id=m['id'], destination_account_id=destination, amount='1000',
-                effective_date='2026-10-13', basis='付款凭据', confirm_now=confirm, idempotency_key=key)
+                effective_date='2026-10-13', basis='付款凭据', confirm_now=confirm)
 
 
-def test_claim_confirmation_retry_and_reversal(client):
+def test_claim_confirmation_and_reversal(client):
     m = member(client)
     payload = claim_payload(m)
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
@@ -42,12 +42,8 @@ def test_claim_confirmation_retry_and_reversal(client):
     assert client.get('/api/funds/summary').json()['total_minor'] == 0
     accounts = client.get('/api/accounts').json()
     assert next(a for a in accounts if a['id'] == m['account_id'])['balance_minor'] == 80000
-    retry = client.post('/api/member-claims', json=payload).json()
-    assert retry['id'] == identifier and retry['confirmed_minor'] == 80000
-    assert len(retry['transfer']['journal_lines']) == 2
-    assert client.post('/api/member-claims', json={**payload, 'basis': '更改依据'}).status_code == 409
     assert client.post(f'/api/member-claims/{identifier}/confirm', json=confirmation).status_code == 409
-    reverse_payload = dict(reason='重复登记', idempotency_key='claim-reverse')
+    reverse_payload = dict(reason='重复登记')
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
     assert client.post(f'/api/transfers/{identifier}/reverse', json=reverse_payload).status_code == 403
     client.post('/api/auth/login', json={'user_id': 'trusted'})
@@ -58,8 +54,8 @@ def test_claim_confirmation_retry_and_reversal(client):
     assert client.get(f'/api/member-claims/{identifier}').json()['outstanding_minor'] == 0
     accounts = client.get('/api/accounts').json()
     assert next(a for a in accounts if a['id'] == m['account_id'])['balance_minor'] == 0
-    assert client.post(f'/api/transfers/{identifier}/reverse', json=reverse_payload).json()['id'] == reversal['id']
-    assert client.post(f"/api/transfers/{reversal['id']}/reverse", json=dict(reason='重新恢复', idempotency_key='reverse-again')).status_code == 409
+    assert client.post(f'/api/transfers/{identifier}/reverse', json=reverse_payload).status_code == 409
+    assert client.post(f"/api/transfers/{reversal['id']}/reverse", json=dict(reason='重新恢复')).status_code == 409
 
 
 def test_claim_destination_and_unmarked_member_transfer(client):
@@ -73,7 +69,7 @@ def test_claim_destination_and_unmarked_member_transfer(client):
     assert initial_detail['outstanding_minor'] == initial_detail['confirmed_minor'] == 100000
     assert initial_detail['ledger_balance_minor'] == 100000
     assert initial_detail['pending_minor'] == initial_detail['repaid_minor'] == initial_detail['other_movements_minor'] == 0
-    ordinary = transfer(client, 'fund_pool', m['account_id'], '100', 'ordinary-member')
+    ordinary = transfer(client, 'fund_pool', m['account_id'], '100')
     assert ordinary.status_code == 201 and ordinary.json()['business'] is None
     accounts = client.get('/api/accounts').json()
     assert next(a for a in accounts if a['id'] == m['account_id'])['balance_minor'] == 90000
@@ -84,12 +80,12 @@ def test_claim_destination_and_unmarked_member_transfer(client):
     assert overview['other_movements_minor'] == -10000
     assert overview['ledger_balance_minor'] == 90000
     assert [t['id'] for t in overview['other_transfers']] == [ordinary.json()['id']]
-    other = client.post('/api/member-claims', json=claim_payload(m, 'opening', key='non-expense', confirm=True))
+    other = client.post('/api/member-claims', json=claim_payload(m, 'opening', confirm=True))
     assert other.status_code == 201 and other.json()['transfer']['destination_account_id'] == 'opening'
     assert len(client.get('/api/member-claims', params={'member_id': m['id'], 'status': 'posted'}).json()) == 2
     b = member(client)
     marked = client.post('/api/member-claims', json=dict(
-        claim_payload(m, b['account_id'], key='member-destination', confirm=True), amount='50'))
+        claim_payload(m, b['account_id'], confirm=True), amount='50'))
     assert marked.status_code == 201
     a_detail = client.get(f"/api/members/{m['id']}").json()
     b_detail = client.get(f"/api/members/{b['id']}").json()
@@ -121,7 +117,7 @@ def test_claim_decisions_and_reversal_refresh_preloaded_pending_state(client):
             expected_version=pending['version'], confirmed_amount='800', confirmation_reason='部分认可'))
         assert response.status_code == 200
         assert stale_original.amount_minor == 100000
-        reversal = funds.reverse(db, user, identifier, '撤回垫付', 'stale-reversal')
+        reversal = funds.reverse(db, user, identifier, '撤回垫付')
         assert reversal['amount_minor'] == 80000
         assert sum(line['debit_minor'] for line in reversal['journal_lines']) == 80000
         assert stale_original.amount_minor == 80000 and stale_original.status == 'reversed'
@@ -129,15 +125,14 @@ def test_claim_decisions_and_reversal_refresh_preloaded_pending_state(client):
     accounts = client.get('/api/accounts').json()
     assert next(a for a in accounts if a['id'] == m['account_id'])['balance_minor'] == 0
     retry = client.post(f'/api/transfers/{identifier}/reverse', json=dict(
-        reason='撤回垫付', idempotency_key='stale-reversal'))
-    assert retry.status_code == 201 and retry.json()['id'] == reversal['id']
+        reason='撤回垫付'))
+    assert retry.status_code == 409
 
     # Both decisions start with a retained pending Transfer before a separate
     # transaction confirms the full amount, so no amount mismatch masks the race.
     for index, rejection in enumerate([None, '拒绝垫付']):
         decision_member = member(client)
-        pending = client.post('/api/member-claims', json=claim_payload(
-            decision_member, key=f'stale-decision-{index}')).json()
+        pending = client.post('/api/member-claims', json=claim_payload(decision_member)).json()
         identifier = pending['id']
         with Session.begin() as db:
             stale_original = store.get_transfer(db, identifier)
@@ -158,51 +153,50 @@ def test_claim_decisions_and_reversal_refresh_preloaded_pending_state(client):
         assert overview['ledger_balance_minor'] == overview['outstanding_minor'] == 100000
 
 
-def repayment_payload(client, m, amount, key, allocations=None):
+def repayment_payload(client, m, amount, allocations=None):
     data = dict(member_id=m['id'], source_account_id='fund_pool', amount=amount,
                 effective_date='2026-10-13', basis='偿还付款凭据',
                 allocation_mode='manual' if allocations is not None else 'oldest_first')
     if allocations is not None: data['allocations'] = allocations
     preview = client.post('/api/repayments/preview', json=data)
     assert preview.status_code == 200
-    return dict(data, allocations=preview.json()['allocations'], idempotency_key=key)
+    return dict(data, allocations=preview.json()['allocations'])
 
 
 def test_repayment_allocation_and_reversal(client):
     m = member(client)
-    assert transfer(client, 'opening', 'fund_pool', '2000', 'opening').status_code == 201
+    assert transfer(client, 'opening', 'fund_pool', '2000').status_code == 201
     first = client.post('/api/member-claims', json=claim_payload(m, confirm=True)).json()
-    payload = repayment_payload(client, m, '400', 'repay-400')
+    payload = repayment_payload(client, m, '400')
     assert client.get('/api/repayments').json() == []  # Preview has no writes.
     response = client.post('/api/repayments', json=payload)
     assert response.status_code == 201
     payment = response.json()
-    assert client.post('/api/repayments', json=payload).json()['id'] == payment['id']
-    assert client.post('/api/repayments', json=dict(payload, basis='修改付款依据')).status_code == 409
+    assert client.post('/api/repayments', json=payload).status_code == 409
     assert len(client.get('/api/repayments').json()) == 1
     assert client.get('/api/funds/summary').json()['total_minor'] == 160000
     assert client.get(f"/api/member-claims/{first['id']}").json()['outstanding_minor'] == 60000
     assert next(a for a in client.get('/api/accounts').json() if a['id'] == m['account_id'])['balance_minor'] == 60000
-    second = client.post('/api/member-claims', json=dict(claim_payload(m, key='claim-300', confirm=True), amount='300')).json()
-    multi = repayment_payload(client, m, '700', 'repay-700')
+    second = client.post('/api/member-claims', json=dict(claim_payload(m, confirm=True), amount='300')).json()
+    multi = repayment_payload(client, m, '700')
     assert [(a['claim_id'], a['amount']) for a in multi['allocations']] == [(first['id'], '600.00'), (second['id'], '100.00')]
     response = client.post('/api/repayments', json=multi)
     assert response.status_code == 201
     multi_payment = response.json()
     assert client.get(f"/api/member-claims/{second['id']}").json()['outstanding_minor'] == 20000
-    manual = repayment_payload(client, m, '50', 'manual', [dict(claim_id=second['id'], amount='50')])
+    manual = repayment_payload(client, m, '50', [dict(claim_id=second['id'], amount='50')])
     response = client.post('/api/repayments', json=manual)
     assert response.status_code == 201
     manual_payment = response.json()
     other = member(client)
-    invalid = {k: v for k, v in manual.items() if k != 'idempotency_key'}
+    invalid = dict(manual)
     invalid['allocations'] = [dict(claim_id=second['id'], amount='50')]
     assert client.post('/api/repayments/preview', json=dict(invalid, member_id=other['id'])).status_code == 400
     assert client.post('/api/repayments/preview', json=dict(invalid, amount='60')).status_code == 400
     assert client.post('/api/repayments/preview', json=dict(invalid, amount='151', allocations=[dict(claim_id=second['id'], amount='151')])).status_code == 400
-    assert client.post(f"/api/transfers/{second['id']}/reverse", json=dict(reason='撤回', idempotency_key='blocked')).status_code == 409
+    assert client.post(f"/api/transfers/{second['id']}/reverse", json=dict(reason='撤回')).status_code == 409
     for index, repayment in enumerate([manual_payment, multi_payment, payment]):
-        reverse = client.post(f"/api/transfers/{repayment['id']}/reverse", json=dict(reason='撤回付款', idempotency_key=f'repay-reverse-{index}'))
+        reverse = client.post(f"/api/transfers/{repayment['id']}/reverse", json=dict(reason='撤回付款'))
         assert reverse.status_code == 201 and reverse.json()['amount_minor'] == repayment['amount_minor']
         history = client.get(f"/api/repayments/{repayment['id']}").json()
         assert history['status'] == 'reversed' and not history['effective'] and history['allocations'] == repayment['allocations']
@@ -212,7 +206,7 @@ def test_repayment_allocation_and_reversal(client):
     assert client.get(f"/api/member-claims/{first['id']}").json()['outstanding_minor'] == 100000
     assert client.get(f"/api/member-claims/{second['id']}").json()['outstanding_minor'] == 30000
     for index, claim in enumerate([first, second]):
-        assert client.post(f"/api/transfers/{claim['id']}/reverse", json=dict(reason='撤回垫付', idempotency_key=f'claim-reverse-{index}')).status_code == 201
+        assert client.post(f"/api/transfers/{claim['id']}/reverse", json=dict(reason='撤回垫付')).status_code == 201
 
 
 def test_stale_and_competing_repayments(client):
@@ -224,13 +218,13 @@ def test_stale_and_competing_repayments(client):
     from backend.kernel.accounting import DomainError
 
     m = member(client)
-    transfer(client, 'opening', 'fund_pool', '2000', 'opening')
+    transfer(client, 'opening', 'fund_pool', '2000')
     claim = client.post('/api/member-claims', json=claim_payload(m, confirm=True)).json()
-    stale = repayment_payload(client, m, '100', 'stale')
-    current = repayment_payload(client, m, '100', 'first')
+    stale = repayment_payload(client, m, '100')
+    current = repayment_payload(client, m, '100')
     assert client.post('/api/repayments', json=current).status_code == 201
     assert client.post('/api/repayments', json=stale).status_code == 409
-    remaining = repayment_payload(client, m, '900', 'competing')
+    remaining = repayment_payload(client, m, '900')
     barrier = Barrier(2)
 
     def pay(index):
@@ -240,7 +234,7 @@ def test_stale_and_competing_repayments(client):
                 original = store.get_transfer(db, claim['id'])
                 user = store.get_user(db, 'trusted')
                 barrier.wait(timeout=5)
-                member_claims.submit_repayment(db, user, dict(remaining, idempotency_key=f'competing-{index}'))
+                member_claims.submit_repayment(db, user, remaining)
                 assert original.status == 'posted'
             return 201
         except DomainError as error:
@@ -261,9 +255,9 @@ def test_repayment_write_failure_rolls_back(client):
     from backend.infrastructure.database import engine
 
     m = member(client)
-    transfer(client, 'opening', 'fund_pool', '2000', 'opening')
+    transfer(client, 'opening', 'fund_pool', '2000')
     claim = client.post('/api/member-claims', json=claim_payload(m, confirm=True)).json()
-    payload = repayment_payload(client, m, '400', 'failure')
+    payload = repayment_payload(client, m, '400')
     before = client.get(f"/api/transfers/{claim['id']}").json()
     with engine.begin() as db:
         audit_count = db.scalar(text('SELECT count(*) FROM audit_events'))

@@ -20,8 +20,8 @@ async function save() {
     if(moneyMode.value==='none')await warehouse.submit(stock)
     else {
       const money:OperationInput['money']=moneyMode.value==='fund_transfer'
-        ? {kind:'fund_transfer',data:{source_account_id:moneySource.value,destination_account_id:moneyDestination.value,amount:amount.value,effective_date:date.value,description:description.value,counterparty:null,idempotency_key:crypto.randomUUID()}}
-        : {kind:'member_claim',data:{member_id:member.value,destination_account_id:moneyDestination.value,amount:amount.value,effective_date:date.value,description:description.value,basis:moneyBasis.value,confirm_now:confirm.value,...(confirm.value?{confirmed_amount:confirmed.value,confirmation_reason:reason.value}:{}),idempotency_key:crypto.randomUUID()}}
+        ? {kind:'fund_transfer',data:{source_account_id:moneySource.value,destination_account_id:moneyDestination.value,amount:amount.value,effective_date:date.value,description:description.value,counterparty:null}}
+        : {kind:'member_claim',data:{member_id:member.value,destination_account_id:moneyDestination.value,amount:amount.value,effective_date:date.value,description:description.value,basis:moneyBasis.value,confirm_now:confirm.value,...(confirm.value?{confirmed_amount:confirmed.value,confirmation_reason:reason.value}:{})}}
       await warehouse.operation({stock,money})
     }
     show.value=false

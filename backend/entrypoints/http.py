@@ -81,7 +81,7 @@ def reject(identifier: str, data: Rejection, user=Depends(identity), db=Depends(
     return funds.transfer_view(db, funds.decide(db, user, identifier, data.expected_version, data.reason), True)
 @app.post('/api/transfers/{identifier}/reverse', status_code=201)
 def reverse(identifier: str, data: Reversal, user=Depends(identity), db=Depends(database)):
-    return funds.reverse(db, user, identifier, data.reason, data.idempotency_key)
+    return funds.reverse(db, user, identifier, data.reason)
 @app.get('/api/funds/summary')
 def summary(user=Depends(identity), db=Depends(database)):
     return funds.summary(db)

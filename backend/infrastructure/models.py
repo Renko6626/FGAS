@@ -33,7 +33,7 @@ class Location(Base):
     tags: Mapped[list] = mapped_column(JSON, default=list)
 class Transfer(Base):
     __tablename__ = 'transfers'
-    __table_args__ = (UniqueConstraint('actor_id', 'idempotency_key'), CheckConstraint('amount_minor > 0'))
+    __table_args__ = (CheckConstraint('amount_minor > 0'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     source_account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'))
     destination_account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'))
@@ -46,8 +46,6 @@ class Transfer(Base):
     approval_mode: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String)
     version: Mapped[int] = mapped_column(Integer, default=1)
-    idempotency_key: Mapped[str] = mapped_column(String)
-    payload: Mapped[dict] = mapped_column(JSON)
     reversal_of: Mapped[str | None] = mapped_column(ForeignKey('transfers.id'), nullable=True)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
