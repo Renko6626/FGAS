@@ -1,4 +1,4 @@
-from backend.infrastructure import store, stock_store
+from backend.infrastructure import store, stock_store, stocktake_store
 from backend.infrastructure.models import Sku, LocationProfile, LocationCustody, now
 from backend.application.funds import require_trusted
 from backend.kernel.accounting import DomainError
@@ -47,6 +47,7 @@ def location_view(db, item):
     return dict(id=item.id, name=item.name, custodian_label=item.custodian_label, tags=item.tags,
                 kind=profile.kind if profile else None, external_kind=profile.external_kind if profile else None,
                 active=profile.active if profile else None,
+                stocktake=stocktake_store.endpoint_metadata(db, "stock", item.id),
                 current_custody=dict(id=custody.id, member_id=member.id, member_name=member.name,
                                      valid_from=custody.valid_from, actor_id=custody.actor_id) if custody else None)
 

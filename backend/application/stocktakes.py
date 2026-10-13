@@ -1,0 +1,64 @@
+"""Stocktakes organize ordinary Transfers through dedicated endpoints."""
+from sqlalchemy import text
+from backend.infrastructure import store, stocktake_store
+from backend.application import catalogs, funds, warehouse, warehouse_catalogs
+from backend.kernel.accounting import DomainError
+
+
+def stocktake_view(db, kind, item):
+    endpoint = 'account' if kind == 'fund' else 'location'
+    value = {key: getattr(item, key) for key in ('id', 'name', 'description', 'status', 'created_by', 'created_at')}
+    getter = store.get_account if kind == 'fund' else store.get_location
+    for side in ('gain', 'loss'):
+        key = side + '_' + endpoint + '_id'
+        value[key] = getattr(item, key)
+        value[side + '_' + endpoint + '_name'] = getter(db, value[key]).name
+    return value
+
+def list_stocktakes(db, kind, status=None):
+    return [stocktake_view(db, kind, item) for item in stocktake_store.stocktakes(db, kind, status)]
+
+def require_stocktake(db, kind, identifier):
+    item = stocktake_store.get(db, kind, identifier)
+    if item is None: raise DomainError('盘点不存在', 404)
+    return item
+
+def create_stocktake(db, user, kind, data):
+    warehouse_catalogs.authorize_write(db, user)
+    name = data['name'].strip()
+    if not name: raise DomainError('盘点名称不能为空')
+    endpoints = {}
+    endpoint = 'account' if kind == 'fund' else 'location'
+    for side, label in (('gain', '盘盈'), ('loss', '盘亏')):
+        if kind == 'fund':
+            value = catalogs.create_account(db, user, dict(name=f'{name}（资金{label}）', kind='income' if side == 'gain' else 'expense', tags=[], is_fund=False))
+        else:
+            value = catalogs.create_location(db, user, dict(name=f'{name}（货物{label}）', custodian_label='', tags=[], kind='external', external_kind='adjustment_' + side, active=True))
+        endpoints[side + '_' + endpoint + '_id'] = value['id']
+    item = stocktake_store.create(db, kind, dict(name=name, description=data.get('description', ''), created_by=user.id, **endpoints))
+    return stocktake_view(db, kind, item)
+
+def get_stocktake(db, kind, identifier):
+    with store.read_snapshot(db) as snapshot:
+        item = require_stocktake(snapshot, kind, identifier)
+        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        view = funds.transfer_view if kind == 'fund' else warehouse.transfer_view
+        transfers = [view(snapshot, transfer) for transfer in stocktake_store.transfers(snapshot, kind, item)]
+        if kind == 'stock': transfers = [value | dict(snapshot_at=timestamp) for value in transfers]
+        return dict(stocktake=stocktake_view(snapshot, kind, item), transfers=transfers)
+
+def update_description(db, user, kind, identifier, description):
+    warehouse_catalogs.authorize_write(db, user)
+    item = require_stocktake(db, kind, identifier)
+    store.refresh(db, item)
+    item.description = description
+    db.flush()
+    return stocktake_view(db, kind, item)
+
+def end_stocktake(db, user, kind, identifier):
+    warehouse_catalogs.authorize_write(db, user)
+    item = require_stocktake(db, kind, identifier)
+    store.refresh(db, item)
+    item.status = 'ended'
+    db.flush()
+    return stocktake_view(db, kind, item)

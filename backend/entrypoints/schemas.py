@@ -126,3 +126,10 @@ class StockClaimMoney(Input):
 class StockOperationInput(Input):
     stock: StockTransferInput
     money: StockFundMoney | StockClaimMoney = Field(discriminator='kind')
+
+
+class StocktakeCreate(Input):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = ''
+class StocktakePatch(Input):
+    description: str

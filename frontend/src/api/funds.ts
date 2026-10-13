@@ -1,8 +1,9 @@
 import {request} from './client'
 export interface User{id:string;display_name:string;role:'admin'|'trusted'|'untrusted';active:boolean}
-export interface Account{id:string;name:string;kind:string;tags:string[];is_fund:boolean;balance_minor:number}
+export interface StocktakeMetadata{id:string;name:string;status:"in_progress"|"ended"}
+export interface Account{stocktake:StocktakeMetadata|null;id:string;name:string;kind:string;tags:string[];is_fund:boolean;balance_minor:number}
 export type ExternalKind='supplier'|'customer'|'opening'|'loss'|'adjustment_gain'|'adjustment_loss'
-export interface Location{id:string;name:string;custodian_label:string;tags:string[];kind:'physical'|'external'|null;external_kind:ExternalKind|null;active:boolean|null;current_custody:{id:string;member_id:string;member_name:string;valid_from:string;actor_id:string}|null}
+export interface Location{stocktake:StocktakeMetadata|null;id:string;name:string;custodian_label:string;tags:string[];kind:'physical'|'external'|null;external_kind:ExternalKind|null;active:boolean|null;current_custody:{id:string;member_id:string;member_name:string;valid_from:string;actor_id:string}|null}
 export interface Sku{id:string;name:string;specification:string;unit:string;active:boolean}
 export interface Line{account_id:string;debit_minor:number;credit_minor:number}
 export interface Transfer{id:string;source_account_id:string;destination_account_id:string;source_account_name:string;destination_account_name:string;amount_minor:number;effective_date:string;description:string;counterparty:string|null;status:string;version:number;actor_name:string;approved_by_name:string|null;approval_mode:string|null;reversal_of:string|null;reason:string|null;business?:{kind:'member_claim'|'repayment';id:string;member_id:string}|null;journal_lines?:Line[];audit?:unknown[]}

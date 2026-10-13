@@ -1,5 +1,15 @@
 # FGAS funds and stock prototype
 
+## 最顶层产品原则：Transfer 是第一公民
+
+使用者始终围绕一个心智模型记录业务：**我的钱从哪里去了哪里，我的货从哪里去了哪里，多少，何时发生，依据什么。** 系统让每个人能看清发生了什么、记录为什么会产生这样的结果，降低理解和操作的负担。这个原则优先指导业务入口、页面表达、数据模型和后续功能设计。
+
+采购、销售、赠送、垫付、偿还和盘点都围绕具体 Transfer 展开。快捷入口可以预填来源与去向、提供必要的业务标记和校验，但提交前必须让用户看清并确认实际端点、金额或数量以及账面影响。上层业务不能用打包流程隐藏这些变化，也不能为同一事实另建独立业务实体或另一套账本。
+
+资金和货物允许按实际发生时间分别记录，再建立必要关系。垫付标记、偿还匹配和薄盘点记录服务于 Transfer 的解释、约束和组织。页面应说明端点性质及生效时点，让用户理解费用科目、虚拟盈亏端点和真实位置的含义，以及批准与实际完成的区别。
+
+日常操作说明见 [以 Transfer 为中心的操作模型](docs/transfer-model.md)，详细设计见 [架构文档](architecture.md)。
+
 FastAPI / PostgreSQL development shell for one organization, CNY. `backend/kernel` contains pure amount and balanced-line rules; `modules/funds` builds transfer plans; `application` owns approval, transactions and posting; `infrastructure/store.py` owns transaction boundaries, PostgreSQL locking, ORM persistence and query execution; `application/identity.py` and `application/catalogs.py` own identity and directory operations; `entrypoints` exposes HTTP and delegates to application functions. `kernel/stock` validates integer quantities; `modules/warehouse` builds whole-transfer moves; warehouse application services own stock approval, manual completion, differences and queries. `stock_workflows` combines new money and stock in one creation transaction while retaining their independent lifecycles.
 
 ## Local development
@@ -129,3 +139,14 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 The command creates missing schema/development defaults and adds missing physical profiles while preserving custody text. Ordinary initialization does not assign profiles or match members. Neither compatibility nor profile bootstrap was run against the development database during this change.
 
 UI writes retain only a busy flag, an error message and normal refresh. There is no frozen request, retry cache, conflict acknowledgement or cross-form recovery lock. After a network error, query saved records first. Independently duplicated stock entries can be corrected with a new transfer or a linked gain/loss entry with a reason; automatic detection/compensation is not provided. A complete historical correction or full-warehouse count workflow remains outside this delivery. Runtime UI behavior has not been browser-tested. See [stage status](docs/prototype-status.md), [deletion record](docs/stock-operation-simplification.md) and [current plan](docs/superpowers/plans/2026-10-13-stock-minimal-plan.md).
+
+
+## 阶段盘点
+
+资金与货物盘点已在 `feature/stocktakes` 隔离分支实现，尚未合并或部署。实际薄表为 `fund_stocktakes` 和 `stock_stocktakes`；盘点只保存名称、说明、状态、创建信息及专属盈亏端点，不改变账面金额或数量。盘点页复用原 Transfer 列表与编辑器，正式变化仍经原审批、过账或手动完成流程。
+
+active 登录用户可读，受信任用户和管理员可创建、修改说明及结束。`/api/fund-stocktakes` 和 `/api/stock-stocktakes` 各提供 GET 列表（可选 `status`）、POST 创建、GET `/{id}` 详情、PATCH `/{id}` 说明和 POST `/{id}/end`。详情返回 `{stocktake,transfers}`；资金查询包含原记录的冲销，结束后新记录仍可查。
+
+账户和位置目录保留全部端点，附加可空 `stocktake:{id,name,status}`。结束只让选择器默认隐藏专属端点，可打开“显示已结束盘点端点”，已有选择保留；不关闭普通 Transfer 业务。名称和端点关联固定，不提供删除、重开或重新绑定。
+
+新增两表沿用现有初始化的 SQLAlchemy metadata 建表，无需重置数据；本轮没有对日常数据库执行初始化或兼容命令。2026-10-14 在隔离工作树运行 `./tools/run_tests.sh`：确认 `Test database: fgas_test`，退出 0，25 passed in 11.65s；根目录 `npm run build` 退出 0，vue-tsc 与 Vite 成功（2,696 modules，5.52s）。未进行截图、浏览器交互、服务启动或部署验收。

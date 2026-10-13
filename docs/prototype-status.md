@@ -168,3 +168,20 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 按用户确认删除资金、垫付、偿还、冲销及钱货组合的幂等键、同键查询、完整请求缓存和前端冻结重试。偿还创建时仍校验预览版本与精确匹配，正式过账读取真实匹配明细检查未结、归属和金额。单据状态、权限、资金版本、整笔事务回滚以及原冲销规则保留。用户补充无需早期数据库迁移，因此删除本次新增资金兼容命令；不重置日常数据库。
 
 已有测试随接口调整，删除旧回放断言，保留权限、精度、状态和回滚检查。`./tools/run_tests.sh` 在 fgas_test 上 22 passed（9.99s）；`npm run build` 类型检查及 Vite通过（4.87s）。只读代码复核未发现必修问题。没有浏览器交互、日常数据库操作、服务重启、部署或推送。
+
+
+## 2026-10-14：阶段盘点实现与集中验证
+
+实现位于 `.worktrees/stocktakes`、`feature/stocktakes`，尚未合并或部署；根目录运行代码和日常数据库未被本轮初始化。此前日期的验证证据保留为历史记录。
+
+- 新增 `FundStocktake` / `fund_stocktakes` 与 `StockStocktake` / `stock_stocktakes`，创建时分别建立两个专属账户或外部位置。盘点不生成资金分录或库存流水。
+- `/api/fund-stocktakes` 与 `/api/stock-stocktakes` 提供列表、创建、详情、修改说明和结束。active 登录用户可读，可信用户和管理员可写；名称与端点关联固定。详情复用普通 Transfer 结构，资金包含冲销记录，结束后新增转移仍能查询。
+- 目录返回可空盘点归属及全部历史端点；选择器默认隐藏 ended 端点并保留已有选择。盘点页面复用原列表和编辑器预填，结束不批准、完成、取消或停用业务。没有结构化盘点明细、差异状态机、请求恢复或自动去重。
+
+集中验证实际在隔离工作树根目录执行：
+
+- `./tools/run_tests.sh`：退出 0，打印 `Test database: fgas_test`，**25 passed in 11.65s**，仍执行已有三个测试文件，仅清理专用测试库。
+- `npm run build`：退出 0，vue-tsc 与 Vite 成功，**2,696 modules，5.52s**。
+- `git diff --check`：退出 0，无输出。原始输出与退出状态保存在 `.superpowers/sdd/2026-10-14-stocktakes-plan/task-3-checks.log`。
+
+这些是测试套件与编译证据，不代表浏览器产品验收。本轮未截图、自动点击或填表，未启动服务、初始化或重置日常库、合并、推送或部署。新表沿用 metadata 建表；实际日常库启用尚待后续交付。

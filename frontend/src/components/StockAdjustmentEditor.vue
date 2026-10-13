@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue'
 import {NButton, NInput, NModal, NSelect} from 'naive-ui'
+import LocationSelector from './LocationSelector.vue'
 import type {Location} from '../api/funds'
 import {warehouse, today, type StockTransfer} from '../api/warehouse'
 const props = defineProps<{item: StockTransfer; locations: Location[]}>()
@@ -11,7 +12,7 @@ const endpoints = computed(() => [
   ...(props.item.source_kind==='physical'?[{label:props.item.source_location_name,value:props.item.source_location_id}]:[]),
   ...(props.item.destination_kind==='physical'?[{label:props.item.destination_location_name,value:props.item.destination_location_id}]:[])
 ])
-const boundaries = computed(() => props.locations.filter(l=>l.active&&l.kind==='external'&&l.external_kind===action.value).map(l=>({label:l.name,value:l.id})))
+const boundaries = computed(() => props.locations.filter(l=>l.active&&l.kind==='external'&&l.external_kind===action.value))
 async function save() {
   if (busy.value) return
   error.value = ''
@@ -40,7 +41,7 @@ async function save() {
     <label>实际地点<NSelect v-model:value="location" :disabled="busy" :options="endpoints"/></label>
     <label>调整方向<NSelect v-model:value="action" :disabled="busy" :options="[{label:'盘盈（增加库存）',value:'adjustment_gain'},{label:'盘亏（减少库存）',value:'adjustment_loss'}]" @update:value="external=''"/></label>
     <label>数量<NInput v-model:value="quantity" :disabled="busy" placeholder="正整数"/></label>
-    <label>外部调整端点<NSelect v-model:value="external" :disabled="busy" :options="boundaries"/></label>
+    <LocationSelector v-model="external" :disabled="busy" :locations="boundaries" label="外部调整端点"/>
     <label>日期<NInput v-model:value="date" :disabled="busy"/></label>
     <label>依据<NInput v-model:value="basis" :disabled="busy"/></label>
     <p class="error">{{error}}</p>

@@ -357,3 +357,38 @@ def test_combined_operation_database_failures_leave_no_halves(client):
                 db.execute(text(f'DROP TRIGGER fail_combined ON {target}'))
                 db.execute(text('DROP FUNCTION fail_combined()'))
     assert client.post('/api/stock-operations',json=payload).status_code == 201
+
+
+def test_stock_stocktake_ordinary_completion_and_end(client):
+    target = client.post('/api/locations', json={'name': '书库'}).json()['id']
+    sku = client.post('/api/skus', json={'name': '书', 'unit': '本'}).json()['id']
+    response = client.post('/api/stock-stocktakes', json={'name': '期末盘点'})
+    assert response.status_code == 201
+    item = response.json()
+    path = f"/api/stock-stocktakes/{item['id']}"
+    locations = {l['id']: l for l in client.get('/api/locations').json()}
+    assert locations[target]['stocktake'] is None
+    for endpoint in ('gain_location_id', 'loss_location_id'):
+        assert locations[item[endpoint]]['stocktake'] == {'id': item['id'], 'name': item['name'], 'status': 'in_progress'}
+    assert client.patch(f"/api/locations/{item['gain_location_id']}", json={'external_kind': 'supplier'}).status_code == 409
+    assert next(l for l in client.get('/api/locations').json() if l['id'] == item['gain_location_id'])['external_kind'] == 'adjustment_gain'
+    assert balances(client)[target, sku] == '0'
+    client.post('/api/auth/login', json={'user_id': 'untrusted'})
+    gain = stock_plan(client, item['gain_location_id'], target, [sku], ['10'], 'gain', action='adjustment_gain')
+    assert gain['status'] == 'pending'
+    client.post('/api/auth/login', json={'user_id': 'trusted'})
+    assert client.post(f"/api/stock-transfers/{gain['id']}/approve", json={}).json()['status'] == 'in_transit'
+    assert balances(client)[target, sku] == '0'
+    assert complete(client, gain, 'gain').status_code == 200
+    assert balances(client)[target, sku] == '10'
+    loss = stock_plan(client, target, item['loss_location_id'], [sku], ['2'], 'loss', action='adjustment_loss')
+    assert complete(client, loss, 'loss').status_code == 200
+    assert balances(client)[target, sku] == '8'
+    assert {t['id'] for t in client.get(path).json()['transfers']} == {gain['id'], loss['id']}
+    assert client.post(path + '/end').json()['status'] == 'ended'
+    locations = {l['id']: l for l in client.get('/api/locations').json()}
+    assert all(locations[item[key]]['stocktake']['status'] == 'ended' for key in ('gain_location_id', 'loss_location_id'))
+    later = stock_plan(client, item['gain_location_id'], target, [sku], ['1'], 'later', action='adjustment_gain')
+    assert complete(client, later, 'later').status_code == 200
+    assert balances(client)[target, sku] == '9'
+    assert {t['id'] for t in client.get(path).json()['transfers']} == {gain['id'], loss['id'], later['id']}

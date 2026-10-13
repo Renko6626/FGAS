@@ -1,25 +1,27 @@
-from backend.infrastructure import store, stock_store
+from backend.infrastructure import store, stock_store, stocktake_store
 from backend.infrastructure.models import LocationProfile
 from backend.application import warehouse_catalogs
 from backend.application.funds import require_trusted, account_view
 from backend.kernel.accounting import DomainError
 
 def location_view(db, item): return warehouse_catalogs.location_view(db, item)
-def accounts(db, tag=None): return [account_view(db, item) for item in store.accounts(db, tag)]
+def catalog_account_view(db, item):
+    return account_view(db, item) | dict(stocktake=stocktake_store.endpoint_metadata(db, "fund", item.id))
+def accounts(db, tag=None): return [catalog_account_view(db, item) for item in store.accounts(db, tag)]
 def locations(db, tag=None): return [location_view(db, item) for item in store.locations(db, tag)]
 def create_account(db, user, values):
     require_trusted(user)
     values = dict(values)
     is_fund = values.pop('is_fund')
     if is_fund and values['kind'] != 'asset': raise DomainError('资金账户须为资产类')
-    return account_view(db, store.create_account(db, values, is_fund))
+    return catalog_account_view(db, store.create_account(db, values, is_fund))
 
 def update_account(db, user, identifier, values):
     require_trusted(user)
     item = store.get_account(db, identifier)
     if not item: raise DomainError('记账对象不存在', 404)
     store.update(item, values)
-    return account_view(db, item)
+    return catalog_account_view(db, item)
 
 def create_location(db, user, values):
     warehouse_catalogs.authorize_write(db, user)
@@ -45,6 +47,7 @@ def update_location(db, user, identifier, values):
         warehouse_catalogs.validate_profile(kind, external_kind)
         if profile_values.get('active', profile.active) is None: raise DomainError('启用状态不能为空')
         if (kind, external_kind) != (profile.kind, profile.external_kind):
+            if stocktake_store.endpoint_owner(db, 'stock', identifier): raise DomainError('盘点专属端点不能修改库存边界', 409)
             if stock_store.location_referenced(db, identifier): raise DomainError('已有货物转移引用，不能修改库存边界', 409)
             if kind != 'physical' and stock_store.current_custody(db, identifier): raise DomainError('须先结束当前保管关系', 409)
         store.update(profile, profile_values)

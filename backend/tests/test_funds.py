@@ -60,3 +60,51 @@ def test_formal_write_failure_rolls_back(client):
         with engine.begin() as db:
             db.execute(text('DROP TRIGGER fail_journal ON journal_lines'))
             db.execute(text('DROP FUNCTION fail_journal()'))
+
+
+def test_fund_stocktake_transfers_and_reversal(client):
+    client.post('/api/auth/login', json={'user_id': 'untrusted'})
+    assert client.post('/api/fund-stocktakes', json={'name': '期末核对'}).status_code == 403
+    client.post('/api/auth/login', json={'user_id': 'trusted'})
+    response = client.post('/api/fund-stocktakes', json={'name': '期末核对'})
+    assert response.status_code == 201
+    item = response.json()
+    path = f"/api/fund-stocktakes/{item['id']}"
+    accounts = {a['id']: a for a in client.get('/api/accounts').json()}
+    assert accounts['fund_pool']['stocktake'] is None
+    for endpoint in ('gain_account_id', 'loss_account_id'):
+        assert accounts[item[endpoint]]['stocktake'] == {'id': item['id'], 'name': item['name'], 'status': 'in_progress'}
+    assert client.get('/api/funds/summary').json()['total_minor'] == 0
+    gain = transfer(client, item['gain_account_id'], 'fund_pool', '100').json()
+    loss = transfer(client, 'fund_pool', item['loss_account_id'], '20').json()
+    assert client.get('/api/funds/summary').json()['total_minor'] == 8000
+    assert {t['id'] for t in client.get(path).json()['transfers']} == {gain['id'], loss['id']}
+    reversal = client.post(f"/api/transfers/{loss['id']}/reverse", json={'reason': '盘亏登记有误'}).json()
+    assert client.get('/api/funds/summary').json()['total_minor'] == 10000
+    detail = client.get(path).json()
+    assert {t['id'] for t in detail['transfers']} == {gain['id'], loss['id'], reversal['id']}
+    assert next(t for t in detail['transfers'] if t['id'] == loss['id'])['status'] == 'reversed'
+    assert client.post(path + '/end').json()['status'] == 'ended'
+    assert client.post(path + '/end').json()['status'] == 'ended'
+    accounts = {a['id']: a for a in client.get('/api/accounts').json()}
+    assert all(accounts[item[key]]['stocktake']['status'] == 'ended' for key in ('gain_account_id', 'loss_account_id'))
+    assert client.patch(path, json={'description': '已核对凭证'}).json()['description'] == '已核对凭证'
+    assert client.get('/api/funds/summary').json()['total_minor'] == 10000
+    assert [s['id'] for s in client.get('/api/fund-stocktakes?status=ended').json()] == [item['id']]
+
+
+def test_fund_stocktake_endpoint_failure_rolls_back(client):
+    with engine.begin() as db:
+        db.execute(text("CREATE OR REPLACE FUNCTION fail_stocktake_endpoint() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.name = '失败核对（资金盘亏）' THEN RAISE EXCEPTION 'induced endpoint failure'; END IF; RETURN NEW; END $$"))
+        db.execute(text('CREATE TRIGGER fail_stocktake_endpoint BEFORE INSERT ON ledger_accounts FOR EACH ROW EXECUTE FUNCTION fail_stocktake_endpoint()'))
+    try:
+        with pytest.raises(Exception, match='induced endpoint failure'):
+            client.post('/api/fund-stocktakes', json={'name': '失败核对'})
+        assert client.get('/api/fund-stocktakes').json() == []
+        accounts = client.get('/api/accounts').json()
+        assert not any(a['name'].startswith('失败核对') for a in accounts)
+        assert all(a['stocktake'] is None for a in accounts)
+    finally:
+        with engine.begin() as db:
+            db.execute(text('DROP TRIGGER fail_stocktake_endpoint ON ledger_accounts'))
+            db.execute(text('DROP FUNCTION fail_stocktake_endpoint()'))

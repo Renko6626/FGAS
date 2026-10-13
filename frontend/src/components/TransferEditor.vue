@@ -3,12 +3,12 @@ import {computed,ref,watch} from 'vue'
 import {NButton,NInput,NModal} from 'naive-ui'
 import {api,money,statuses,type Account,type Preview,type TransferInput} from '../api/funds'
 import EndpointSelector from './EndpointSelector.vue'
-const props=defineProps<{show:boolean;accounts:Account[];opening?:boolean}>()
+const props=defineProps<{show:boolean;accounts:Account[];opening?:boolean;initial?:Partial<TransferInput>}>()
 const emit=defineEmits<{close:[];saved:[string]}>()
 const form=ref<TransferInput>({source_account_id:'',destination_account_id:'',amount:'',effective_date:new Date().toLocaleDateString('sv-SE'),description:'',counterparty:null})
 const preview=ref<Preview|null>(null),error=ref(''),busy=ref(false)
 const snapshot=ref('')
-watch(()=>props.show,value=>{if(value){form.value={source_account_id:props.opening?(props.accounts.find(a=>a.kind==='equity')?.id||''):'',destination_account_id:props.opening?(props.accounts.find(a=>a.is_fund)?.id||''):'',amount:'',effective_date:new Date().toLocaleDateString('sv-SE'),description:props.opening?'期初资金':'',counterparty:null};preview.value=null;error.value=''}})
+watch(()=>props.show,value=>{if(value){form.value={source_account_id:props.opening?(props.accounts.find(a=>a.kind==='equity')?.id||''):'',destination_account_id:props.opening?(props.accounts.find(a=>a.is_fund)?.id||''):'',amount:'',effective_date:new Date().toLocaleDateString('sv-SE'),description:props.opening?'期初资金':'',counterparty:null,...props.initial};preview.value=null;error.value=''}})
 watch(form,()=>{preview.value=null},{deep:true})
 const validPreview=computed(()=>preview.value&&snapshot.value===JSON.stringify(form.value))
 async function runPreview() {

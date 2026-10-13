@@ -189,3 +189,38 @@ def add_stock_fund_reference(identifier: str, data: StockFundReferenceInput, use
 def submit_stock_operation(data: StockOperationInput, user=Depends(identity), db=Depends(database)):
     from backend.application.stock_workflows import submit_stock_with_money
     return submit_stock_with_money(db, user, data.model_dump(mode='json'))
+
+
+from backend.application import stocktakes
+
+@app.get('/api/fund-stocktakes')
+def list_fund_stocktakes(status: Literal['in_progress', 'ended'] | None=None, user=Depends(identity), db=Depends(database)):
+    return stocktakes.list_stocktakes(db, 'fund', status)
+@app.post('/api/fund-stocktakes', status_code=201)
+def create_fund_stocktake(data: StocktakeCreate, user=Depends(identity), db=Depends(database)):
+    return stocktakes.create_stocktake(db, user, 'fund', data.model_dump())
+@app.get('/api/fund-stocktakes/{identifier}')
+def get_fund_stocktake(identifier: str, user=Depends(identity), db=Depends(database)):
+    return stocktakes.get_stocktake(db, 'fund', identifier)
+@app.patch('/api/fund-stocktakes/{identifier}')
+def patch_fund_stocktake(identifier: str, data: StocktakePatch, user=Depends(identity), db=Depends(database)):
+    return stocktakes.update_description(db, user, 'fund', identifier, data.description)
+@app.post('/api/fund-stocktakes/{identifier}/end')
+def end_fund_stocktake(identifier: str, user=Depends(identity), db=Depends(database)):
+    return stocktakes.end_stocktake(db, user, 'fund', identifier)
+
+@app.get('/api/stock-stocktakes')
+def list_stock_stocktakes(status: Literal['in_progress', 'ended'] | None=None, user=Depends(identity), db=Depends(database)):
+    return stocktakes.list_stocktakes(db, 'stock', status)
+@app.post('/api/stock-stocktakes', status_code=201)
+def create_stock_stocktake(data: StocktakeCreate, user=Depends(identity), db=Depends(database)):
+    return stocktakes.create_stocktake(db, user, 'stock', data.model_dump())
+@app.get('/api/stock-stocktakes/{identifier}')
+def get_stock_stocktake(identifier: str, user=Depends(identity), db=Depends(database)):
+    return stocktakes.get_stocktake(db, 'stock', identifier)
+@app.patch('/api/stock-stocktakes/{identifier}')
+def patch_stock_stocktake(identifier: str, data: StocktakePatch, user=Depends(identity), db=Depends(database)):
+    return stocktakes.update_description(db, user, 'stock', identifier, data.description)
+@app.post('/api/stock-stocktakes/{identifier}/end')
+def end_stock_stocktake(identifier: str, user=Depends(identity), db=Depends(database)):
+    return stocktakes.end_stocktake(db, user, 'stock', identifier)

@@ -197,3 +197,29 @@ class StockMove(Base):
     quantity_minor: Mapped[int] = mapped_column(BigInteger)
     effective_date: Mapped[object] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class FundStocktake(Base):
+    __tablename__ = 'fund_stocktakes'
+    __table_args__ = (CheckConstraint("status IN ('in_progress','ended')"), CheckConstraint('gain_account_id <> loss_account_id'), CheckConstraint("length(trim(name)) > 0"))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(String, default='')
+    status: Mapped[str] = mapped_column(String, default='in_progress')
+    gain_account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'), unique=True)
+    loss_account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'), unique=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class StockStocktake(Base):
+    __tablename__ = 'stock_stocktakes'
+    __table_args__ = (CheckConstraint("status IN ('in_progress','ended')"), CheckConstraint('gain_location_id <> loss_location_id'), CheckConstraint("length(trim(name)) > 0"))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(String, default='')
+    status: Mapped[str] = mapped_column(String, default='in_progress')
+    gain_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'), unique=True)
+    loss_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'), unique=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
