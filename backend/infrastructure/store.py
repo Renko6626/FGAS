@@ -204,7 +204,8 @@ def member_overview(db, member):
 def member_other_transfers(db, member):
     owned = select(MemberClaim.transfer_id).where(MemberClaim.member_id == member.id).union(
         select(Repayment.transfer_id).where(Repayment.member_id == member.id))
-    return list(db.scalars(select(Transfer).join(JournalLine, JournalLine.transfer_id == Transfer.id).where(
-        JournalLine.account_id == member.account_id, Transfer.id.not_in(owned),
+    traced = select(JournalLine.transfer_id).where(JournalLine.account_id == member.account_id)
+    return list(db.scalars(select(Transfer).where(
+        Transfer.id.in_(traced), Transfer.id.not_in(owned),
         (Transfer.reversal_of.is_(None) | Transfer.reversal_of.not_in(owned))
-    ).distinct().order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))
+    ).order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))
