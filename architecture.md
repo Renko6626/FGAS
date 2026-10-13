@@ -4,7 +4,7 @@
 
 **版本：** v0.4  
 **文档分部：** Part 1  
-**日期：** 2026-10-13（库存转移与差异处理修订）  
+**日期：** 2026-10-13（库存实现与集中核对）
 **架构方向：** 模块化单体
 
 本文综合 architecture-v0.3.md 的架构与分阶段设计、v0.4 的业务细化，以及本轮已确认的实施前提。第一阶段建立可信的资金、数量和成员往来记录，让成员通过少量日常入口登记实际发生的事，系统保存正式流水、审批及更正依据。
@@ -636,3 +636,18 @@ BoothKernel 仍是独立现场 POS，不把其数据库作为中央账本，也�
 - 2026-10-13 根据用户确认简化库存流程：每批一条可含多个 SKU 的 Transfer，批准后在途，额外手动整笔确认；取消分批执行和分别交出/接收模型，数量差异使用关联盘点盈亏，不改资金关联原则或成本估值边界。
 
 设计参考：[ERPNext 付款匹配](<https://docs.frappe.io/erpnext/payment-reconciliation>)、[ERPNext 到货记录](<https://docs.frappe.io/erpnext/purchase-receipt>)、[Business Central 库存记录](<https://learn.microsoft.com/en-us/dynamics365/business-central/design-details-inventory-posting>)。
+
+
+## 14 当前实现边界（2026-10-13）
+
+隔离的 `feature/stock-transfers` 分支已实现 SKU 整数计数、实际/外部位置、Member 当前保管及历史区间、多 SKU 独立 Transfer、批准后在途、额外手动整笔完成、正式 StockMove、关联转移差异及独立盈亏调整、资金引用和钱货组合入口。资金与成员垫付既有规则保持不变；每批独立，无父单、预留或分批执行。
+
+具体实现采用 `kernel/stock.py` 的纯数量约束、`modules/warehouse/plans.py` 的整笔方案、`application/warehouse*` 的权限与生命周期编排、`stock_differences.py` 的差异及关联、`stock_queries.py` 的一致快照查询和 `stock_workflows.py` 的钱货组合。正式库存由 StockMove 求和，不维护可直接修改的余额。SQL 数量合计从精确 numeric 转为 Python 整数；HTTP 传输整数串，不通过浮点数计算。
+
+`POST /api/stock-operations` 在同一事务建立普通资金或垫付、货物 Transfer 及关系，并保存完整幂等请求。资金按原批准/确认规则生效，货物只到待审批或在途；后续完成只写数量。两边的取消、拒绝、冲销与批准独立。已有款项用资金引用接口关联，不再新建付款，不推导 SKU 成本。
+
+当前差异是已完成转移的单条明细与物理端点核对，不是全仓盘点；来源与目标可各自登记有依据的差异，生成独立盈亏 Transfer。没有“完成原单并同时完成调整”的复合接口。观察值只留依据，不改变获准量；复杂历史更正、历史时点负库存重建和自动补偿尚未提供。正式数量及资金事实通过支持的 API 不可覆盖。
+
+旧 Location 缺少 profile 时必须显式运行 `--initialize-stock-profiles`，普通启动不赋予库存用途、不把自由保管人文本匹配为 Member；该非重置入口保留原有数据。本轮未触碰根目录旧原型开发库，也未合并或部署。开发直接建表不等于正式迁移方案；Casdoor、附件、备份恢复和正式部署仍待落实。
+
+已有真实 PostgreSQL 行为检查覆盖整笔执行、权限刷新、重试、竞争库存、失败回滚、差异调整及钱货创建原子性。前端编译证据与未验证边界见 [阶段记录](docs/prototype-status.md)；浏览器交互尚未验收，逐任务审阅后仍需控制器进行整分支最终审阅。接口详情见 [README](README.md#stock-transfers-and-quantity-inventory)。
