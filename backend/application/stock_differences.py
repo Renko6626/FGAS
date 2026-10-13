@@ -3,7 +3,7 @@ from datetime import date, datetime
 from sqlalchemy import select, text
 from backend.application import warehouse
 from backend.infrastructure import stock_store, store
-from backend.infrastructure.models import StockDifference, StockDifferenceAdjustment, StockTransfer, StockTransferLine, StockTransferFundReference
+from backend.infrastructure.models import StockDifference, StockDifferenceAdjustment, StockTransfer, StockTransferLine, StockTransferFundReference, new_id
 from backend.kernel.accounting import DomainError
 from backend.kernel.stock import quantity_to_minor, quantity_string
 
@@ -59,8 +59,14 @@ def create_adjustment(db,user,identifier,data):
     if any(a.status in ('pending','in_transit','completed') for a in stock_store.adjustments(db,identifier)): raise DomainError('差异已有有效调整',409)
     action = 'adjustment_gain' if difference.delta_minor > 0 else 'adjustment_loss'
     source,target = (data['external_location_id'],difference.location_id) if difference.delta_minor > 0 else (difference.location_id,data['external_location_id'])
-    payload = dict(source_location_id=source,destination_location_id=target,action_kind=action,effective_date=data['effective_date'],description='转移核对差异调整',basis=data['basis'],source_reference='stock-difference:'+identifier,fund_transfer_ids=[],lines=[dict(sku_id=difference.sku_id,quantity=quantity_string(abs(difference.delta_minor)))],idempotency_key='difference-adjustment:'+data['idempotency_key'])
-    item = stock_store.create(db,StockTransfer,dict(source_location_id=source,destination_location_id=target,action_kind=action,effective_date=date.fromisoformat(data['effective_date']),description=payload['description'],basis=data['basis'],source_reference=payload['source_reference'],actor_id=user.id,status='pending',payload=payload,idempotency_key=payload['idempotency_key']))
+    # Child identity is server-owned; action replay above keeps the client key.
+    transfer_id = new_id()
+    child_key = 'difference-adjustment:' + transfer_id
+    while stock_store.existing_submission(db,user.id,child_key) is not None:
+        transfer_id = new_id()
+        child_key = 'difference-adjustment:' + transfer_id
+    payload = dict(source_location_id=source,destination_location_id=target,action_kind=action,effective_date=data['effective_date'],description='转移核对差异调整',basis=data['basis'],source_reference='stock-difference:'+identifier,fund_transfer_ids=[],lines=[dict(sku_id=difference.sku_id,quantity=quantity_string(abs(difference.delta_minor)))],idempotency_key=child_key)
+    item = stock_store.create(db,StockTransfer,dict(id=transfer_id,source_location_id=source,destination_location_id=target,action_kind=action,effective_date=date.fromisoformat(data['effective_date']),description=payload['description'],basis=data['basis'],source_reference=payload['source_reference'],actor_id=user.id,status='pending',payload=payload,idempotency_key=payload['idempotency_key']))
     stock_store.create(db,StockDifferenceAdjustment,dict(stock_transfer_id=item.id,difference_id=identifier))
     lines = warehouse.validate(db,payload,item.id)
     for line in lines: stock_store.create(db,StockTransferLine,line | dict(transfer_id=item.id))

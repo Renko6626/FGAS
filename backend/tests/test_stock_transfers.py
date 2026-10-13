@@ -252,6 +252,8 @@ def test_transfer_loss_difference_adjustments_and_custody(client):
     assert client.post(adjustment_path,json=adjustment_data).status_code == 403
     client.post('/api/auth/login',json={'user_id':'trusted'})
     assert client.post(adjustment_path,json=adjustment_data | {'external_location_id':gain}).status_code == 400
+    # A legitimate ordinary plan may use the old synthesized adjustment key.
+    stock_plan(client,a,b,skus[:1],['1'],'difference-adjustment:adjust')
     adjustment = client.post(adjustment_path,json=adjustment_data).json()
     assert adjustment['status'] == 'in_transit' and adjustment['lines'][0]['quantity'] == '2'
     assert balances(client)[b,skus[0]] == '30'
@@ -259,9 +261,13 @@ def test_transfer_loss_difference_adjustments_and_custody(client):
     assert client.post(adjustment_path,json=adjustment_data | {'idempotency_key':'again'}).status_code == 409
     cancel = dict(expected_content_version=1,expected_execution_version=adjustment['execution_version'],reason='重新核对依据',idempotency_key='cancel-adjustment')
     assert client.post(f"/api/stock-transfers/{adjustment['id']}/cancel",json=cancel).status_code == 200
+    replay = client.post(adjustment_path,json=adjustment_data).json()
+    assert replay['id'] == adjustment['id'] and replay['status'] == 'cancelled'
     adjustment = client.post(adjustment_path,json=adjustment_data | {'idempotency_key':'retry'}).json()
     assert complete(client,adjustment,'adjustment-complete').status_code == 200
     assert complete(client,adjustment,'adjustment-complete').status_code == 200
+    replay = client.post(adjustment_path,json=adjustment_data | {'idempotency_key':'retry'}).json()
+    assert replay['id'] == adjustment['id'] and replay['status'] == 'completed'
     inventory = client.get('/api/inventory',params={'sku_id':skus[0]}).json()
     assert balances(client)[a,skus[0]] == '70' and balances(client)[b,skus[0]] == '28'
     assert inventory['totals'][0]['quantity'] == '98'
