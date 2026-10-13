@@ -71,7 +71,7 @@ npm run dev
 [阶段设计](superpowers/specs/2026-10-13-member-claims-design.md) 已据此修订，[实施计划](superpowers/plans/2026-10-13-member-claims-plan.md) 已完成编写和自检，待审阅后开始开发。本次只更新文档，不代表垫付或偿还功能已交付，未修改数据库或运行产品测试。
 
 
-## 2026-10-13：成员垫付与偿还实现检查点
+## 2026-10-13：成员垫付与偿还实现检查点（权限开放前记录）
 
 用户确认设计及实施计划后，选择逐任务委派，开发使用 gpt-6.1-sol low、审阅使用 medium。代码位于隔离的 `feature/member-claims` 分支，尚未合并或部署。任务 1–4 及其修复的逐任务审阅完成；任务 5 最终集中代码审阅及修复复审已通过。
 
@@ -95,3 +95,14 @@ npm run dev
 最终后端可用检查为 `.venv/bin/python -m compileall -q backend` 通过，以及两个数据库测试文件 `pytest --collect-only -q` 收集十个用例；最新前端 `npm run build` 在页面修复后通过，此后没有前端修改。真实 PostgreSQL 用例仍未执行，截图和浏览器交互验收未进行。沙箱外执行测试的申请被当前自动审批策略拒绝，未绕过限制。
 
 保留 `feature/member-claims` 和隔离工作区供后续验收；在获准连接本机测试数据库的终端中，从该工作区运行 `./tools/run_tests.sh`。本轮没有启动应用、修改开发数据库、合并 main 或部署。
+
+## 2026-10-13：权限开放后的数据库验证与公开交付
+
+公开仓库：[Renko6626/FGAS](https://github.com/Renko6626/FGAS)。用户授权阶段保存、创建 PR 并合并；本节替代上文“数据库受阻”的当前状态，上文保留为当时的历史记录。
+
+- 权限开放后第一次真实执行为 8 passed、2 failed：成员明细查询使用 `DISTINCT transfers.*`，包含的 PostgreSQL JSON 字段没有等值比较运算符。
+- `ff994e7` 将其改为按流水 ID 子查询过滤，不更改 Schema、成员归属过滤或测试断言；gpt-6.1-sol medium 定向审阅通过，无新问题。定向检查 2 passed；完整 `./tools/run_tests.sh` 为 **10 passed in 3.23s**。
+- `npm run build` 通过前端类型检查和生产构建，2678 modules，4.50s。
+- 仍未进行截图、浏览器自动交互、Compose 安装或正式部署验收。测试使用独立 `fgas_test`，未清空开发库。
+
+原阶段标签 `checkpoint/member-claims-20261013` 保存权限开放前的实现；验证完成后的主线将另存 `checkpoint/member-claims-verified-20261013`，不改写原标签。

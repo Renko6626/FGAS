@@ -81,16 +81,16 @@ export AUTH_MODE=development
 FGAS_TEST_DATABASE=1 .venv/bin/python -m pytest backend/tests/test_funds.py backend/tests/test_member_claims.py -q
 ```
 
-The runner `./tools/run_tests.sh` initializes only the dedicated test database and runs both files. Ten PostgreSQL tests are present (four existing funds tests and six claim/repayment tests), including matching, stale and competing payments, reversal and rollback. On 2026-10-13 they were collected only: the runner failed before tests executed because the sandbox denied the PostgreSQL Unix socket. Automatic escalation was rejected. Historical four-test success on 2026-10-12 does not verify this branch. The latest `npm run build` passed after the Task 4 fixes (vue-tsc and Vite, 2678 modules, 4.22s). No screenshots or browser interaction acceptance were performed.
+The runner `./tools/run_tests.sh` initializes only the dedicated test database and runs both files. On 2026-10-13, after network/socket permissions were enabled and the PostgreSQL JSON query issue was fixed, all ten tests passed in 3.23s: four existing funds tests and six claim/repayment tests cover matching, stale and competing payments, reversal, rollback and member balance queries. `npm run build` also passed (vue-tsc and Vite, 2678 modules, 4.50s). No screenshots or browser interaction acceptance were performed.
 
 
 ## 当前服务器试用
 
 原型已在 FGAS 根目录安装依赖，并配置忽略提交的 `.env`。PostgreSQL 使用根目录 `.runtime` 的 Unix socket，端口 55438；这只是本机开发环境。根目录运行 `npm run dev` 同时启动 FastAPI（8000）和 Vue（5173）。开发账户选择器提供管理员、受信任用户和不受信任用户。
 
-资金初始余额为零。可以选择“期初权益”端点转入“社团资金池”，再录入收支和转账。资金账户与库存位置目录支持标签；库存位置目前不提供数量账。成员垫付与逐笔偿还匹配已在独立 `feature/member-claims` 分支实现，尚待真实数据库验收。
+资金初始余额为零。可以选择“期初权益”端点转入“社团资金池”，再录入收支和转账。资金账户与库存位置目录支持标签；库存位置目前不提供数量账。成员垫付与逐笔偿还匹配已实现，相关真实 PostgreSQL 测试通过。
 
-本环境的 `.git` 目录只读，Git 元数据实际保存在 `.fgas-git`。在根目录查看版本可用 `git --git-dir=.fgas-git --work-tree=. status`；2026-10-12 的资金池检查点已合回 `main`；2026-10-13 的成员增量仍在 `feature/member-claims` 分支，未合并或部署。普通可写环境中的 Git 不需要这个额外路径。
+本环境的 `.git` 目录只读，Git 元数据实际保存在 `.fgas-git`。在根目录查看版本可用 `git --git-dir=.fgas-git --work-tree=. status`。公开仓库为 [Renko6626/FGAS](https://github.com/Renko6626/FGAS)，成员增量通过 PR 交付；尚未部署。普通可写环境中的 Git 不需要这个额外路径。
 
 2026-10-12 检查点验证包括四个真实 PostgreSQL 行为用例、前端类型检查与构建、开发服务健康检查；这些是旧检查点证据，不代表成员增量验收。没有执行浏览器自动点击、填表或端到端交互验收；Compose 安装与正式身份认证尚未验证。
 
