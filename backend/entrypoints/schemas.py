@@ -36,3 +36,10 @@ class Rejection(Approval): reason: str = Field(min_length=1)
 class Reversal(Input):
     reason: str = Field(min_length=1)
     idempotency_key: str = Field(min_length=1, max_length=200)
+
+class MemberCreate(Input):
+    name: str = Field(min_length=1, max_length=200)
+    note: str = ''
+class MemberPatch(Input):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    note: str | None = None

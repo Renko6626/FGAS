@@ -1,7 +1,7 @@
 """Cohesive persistence adapter for the development identity, catalogs and funds."""
 from sqlalchemy import select, text, func
 from backend.infrastructure.database import Session, engine
-from backend.infrastructure.models import Base, User, LoginSession, Account, FundAccount, Location, Transfer, JournalLine, Audit
+from backend.infrastructure.models import Base, User, LoginSession, Account, FundAccount, Location, Transfer, JournalLine, Audit, Member, MemberClaim, Repayment, RepaymentAllocation
 
 def transaction():
     with Session() as db:
@@ -92,3 +92,22 @@ def seed_development(admin_id, admin_name):
                 db.add(Account(id=identifier, name=name, kind=kind, tags=['示例'])); db.flush()
                 if fund: db.add(FundAccount(account_id=identifier))
         if not get_location(db, 'main'): db.add(Location(id='main', name='主存放处', custodian_label='', tags=['示例']))
+
+def get_member(db, identifier): return db.get(Member, identifier)
+def members(db): return list(db.scalars(select(Member).order_by(Member.name, Member.id)))
+def create_member(db, values):
+    item = Member(**values); db.add(item); db.flush()
+    return item
+
+def get_claim(db, transfer_id): return db.get(MemberClaim, transfer_id)
+def get_repayment(db, transfer_id): return db.get(Repayment, transfer_id)
+def create_claim(db, values):
+    item = MemberClaim(**values); db.add(item); db.flush()
+    return item
+
+def create_repayment(db, values, allocations):
+    item = Repayment(**values); db.add(item); db.flush()
+    for allocation in allocations:
+        db.add(RepaymentAllocation(repayment_id=item.transfer_id, **allocation))
+    db.flush()
+    return item

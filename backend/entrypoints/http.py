@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from backend.infrastructure.store import transaction as database
 from backend.kernel.accounting import DomainError
-from backend.application import funds, catalogs, identity as identities
+from backend.application import funds, catalogs, member_claims, identity as identities
 from backend.entrypoints.schemas import *
 
 AUTH_MODE = os.getenv('AUTH_MODE', '')
@@ -85,3 +85,13 @@ def reverse(identifier: str, data: Reversal, user=Depends(identity), db=Depends(
 @app.get('/api/funds/summary')
 def summary(user=Depends(identity), db=Depends(database)):
     return funds.summary(db)
+
+@app.get('/api/members')
+def members(user=Depends(identity), db=Depends(database)):
+    return member_claims.list_members(db)
+@app.post('/api/members', status_code=201)
+def create_member(data: MemberCreate, user=Depends(identity), db=Depends(database)):
+    return member_claims.create_member(db, user, data.model_dump())
+@app.patch('/api/members/{identifier}')
+def patch_member(identifier: str, data: MemberPatch, user=Depends(identity), db=Depends(database)):
+    return member_claims.update_member(db, user, identifier, data.model_dump(exclude_none=True))

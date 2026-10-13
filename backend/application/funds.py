@@ -35,17 +35,84 @@ def post(db, item, user, mode):
     store.audit(db, item.id, user.id, 'posted', mode)
     store.flush(db)
 
-def submit(db, user, data, reversal_of=None, reason=None):
+def validate_business(db, business, data, amount_minor, defer_post):
+    """Check marker identity and endpoints before persisting any marker."""
+    kind = business.get('kind')
+    if kind not in ('member_claim', 'repayment'): raise DomainError('业务标记类型无效')
+    member = store.get_member(db, business.get('member_id'))
+    if not member: raise DomainError('成员不存在', 404)
+    account = store.get_account(db, member.account_id)
+    if not account or account.kind != 'liability' or store.is_fund(db, member.account_id):
+        raise DomainError('成员往来科目无效')
+    if not isinstance(business.get('basis'), str) or not business['basis'].strip():
+        raise DomainError('须填写依据')
+    if kind == 'member_claim':
+        if data['source_account_id'] != member.account_id: raise DomainError('垫付来源须为该成员往来科目')
+        declared = business.get('declared_minor')
+        confirmed = business.get('confirmed_minor')
+        if type(declared) is not int or declared <= 0: raise DomainError('申报金额无效')
+        if confirmed is not None and (type(confirmed) is not int or not 0 < confirmed <= declared):
+            raise DomainError('确认金额无效')
+        if amount_minor != (declared if confirmed is None else confirmed): raise DomainError('转移金额与垫付标记不一致')
+        if confirmed is None and not defer_post: raise DomainError('未确认垫付不能过账')
+        if confirmed is not None and confirmed != declared and not (business.get('confirmation_reason') or '').strip():
+            raise DomainError('确认金额不一致须填写原因')
+    else:
+        if data['destination_account_id'] != member.account_id or not store.is_fund(db, data['source_account_id']):
+            raise DomainError('偿还须从组织资金付至该成员往来科目')
+        if business.get('allocation_mode') not in ('oldest_first', 'manual'): raise DomainError('匹配方式无效')
+        allocations = business.get('allocations', [])
+        if not isinstance(allocations, list) or not allocations: raise DomainError('偿还须提供匹配')
+        seen = set()
+        total = 0
+        for allocation in allocations:
+            claim_id = allocation.get('claim_id')
+            claim = store.get_claim(db, claim_id)
+            amount = allocation.get('amount_minor')
+            if not claim or claim.member_id != member.id: raise DomainError('匹配垫付须属于该成员')
+            if claim_id in seen or type(amount) is not int or amount <= 0: raise DomainError('匹配金额或重复匹配无效')
+            seen.add(claim_id)
+            total += amount
+        if total != amount_minor: raise DomainError('匹配总额须等于偿还金额')
+
+
+def save_business(db, item, business):
+    values = dict(transfer_id=item.id, member_id=business['member_id'], basis=business['basis'])
+    if business['kind'] == 'member_claim':
+        from backend.infrastructure.models import now
+        confirmed = business.get('confirmed_minor')
+        values.update(declared_minor=business['declared_minor'], confirmed_minor=confirmed,
+                      confirmation_reason=business.get('confirmation_reason'),
+                      confirmed_at=now() if confirmed is not None else None)
+        store.create_claim(db, values)
+    else:
+        values['allocation_mode'] = business['allocation_mode']
+        allocations = [{key: allocation[key] for key in ('claim_id', 'amount_minor')} for allocation in business['allocations']]
+        store.create_repayment(db, values, allocations)
+
+
+def submit(db, user, data, reversal_of=None, reason=None, *, business: dict | None=None, defer_post: bool=False):
     store.lock(db)
     # Resolve persisted role inside the write transaction, rather than trusting request data.
     store.refresh(db, user)
     if not user.active: raise DomainError('用户已停用', 403)
-    payload = dict(data, reversal_of=reversal_of, reason=reason)
+    if business is not None or defer_post: require_trusted(user)
+    # Internal controls are part of the original request, server timestamps are not.
+    from copy import deepcopy
+    payload = deepcopy(dict(data, reversal_of=reversal_of, reason=reason))
+    if business is not None:
+        payload['business'] = deepcopy({key: value for key, value in business.items() if key != 'confirmed_at'})
+        payload['defer_post'] = defer_post
+    elif defer_post:
+        payload['defer_post'] = True
     old = store.existing_submission(db, user.id, data['idempotency_key'])
     if old:
         if old.payload != payload: raise DomainError('幂等标识已用于不同内容', 409)
         return old
     lines = validate(db, data['source_account_id'], data['destination_account_id'], data['amount'])
+    if business is not None:
+        if reversal_of: raise DomainError('冲销不能新建业务标记')
+        validate_business(db, business, data, lines[0].credit_minor, defer_post)
     if reversal_of:
         original = get_transfer(db, reversal_of)
         existing = store.existing_reversal(db, reversal_of)
@@ -54,8 +121,9 @@ def submit(db, user, data, reversal_of=None, reason=None):
     values = {k: data[k] for k in ('source_account_id', 'destination_account_id', 'description', 'counterparty', 'idempotency_key')}
     values.update(effective_date=date.fromisoformat(data['effective_date']), amount_minor=lines[0].credit_minor, actor_id=user.id, status='pending', payload=payload, reversal_of=reversal_of, reason=reason)
     item = store.create_transfer(db, values)
+    if business is not None: save_business(db, item, business)
     store.audit(db, item.id, user.id, 'submitted', reason or '')
-    if user.role in ('admin', 'trusted'): post(db, item, user, 'automatic')
+    if user.role in ('admin', 'trusted') and not defer_post: post(db, item, user, 'automatic')
     return item
 
 def decide(db, user, identifier, version, rejection=None):
