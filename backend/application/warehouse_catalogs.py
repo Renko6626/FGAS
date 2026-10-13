@@ -1,5 +1,5 @@
 from backend.infrastructure import store, stock_store, stocktake_store
-from backend.infrastructure.models import Sku, LocationProfile, LocationCustody, now
+from backend.infrastructure.models import Sku, StockAccountCustody, now
 from backend.application.funds import require_trusted
 from backend.kernel.accounting import DomainError
 
@@ -34,38 +34,25 @@ def update_sku(db, user, identifier, data):
     return sku_view(item)
 
 
-def validate_profile(kind, external_kind):
-    if kind == 'physical' and external_kind is None: return
-    if kind == 'external' and external_kind in ('supplier', 'customer', 'opening', 'loss', 'adjustment_gain', 'adjustment_loss'): return
-    raise DomainError('实际位置不能指定外部类型；外部位置须指定有效类型')
+def account_view(db,item):
+    custody=stock_store.current_custody(db,item.id)
+    member=store.get_member(db,custody.member_id) if custody else None
+    contact=store.get_member(db,item.member_id) if item.member_id else None
+    return {key:getattr(item,key) for key in ('id','name','kind','member_id','avatar_url','tags','active')} | dict(
+        member_name=contact.name if contact else None,stocktake=stocktake_store.endpoint_metadata(db,'stock',item.id),
+        current_custody=dict(id=custody.id,member_id=member.id,member_name=member.name,valid_from=custody.valid_from,actor_id=custody.actor_id) if custody else None)
 
-
-def location_view(db, item):
-    profile = stock_store.get_profile(db, item.id)
-    custody = stock_store.current_custody(db, item.id)
-    member = store.get_member(db, custody.member_id) if custody else None
-    return dict(id=item.id, name=item.name, custodian_label=item.custodian_label, tags=item.tags,
-                kind=profile.kind if profile else None, external_kind=profile.external_kind if profile else None,
-                active=profile.active if profile else None,
-                stocktake=stocktake_store.endpoint_metadata(db, "stock", item.id),
-                current_custody=dict(id=custody.id, member_id=member.id, member_name=member.name,
-                                     valid_from=custody.valid_from, actor_id=custody.actor_id) if custody else None)
-
-
-def set_custody(db, user, location_id, member_id):
-    authorize_write(db, user)
-    item = store.get_location(db, location_id)
-    if item is None: raise DomainError('位置不存在', 404)
-    profile = stock_store.get_profile(db, location_id)
-    if profile is None or profile.kind != 'physical': raise DomainError('只有已配置的实际位置可以设置保管人', 409)
-    if member_id is not None and store.get_member(db, member_id) is None: raise DomainError('成员不存在', 404)
-    current = stock_store.current_custody(db, location_id)
-    if (current.member_id if current else None) == member_id: return location_view(db, item)
-    timestamp = now()
+def set_custody(db,user,account_id,member_id):
+    authorize_write(db,user)
+    item=store.get_stock_account(db,account_id)
+    if item is None: raise DomainError('账户不存在',404)
+    if item.kind=='external': raise DomainError('外部账户不管理社团货物保管关系',409)
+    if member_id is not None and store.get_member(db,member_id) is None: raise DomainError('成员不存在',404)
+    current=stock_store.current_custody(db,account_id)
+    if (current.member_id if current else None)==member_id: return account_view(db,item)
+    timestamp=now()
     if current:
-        current.valid_to = timestamp
-        current.ended_by = user.id
-        db.flush()
+        current.valid_to=timestamp; current.ended_by=user.id; db.flush()
     if member_id is not None:
-        stock_store.create(db, LocationCustody, dict(location_id=location_id, member_id=member_id, valid_from=timestamp, actor_id=user.id))
-    return location_view(db, item)
+        stock_store.create(db,StockAccountCustody,dict(account_id=account_id,member_id=member_id,valid_from=timestamp,actor_id=user.id))
+    return account_view(db,item)

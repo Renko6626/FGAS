@@ -16,30 +16,36 @@ class LoginSession(Base):
     __tablename__ = 'login_sessions'
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
-class Account(Base):
-    __tablename__ = 'ledger_accounts'
+class FundAccount(Base):
+    __tablename__ = 'fund_accounts'
+    __table_args__ = (CheckConstraint("kind IN ('public','private','external')"),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
+    member_id: Mapped[str | None] = mapped_column(ForeignKey('members.id'), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     tags: Mapped[list] = mapped_column(JSON, default=list)
-class FundAccount(Base):
-    __tablename__ = 'fund_accounts'
-    account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'), primary_key=True)
-class Location(Base):
-    __tablename__ = 'stock_locations'
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+class StockAccount(Base):
+    __tablename__ = 'stock_accounts'
+    __table_args__ = (CheckConstraint("kind IN ('public','private','external')"),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String)
-    custodian_label: Mapped[str] = mapped_column(String, default='')
+    kind: Mapped[str] = mapped_column(String)
+    member_id: Mapped[str | None] = mapped_column(ForeignKey('members.id'), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     tags: Mapped[list] = mapped_column(JSON, default=list)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
 class Transfer(Base):
     __tablename__ = 'transfers'
     __table_args__ = (CheckConstraint('amount_minor > 0'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    source_account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'))
-    destination_account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'))
+    source_account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'))
+    destination_account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'))
     amount_minor: Mapped[int] = mapped_column(BigInteger)
     effective_date: Mapped[object] = mapped_column(Date)
     description: Mapped[str] = mapped_column(String, default='')
+    tags: Mapped[list] = mapped_column(JSON, default=list)
     counterparty: Mapped[str | None] = mapped_column(String, nullable=True)
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
@@ -54,7 +60,7 @@ class JournalLine(Base):
     __table_args__ = (CheckConstraint('(debit_minor > 0 AND credit_minor = 0) OR (credit_minor > 0 AND debit_minor = 0)'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'))
-    account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'))
+    account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'))
     debit_minor: Mapped[int] = mapped_column(BigInteger)
     credit_minor: Mapped[int] = mapped_column(BigInteger)
 class Audit(Base):
@@ -71,30 +77,13 @@ class Member(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String)
     note: Mapped[str] = mapped_column(String, default='')
-    account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'), unique=True)
-class MemberClaim(Base):
-    __tablename__ = 'member_claims'
-    __table_args__ = (CheckConstraint('declared_minor > 0'), CheckConstraint('confirmed_minor IS NULL OR (confirmed_minor > 0 AND confirmed_minor <= declared_minor)'))
-    transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
-    member_id: Mapped[str] = mapped_column(ForeignKey('members.id'))
-    declared_minor: Mapped[int] = mapped_column(BigInteger)
-    confirmed_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    basis: Mapped[str] = mapped_column(String)
-    confirmation_reason: Mapped[str | None] = mapped_column(String, nullable=True)
-    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-class Repayment(Base):
-    __tablename__ = 'repayments'
-    transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
-    member_id: Mapped[str] = mapped_column(ForeignKey('members.id'))
-    basis: Mapped[str] = mapped_column(String)
-    allocation_mode: Mapped[str] = mapped_column(String)
-class RepaymentAllocation(Base):
-    __tablename__ = 'repayment_allocations'
-    __table_args__ = (CheckConstraint('amount_minor > 0'),)
-    repayment_id: Mapped[str] = mapped_column(ForeignKey('repayments.transfer_id'), primary_key=True)
-    claim_id: Mapped[str] = mapped_column(ForeignKey('member_claims.transfer_id'), primary_key=True)
-    amount_minor: Mapped[int] = mapped_column(BigInteger)
 
+class SettlementMatch(Base):
+    __tablename__ = 'settlement_matches'
+    __table_args__ = (CheckConstraint('amount_minor > 0'), CheckConstraint('settlement_transfer_id <> item_transfer_id'))
+    settlement_transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
+    item_transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
+    amount_minor: Mapped[int] = mapped_column(BigInteger)
 
 class Sku(Base):
     __tablename__ = 'skus'
@@ -104,22 +93,14 @@ class Sku(Base):
     unit: Mapped[str] = mapped_column(String)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-class LocationProfile(Base):
-    __tablename__ = 'stock_location_profiles'
-    __table_args__ = (CheckConstraint("(kind = 'physical' AND external_kind IS NULL) OR (kind = 'external' AND external_kind IS NOT NULL AND external_kind IN ('supplier','customer','opening','loss','adjustment_gain','adjustment_loss'))"),)
-    location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'), primary_key=True)
-    kind: Mapped[str] = mapped_column(String)
-    external_kind: Mapped[str | None] = mapped_column(String, nullable=True)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
-
-class LocationCustody(Base):
-    __tablename__ = 'location_custodies'
+class StockAccountCustody(Base):
+    __tablename__ = 'stock_account_custodies'
     __table_args__ = (
         CheckConstraint('valid_to IS NULL OR valid_to >= valid_from'),
-        Index('one_current_location_custody', 'location_id', unique=True, postgresql_where=text('valid_to IS NULL')),
+        Index('one_current_stock_account_custody', 'account_id', unique=True, postgresql_where=text('valid_to IS NULL')),
     )
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
+    account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
     member_id: Mapped[str] = mapped_column(ForeignKey('members.id'))
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -130,12 +111,11 @@ class StockTransfer(Base):
     __tablename__ = 'stock_transfers'
     __table_args__ = (CheckConstraint("status IN ('pending','in_transit','completed','rejected','cancelled')"),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    source_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
-    destination_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
-    action_kind: Mapped[str] = mapped_column(String)
+    source_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
+    destination_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
     effective_date: Mapped[object] = mapped_column(Date)
     description: Mapped[str] = mapped_column(String, default='')
-    basis: Mapped[str] = mapped_column(String)
+    tags: Mapped[list] = mapped_column(JSON, default=list)
     related_transfer_id: Mapped[str | None] = mapped_column(ForeignKey('stock_transfers.id'), nullable=True)
     source_reference: Mapped[str | None] = mapped_column(String, nullable=True)
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
@@ -148,11 +128,11 @@ class StockTransfer(Base):
 
 class StockTransferLine(Base):
     __tablename__ = 'stock_transfer_lines'
-    __table_args__ = (UniqueConstraint('transfer_id', 'sku_id'), CheckConstraint('quantity_minor > 0 AND quantity_minor <= 9007199254740991'))
+    __table_args__ = (UniqueConstraint('transfer_id', 'sku_id'), CheckConstraint('quantity > 0 AND quantity <= 9007199254740991'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
     sku_id: Mapped[str] = mapped_column(ForeignKey('skus.id'))
-    quantity_minor: Mapped[int] = mapped_column(BigInteger)
+    quantity: Mapped[int] = mapped_column(BigInteger)
 
 class StockTransferFundReference(Base):
     __tablename__ = 'stock_transfer_fund_references'
@@ -179,7 +159,6 @@ class StockConfirmation(Base):
     transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     effective_date: Mapped[object] = mapped_column(Date)
-    basis: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String)
     approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
     execution_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -187,14 +166,14 @@ class StockConfirmation(Base):
 
 class StockMove(Base):
     __tablename__ = 'stock_moves'
-    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id'), UniqueConstraint('transfer_line_id'), CheckConstraint('quantity_minor > 0 AND quantity_minor <= 9007199254740991'))
+    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id'), UniqueConstraint('transfer_line_id'), CheckConstraint('quantity > 0 AND quantity <= 9007199254740991'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     confirmation_id: Mapped[str] = mapped_column(ForeignKey('stock_confirmations.id'))
     transfer_line_id: Mapped[str] = mapped_column(ForeignKey('stock_transfer_lines.id'))
     sku_id: Mapped[str] = mapped_column(ForeignKey('skus.id'))
-    source_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
-    destination_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
-    quantity_minor: Mapped[int] = mapped_column(BigInteger)
+    source_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
+    destination_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
+    quantity: Mapped[int] = mapped_column(BigInteger)
     effective_date: Mapped[object] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -206,20 +185,20 @@ class FundStocktake(Base):
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String, default='')
     status: Mapped[str] = mapped_column(String, default='in_progress')
-    gain_account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'), unique=True)
-    loss_account_id: Mapped[str] = mapped_column(ForeignKey('ledger_accounts.id'), unique=True)
+    gain_account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'), unique=True)
+    loss_account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'), unique=True)
     created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class StockStocktake(Base):
     __tablename__ = 'stock_stocktakes'
-    __table_args__ = (CheckConstraint("status IN ('in_progress','ended')"), CheckConstraint('gain_location_id <> loss_location_id'), CheckConstraint("length(trim(name)) > 0"))
+    __table_args__ = (CheckConstraint("status IN ('in_progress','ended')"), CheckConstraint('gain_account_id <> loss_account_id'), CheckConstraint("length(trim(name)) > 0"))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String, default='')
     status: Mapped[str] = mapped_column(String, default='in_progress')
-    gain_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'), unique=True)
-    loss_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'), unique=True)
+    gain_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'), unique=True)
+    loss_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'), unique=True)
     created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

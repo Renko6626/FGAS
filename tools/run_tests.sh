@@ -13,5 +13,5 @@ with engine.connect() as db:
         raise SystemExit('Tests require the dedicated fgas_test database')
     print(f'Test database: {name}')
 PYDB
-.venv/bin/python -m backend.application.initialize
-.venv/bin/python -m pytest backend/tests/test_funds.py backend/tests/test_member_claims.py backend/tests/test_stock_transfers.py -q
+.venv/bin/python -m backend.application.initialize --reset
+.venv/bin/python -m pytest backend/tests/test_funds.py backend/tests/test_settlements.py backend/tests/test_stock_transfers.py -q

@@ -21,18 +21,18 @@ def create(db, kind, values):
 
 def endpoint_owner(db, kind, identifier):
     cls = model(kind)
-    endpoint = 'account' if kind == 'fund' else 'location'
+    endpoint = 'account'
     return db.scalar(select(cls).where(or_(getattr(cls, 'gain_' + endpoint + '_id') == identifier, getattr(cls, 'loss_' + endpoint + '_id') == identifier)))
 
 def transfers(db, kind, item):
     if kind == 'fund':
-        direction = or_(Transfer.source_account_id == item.gain_account_id, Transfer.destination_account_id == item.loss_account_id)
+        direction = or_(Transfer.source_account_id.in_([item.gain_account_id,item.loss_account_id]),Transfer.destination_account_id.in_([item.gain_account_id,item.loss_account_id]))
         originals = select(Transfer.id).where(direction)
         query = select(Transfer).where(or_(direction, Transfer.reversal_of.in_(originals)))
         cls = Transfer
     else:
         cls = StockTransfer
-        query = select(cls).where(or_(cls.source_location_id == item.gain_location_id, cls.destination_location_id == item.loss_location_id))
+        query = select(cls).where(or_(cls.source_account_id.in_([item.gain_account_id,item.loss_account_id]),cls.destination_account_id.in_([item.gain_account_id,item.loss_account_id])))
     return list(db.scalars(query.order_by(cls.created_at.desc(), cls.id)))
 
 

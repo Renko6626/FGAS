@@ -6,9 +6,9 @@ from backend.kernel.accounting import DomainError
 
 
 def stocktake_view(db, kind, item):
-    endpoint = 'account' if kind == 'fund' else 'location'
+    endpoint = 'account'
     value = {key: getattr(item, key) for key in ('id', 'name', 'description', 'status', 'created_by', 'created_at')}
-    getter = store.get_account if kind == 'fund' else store.get_location
+    getter = store.get_account if kind == 'fund' else store.get_stock_account
     for side in ('gain', 'loss'):
         key = side + '_' + endpoint + '_id'
         value[key] = getattr(item, key)
@@ -28,12 +28,12 @@ def create_stocktake(db, user, kind, data):
     name = data['name'].strip()
     if not name: raise DomainError('盘点名称不能为空')
     endpoints = {}
-    endpoint = 'account' if kind == 'fund' else 'location'
+    endpoint = 'account'
     for side, label in (('gain', '盘盈'), ('loss', '盘亏')):
         if kind == 'fund':
-            value = catalogs.create_account(db, user, dict(name=f'{name}（资金{label}）', kind='income' if side == 'gain' else 'expense', tags=[], is_fund=False))
+            value = catalogs.create_account(db, user, dict(name=f'{name}（资金{label}）', kind='external', tags=[label]))
         else:
-            value = catalogs.create_location(db, user, dict(name=f'{name}（货物{label}）', custodian_label='', tags=[], kind='external', external_kind='adjustment_' + side, active=True))
+            value = catalogs.create_stock_account(db, user, dict(name=f'{name}（货物{label}）', tags=[label], kind='external', active=True))
         endpoints[side + '_' + endpoint + '_id'] = value['id']
     item = stocktake_store.create(db, kind, dict(name=name, description=data.get('description', ''), created_by=user.id, **endpoints))
     return stocktake_view(db, kind, item)

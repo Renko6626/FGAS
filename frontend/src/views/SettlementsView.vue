@@ -1,0 +1,16 @@
+<script setup lang="ts">
+import {computed,ref,watch} from 'vue'
+import {NButton,NSelect} from 'naive-ui'
+import {money,statuses,type Account} from '../api/funds'
+import {settlementsApi,type SettlementOverview} from '../api/settlements'
+import SettlementEditor from '../components/SettlementEditor.vue'
+const props=defineProps<{accounts:Account[];trusted:boolean}>()
+const emit=defineEmits<{changed:[]}>()
+const selected=ref<string|null>(null),detail=ref<SettlementOverview|null>(null),show=ref(false),direction=ref<'expense'|'receipt'>('expense'),error=ref(''),busy=ref(false)
+const options=computed(()=>props.accounts.filter(a=>a.kind==='private').map(a=>({label:a.name,value:a.id})))
+async function load(){if(!selected.value){detail.value=null;return}busy.value=true;error.value='';try{detail.value=await settlementsApi.overview(selected.value)}catch(e){detail.value=null;error.value=(e as Error).message}finally{busy.value=false}}
+watch(selected,load)
+async function changed(){emit('changed');await load()}
+function edit(value:'expense'|'receipt'){direction.value=value;show.value=true}
+</script>
+<template><div class="toolbar"><h2>私账结算</h2><NButton :loading="busy" @click="load">刷新</NButton></div><NSelect v-model:value="selected" :options="options" placeholder="选择私账账户"/><p class="error">{{error}}</p><template v-if="detail"><h3>{{detail.account.name}}</h3><p>净余额：¥{{money(detail.account.balance_minor)}}。正数应交回社团，负数社团应偿还。</p><p>账户净余额与每笔结算分别核对；余额为零不代表每笔都已匹配。</p><section v-for="group in [{key:'expense' as const,title:'支出报销',items:detail.expenses},{key:'receipt' as const,title:'代收交回',items:detail.receipts}]" :key="group.key"><div class="toolbar"><h3>{{group.title}}</h3><NButton v-if="trusted" @click="edit(group.key)">{{group.key==='expense'?'报销支出':'交回代收款'}}</NButton></div><div class="table-wrap"><table><thead><tr><th>日期 / 去向或来源</th><th>说明 / 标签</th><th>金额</th><th>有效已结</th><th>未结</th><th>状态</th></tr></thead><tbody><tr v-for="item in group.items" :key="item.transfer.id"><td>{{item.transfer.effective_date}}<small>{{group.key==='expense'?item.transfer.destination_account_name:item.transfer.source_account_name}}</small></td><td>{{item.transfer.description}}<small>{{item.transfer.tags.join('，')}}</small><small>{{item.transfer.id}}</small></td><td>{{money(item.transfer.amount_minor)}}</td><td>{{money(item.settled_minor)}}</td><td>{{money(item.outstanding_minor)}}</td><td>{{statuses[item.transfer.status]}}</td></tr></tbody></table></div></section><h3>结算转移与匹配</h3><div v-for="payment in detail.settlements" :key="payment.transfer.id"><p>{{payment.transfer.effective_date}}，{{payment.transfer.source_account_name}} → {{payment.transfer.destination_account_name}}，¥{{money(payment.transfer.amount_minor)}}，{{statuses[payment.transfer.status]}}</p><small>{{payment.transfer.id}}</small><p>有效匹配 ¥{{money(payment.matched_minor)}}，未匹配 ¥{{money(payment.unmatched_minor)}}</p><ul><li v-for="m in payment.matches" :key="m.item_transfer_id">{{m.item_transfer_id}}：¥{{money(m.amount_minor)}}，{{m.effective?'有效':'已失效，历史保留'}}</li></ul></div><SettlementEditor :show="show" :direction="direction" :account="detail.account" :accounts="accounts" :items="direction==='expense'?detail.expenses:detail.receipts" :payments="detail.settlements" @close="show=false" @saved="changed"/></template></template>

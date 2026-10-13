@@ -2,7 +2,7 @@
 from contextlib import contextmanager
 from sqlalchemy import select, text, func
 from backend.infrastructure.database import Session, engine
-from backend.infrastructure.models import Base, User, LoginSession, Account, FundAccount, Location, Transfer, JournalLine, Audit, Member, MemberClaim, Repayment, RepaymentAllocation
+from backend.infrastructure.models import Base, User, LoginSession, FundAccount, StockAccount, Transfer, JournalLine, Audit, Member
 
 def transaction():
     with Session() as db:
@@ -12,8 +12,8 @@ def transaction():
 def lock(db): db.execute(text('SELECT pg_advisory_xact_lock(734621)'))
 def healthy(db): db.execute(text('SELECT 1'))
 def get_user(db, identifier): return db.get(User, identifier)
-def get_account(db, identifier): return db.get(Account, identifier)
-def get_location(db, identifier): return db.get(Location, identifier)
+def get_account(db, identifier): return db.get(FundAccount, identifier)
+def get_stock_account(db, identifier): return db.get(StockAccount, identifier)
 def get_transfer(db, identifier): return db.get(Transfer, identifier)
 def refresh(db, item): db.refresh(item)
 def update(item, values):
@@ -35,18 +35,19 @@ def delete_session(db, token):
     session = db.get(LoginSession, token) if token else None
     if session: db.delete(session)
 
-def accounts(db, tag=None):
-    return [a for a in db.scalars(select(Account).order_by(Account.name)) if tag is None or tag in a.tags]
-def locations(db, tag=None):
-    return [l for l in db.scalars(select(Location).order_by(Location.name)) if tag is None or tag in l.tags]
-def create_account(db, values, is_fund):
-    item = Account(**values); db.add(item); db.flush()
-    if is_fund: db.add(FundAccount(account_id=item.id)); db.flush()
-    return item
-
-def create_location(db, values):
-    item = Location(**values); db.add(item); db.flush()
-    return item
+def accounts(db, tag=None, kind=None, member_id=None):
+    return catalog_items(db, FundAccount, tag, kind, member_id)
+def stock_accounts(db, tag=None, kind=None, member_id=None):
+    return catalog_items(db, StockAccount, tag, kind, member_id)
+def catalog_items(db, model, tag, kind, member_id):
+    query = select(model).order_by(model.name, model.id)
+    if kind: query = query.where(model.kind == kind)
+    if member_id: query = query.where(model.member_id == member_id)
+    return [a for a in db.scalars(query) if tag is None or tag in a.tags]
+def create_account(db, values):
+    item = FundAccount(**values); db.add(item); db.flush(); return item
+def create_stock_account(db, values):
+    item = StockAccount(**values); db.add(item); db.flush(); return item
 
 def existing_reversal(db, identifier):
     return db.scalar(select(Transfer).where(Transfer.reversal_of == identifier, Transfer.status.in_(['pending', 'posted'])))
@@ -65,138 +66,50 @@ def transfers(db, status=None):
     return list(db.scalars(query))
 def balance_delta(db, identifier):
     return int(db.scalar(select(func.coalesce(func.sum(JournalLine.debit_minor - JournalLine.credit_minor), 0)).where(JournalLine.account_id == identifier)))
-def is_fund(db, identifier): return db.get(FundAccount, identifier) is not None
 def journal(db, identifier):
     return [dict(account_id=l.account_id, debit_minor=l.debit_minor, credit_minor=l.credit_minor) for l in db.scalars(select(JournalLine).where(JournalLine.transfer_id == identifier))]
 def audit_events(db, identifier):
     return [dict(actor_id=a.actor_id, action=a.action, detail=a.detail, created_at=a.created_at) for a in db.scalars(select(Audit).where(Audit.transfer_id == identifier).order_by(Audit.created_at))]
 def fund_balances(db):
-    # One statement captures all fund balances in a consistent PostgreSQL snapshot.
-    rows = db.execute(text("SELECT a.id,a.name,a.kind,a.tags,COALESCE(SUM(j.debit_minor-j.credit_minor),0) AS balance_minor FROM ledger_accounts a JOIN fund_accounts f ON f.account_id=a.id LEFT JOIN journal_lines j ON j.account_id=a.id GROUP BY a.id ORDER BY a.name")).mappings().all()
-    return [dict(r, balance_minor=int(r['balance_minor']), is_fund=True) for r in rows]
+    return [dict(id=a.id, name=a.name, kind=a.kind, tags=a.tags, balance_minor=balance_delta(db,a.id))
+            for a in accounts(db, kind='public')]
 
 def create_schema():
     Base.metadata.create_all(engine)
 
 def reset_schema():
-    Base.metadata.drop_all(engine)
-    create_schema()
+    # Explicit development reset includes retired models, never unrelated tables.
+    from sqlalchemy import MetaData, inspect
+    retired = {'alembic_version','ledger_accounts','stock_locations','stock_location_profiles','location_custodies',
+               'member_claims','repayments','repayment_allocations','stock_operations',
+               'stock_differences','stock_difference_adjustments'}
+    with engine.begin() as db:
+        names = set(inspect(db).get_table_names()) & (set(Base.metadata.tables) | retired)
+        reflected = MetaData()
+        reflected.reflect(db, only=list(names))
+        unrelated = set(reflected.tables) - names
+        if unrelated: raise RuntimeError('Reset encountered non-FGAS dependencies; refusing to drop them')
+        reflected.drop_all(db)
+        Base.metadata.create_all(db)
 
 def seed_development(admin_id, admin_name):
     with Session.begin() as db:
         for identifier, name, role in [(admin_id, admin_name, 'admin'), ('trusted', '受信任成员', 'trusted'), ('untrusted', '待审批成员', 'untrusted')]:
             if not get_user(db, identifier): db.add(User(id=identifier, display_name=name, role=role, active=True))
-        for identifier, name, kind, fund in [('fund_pool', '社团资金池', 'asset', True), ('income', '其它收入', 'income', False), ('expense', '其它费用', 'expense', False), ('opening', '期初权益', 'equity', False)]:
-            if not get_account(db, identifier):
-                db.add(Account(id=identifier, name=name, kind=kind, tags=['示例'])); db.flush()
-                if fund: db.add(FundAccount(account_id=identifier))
-        if not get_location(db, 'main'): db.add(Location(id='main', name='主存放处', custodian_label='', tags=['示例']))
+        for identifier,name,kind in [('fund_pool','社团资金池','public'),('income','销售收款','external'),('expense','日常支出','external'),('opening','期初','external')]:
+            if not get_account(db, identifier): db.add(FundAccount(id=identifier,name=name,kind=kind,tags=['示例']))
+        if not get_stock_account(db,'main'): db.add(StockAccount(id='main',name='主存放处',kind='public',tags=['示例']))
 
 def get_member(db, identifier): return db.get(Member, identifier)
-def members(db): return list(db.scalars(select(Member).order_by(Member.name, Member.id)))
+def members(db): return list(db.scalars(select(Member).order_by(Member.name,Member.id)))
 def create_member(db, values):
-    item = Member(**values); db.add(item); db.flush()
-    return item
-
-def get_claim(db, transfer_id): return db.get(MemberClaim, transfer_id)
-def get_repayment(db, transfer_id): return db.get(Repayment, transfer_id)
-def create_claim(db, values):
-    item = MemberClaim(**values); db.add(item); db.flush()
-    return item
-
-def create_repayment(db, values, allocations):
-    item = Repayment(**values); db.add(item); db.flush()
-    for allocation in allocations:
-        db.add(RepaymentAllocation(repayment_id=item.transfer_id, **allocation))
-    db.flush()
-    return item
-
-
-def claims(db, member_id=None, status=None):
-    query = select(MemberClaim).join(Transfer, Transfer.id == MemberClaim.transfer_id)
-    if member_id: query = query.where(MemberClaim.member_id == member_id)
-    if status: query = query.where(Transfer.status == status)
-    return list(db.scalars(query.order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))
-
-def claim_repaid_minor(db, identifier):
-    query = select(func.coalesce(func.sum(RepaymentAllocation.amount_minor), 0)).join(
-        Transfer, Transfer.id == RepaymentAllocation.repayment_id).where(
-        RepaymentAllocation.claim_id == identifier, Transfer.status == 'posted')
-    return int(db.scalar(query))
-
-
-def open_claims(db, member_id):
-    from backend.modules.member_claims.rules import OpenClaim
-    items = claims(db, member_id, 'posted')
-    result = []
-    for claim in items:
-        item = get_transfer(db, claim.transfer_id)
-        refresh(db, item)
-        refresh(db, claim)
-        if item.status == 'posted' and claim.confirmed_minor is not None:
-            result.append(OpenClaim(item.id, claim.member_id, claim.confirmed_at, item.version,
-                                    claim.confirmed_minor - claim_repaid_minor(db, item.id)))
-    return result
-
-
-def repayment_allocations(db, identifier):
-    return list(db.scalars(select(RepaymentAllocation).where(
-        RepaymentAllocation.repayment_id == identifier).order_by(RepaymentAllocation.claim_id)))
-
-
-def repayments(db, member_id=None):
-    query = select(Repayment).join(Transfer, Transfer.id == Repayment.transfer_id)
-    if member_id: query = query.where(Repayment.member_id == member_id)
-    return list(db.scalars(query.order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))
-
+    item=Member(**values); db.add(item); db.flush(); return item
 
 @contextmanager
 def read_snapshot(db):
-    """Own a separate read-only snapshot; authentication may have read in db."""
     bind = db.get_bind()
     owner = bind.engine if hasattr(bind, 'engine') else bind
     with owner.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
         with connection.begin():
             connection.execute(text('SET TRANSACTION READ ONLY'))
-            with Session(bind=connection) as snapshot:
-                yield snapshot
-
-
-def member_overview(db, member):
-    # All six amounts are read together; other movements are traced journal lines.
-    row = db.execute(text("""
-        WITH owned AS (
-            SELECT transfer_id AS id FROM member_claims WHERE member_id=:member
-            UNION SELECT transfer_id FROM repayments WHERE member_id=:member
-        ), business_lines AS (
-            SELECT id FROM owned UNION
-            SELECT id FROM transfers WHERE reversal_of IN (SELECT id FROM owned)
-        ), claimed AS (
-            SELECT COALESCE(SUM(CASE WHEN t.status='pending' THEN c.declared_minor ELSE 0 END),0) pending,
-                   COALESCE(SUM(CASE WHEN t.status='posted' THEN c.confirmed_minor ELSE 0 END),0) confirmed
-            FROM member_claims c JOIN transfers t ON t.id=c.transfer_id WHERE c.member_id=:member
-        ), paid AS (
-            SELECT COALESCE(SUM(a.amount_minor),0) repaid FROM repayment_allocations a
-            JOIN transfers t ON t.id=a.repayment_id JOIN member_claims c ON c.transfer_id=a.claim_id
-            WHERE c.member_id=:member AND t.status='posted'
-        ), ledger AS (
-            SELECT COALESCE(SUM(j.credit_minor-j.debit_minor),0) balance,
-                   COALESCE(SUM(CASE WHEN j.transfer_id NOT IN (SELECT id FROM business_lines)
-                                    THEN j.credit_minor-j.debit_minor ELSE 0 END),0) other
-            FROM journal_lines j WHERE j.account_id=:account
-        )
-        SELECT pending AS pending_minor, confirmed AS confirmed_minor, repaid AS repaid_minor,
-               confirmed-repaid AS outstanding_minor, balance AS ledger_balance_minor,
-               other AS other_movements_minor FROM claimed CROSS JOIN paid CROSS JOIN ledger
-    """), dict(member=member.id, account=member.account_id)).mappings().one()
-    return {key: int(value) for key, value in row.items()}
-
-
-def member_other_transfers(db, member):
-    owned = select(MemberClaim.transfer_id).where(MemberClaim.member_id == member.id).union(
-        select(Repayment.transfer_id).where(Repayment.member_id == member.id))
-    traced = select(JournalLine.transfer_id).where(JournalLine.account_id == member.account_id)
-    return list(db.scalars(select(Transfer).where(
-        Transfer.id.in_(traced), Transfer.id.not_in(owned),
-        (Transfer.reversal_of.is_(None) | Transfer.reversal_of.not_in(owned))
-    ).order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))
+            with Session(bind=connection) as snapshot: yield snapshot

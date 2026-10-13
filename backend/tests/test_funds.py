@@ -13,7 +13,7 @@ def transfer(client, source, destination, amount):
     return client.post('/api/transfers', json=dict(source_account_id=source, destination_account_id=destination, amount=amount, effective_date='2026-10-12'))
 
 def test_actual_funds_path_and_reversal(client):
-    response = client.post('/api/accounts', json={'name': '测试资金端点', 'kind': 'asset', 'is_fund': True})
+    response = client.post('/api/accounts', json={'name': '测试资金端点', 'kind': 'public'})
     assert response.status_code == 201
     extra = response.json()['id']
     assert transfer(client, 'opening', 'fund_pool', '2000').status_code == 201
@@ -33,7 +33,7 @@ def test_pending_approval_and_roles(client):
     pending = transfer(client, 'opening', 'fund_pool', '100').json()
     assert pending['status'] == 'pending' and pending['journal_lines'] == []
     assert client.get('/api/funds/summary').json()['total_minor'] == 0
-    assert client.post('/api/accounts', json={'name': '禁止', 'kind': 'asset'}).status_code == 403
+    assert client.post('/api/accounts', json={'name': '禁止', 'kind': 'public'}).status_code == 403
     assert client.patch('/api/users/trusted', json={'role': 'admin'}).status_code == 403
     client.post('/api/auth/login', json={'user_id': 'trusted'})
     assert client.post(f"/api/transfers/{pending['id']}/approve", json={'expected_version': pending['version']}).status_code == 200
@@ -96,7 +96,7 @@ def test_fund_stocktake_transfers_and_reversal(client):
 def test_fund_stocktake_endpoint_failure_rolls_back(client):
     with engine.begin() as db:
         db.execute(text("CREATE OR REPLACE FUNCTION fail_stocktake_endpoint() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.name = '失败核对（资金盘亏）' THEN RAISE EXCEPTION 'induced endpoint failure'; END IF; RETURN NEW; END $$"))
-        db.execute(text('CREATE TRIGGER fail_stocktake_endpoint BEFORE INSERT ON ledger_accounts FOR EACH ROW EXECUTE FUNCTION fail_stocktake_endpoint()'))
+        db.execute(text('CREATE TRIGGER fail_stocktake_endpoint BEFORE INSERT ON fund_accounts FOR EACH ROW EXECUTE FUNCTION fail_stocktake_endpoint()'))
     try:
         with pytest.raises(Exception, match='induced endpoint failure'):
             client.post('/api/fund-stocktakes', json={'name': '失败核对'})
@@ -106,5 +106,24 @@ def test_fund_stocktake_endpoint_failure_rolls_back(client):
         assert all(a['stocktake'] is None for a in accounts)
     finally:
         with engine.begin() as db:
-            db.execute(text('DROP TRIGGER fail_stocktake_endpoint ON ledger_accounts'))
+            db.execute(text('DROP TRIGGER fail_stocktake_endpoint ON fund_accounts'))
             db.execute(text('DROP FUNCTION fail_stocktake_endpoint()'))
+
+
+def test_account_contact_type_tags_and_disabled_processing(client):
+    member=client.post('/api/members',json={'name':'小王'}).json()
+    account=client.post('/api/accounts',json={'name':'展会私账','kind':'private','member_id':member['id'],'tags':[' 印刷 ','印刷','','自定义'],'avatar_url':'https://example.test/avatar.png'}).json()
+    assert account['tags']==['印刷','自定义']
+    assert client.patch(f"/api/accounts/{account['id']}",json={'kind':'public'}).status_code==422
+    assert client.patch(f"/api/members/{member['id']}",json={'name':'王同学'}).status_code==200
+    assert next(a for a in client.get('/api/accounts').json() if a['id']==account['id'])['name']=='展会私账'
+    cleared=client.patch(f"/api/accounts/{account['id']}",json={'member_id':None,'avatar_url':None}).json()
+    assert cleared['member_id'] is None and cleared['avatar_url'] is None
+    assert [a['id'] for a in client.get('/api/accounts?tag=自定义').json()]==[account['id']]
+    client.post('/api/auth/login',json={'user_id':'untrusted'})
+    pending=transfer(client,account['id'],'expense','300').json()
+    client.post('/api/auth/login',json={'user_id':'trusted'})
+    assert client.patch(f"/api/accounts/{account['id']}",json={'active':False}).status_code==200
+    assert client.post(f"/api/transfers/{pending['id']}/approve",json={'expected_version':pending['version']}).status_code==200
+    assert transfer(client,account['id'],'expense','1').status_code==409
+    assert client.post(f"/api/transfers/{pending['id']}/reverse",json={'reason':'录错'}).status_code==201
