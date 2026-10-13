@@ -129,3 +129,51 @@ class LocationCustody(Base):
     valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     ended_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
+
+class StockTransfer(Base):
+    __tablename__ = 'stock_transfers'
+    __table_args__ = (UniqueConstraint('actor_id', 'idempotency_key'), CheckConstraint("status IN ('pending','in_transit','completed','rejected','cancelled')"))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    source_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
+    destination_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
+    action_kind: Mapped[str] = mapped_column(String)
+    effective_date: Mapped[object] = mapped_column(Date)
+    description: Mapped[str] = mapped_column(String, default='')
+    basis: Mapped[str] = mapped_column(String)
+    source_reference: Mapped[str | None] = mapped_column(String, nullable=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    status: Mapped[str] = mapped_column(String)
+    content_version: Mapped[int] = mapped_column(Integer, default=1)
+    execution_version: Mapped[int] = mapped_column(Integer, default=1)
+    approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
+    approval_mode: Mapped[str | None] = mapped_column(String, nullable=True)
+    approval_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON)
+    idempotency_key: Mapped[str] = mapped_column(String)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+class StockTransferLine(Base):
+    __tablename__ = 'stock_transfer_lines'
+    __table_args__ = (UniqueConstraint('transfer_id', 'sku_id'), CheckConstraint('quantity_minor > 0 AND quantity_minor <= 9007199254740991'))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
+    sku_id: Mapped[str] = mapped_column(ForeignKey('skus.id'))
+    quantity_minor: Mapped[int] = mapped_column(BigInteger)
+
+class StockTransferFundReference(Base):
+    __tablename__ = 'stock_transfer_fund_references'
+    stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'), primary_key=True)
+    fund_transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
+
+class StockAudit(Base):
+    __tablename__ = 'stock_audit_events'
+    __table_args__ = (UniqueConstraint('actor_id', 'action', 'idempotency_key'),)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
+    actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    action: Mapped[str] = mapped_column(String)
+    snapshot: Mapped[dict] = mapped_column(JSON)
+    idempotency_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    request_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

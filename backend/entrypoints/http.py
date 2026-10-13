@@ -143,3 +143,24 @@ def patch_sku(identifier: str, data: SkuPatch, user=Depends(identity), db=Depend
 @app.post('/api/locations/{identifier}/custody')
 def set_custody(identifier: str, data: CustodyInput, user=Depends(identity), db=Depends(database)):
     return warehouse_catalogs.set_custody(db, user, identifier, data.member_id)
+
+from backend.application import warehouse
+
+@app.post('/api/stock-transfers', status_code=201)
+def submit_stock_transfer(data: StockTransferInput, user=Depends(identity), db=Depends(database)):
+    return warehouse.submit_transfer(db, user, data.model_dump(mode='json'))
+@app.get('/api/stock-transfers')
+def stock_transfers(status: str | None=None, user=Depends(identity), db=Depends(database)):
+    return warehouse.list_transfers(db, status)
+@app.get('/api/stock-transfers/{identifier}')
+def stock_transfer_detail(identifier: str, user=Depends(identity), db=Depends(database)):
+    return warehouse.transfer_detail(db, identifier)
+@app.post('/api/stock-transfers/{identifier}/approve')
+def approve_stock_transfer(identifier: str, data: StockApproval, user=Depends(identity), db=Depends(database)):
+    return warehouse.decide_transfer(db, user, identifier, data.model_dump(mode='json'))
+@app.post('/api/stock-transfers/{identifier}/reject')
+def reject_stock_transfer(identifier: str, data: StockRejection, user=Depends(identity), db=Depends(database)):
+    return warehouse.decide_transfer(db, user, identifier, data.model_dump(mode='json'), rejection=True)
+@app.post('/api/stock-transfers/{identifier}/cancel')
+def cancel_stock_transfer(identifier: str, data: StockRejection, user=Depends(identity), db=Depends(database)):
+    return warehouse.cancel_transfer(db, user, identifier, data.model_dump(mode='json'))

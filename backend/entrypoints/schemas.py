@@ -97,3 +97,24 @@ class RepaymentPreview(Input):
 class RepaymentSubmit(RepaymentPreview):
     idempotency_key: str = Field(min_length=1, max_length=200)
     allocations: list[RepaymentAllocationSubmit]
+
+class StockLineInput(Input):
+    sku_id: str
+    quantity: str
+class StockTransferInput(Input):
+    source_location_id: str
+    destination_location_id: str
+    action_kind: Literal['opening','arrival','sale','gift','loss','return','internal','adjustment_gain','adjustment_loss']
+    effective_date: date
+    description: str = ''
+    basis: str = Field(min_length=1)
+    source_reference: str | None = None
+    fund_transfer_ids: list[str] = Field(default_factory=list)
+    lines: list[StockLineInput] = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+class StockApproval(Input):
+    expected_content_version: int = Field(ge=1, strict=True)
+    expected_execution_version: int = Field(ge=1, strict=True)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=200)
+class StockRejection(StockApproval):
+    reason: str = Field(min_length=1)

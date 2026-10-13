@@ -36,3 +36,22 @@ def initialize_profiles(db):
             create(db, LocationProfile, dict(location_id=location.id, kind='physical', external_kind=None, active=True))
             identifiers.append(location.id)
     return identifiers
+
+from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit
+
+def get_transfer(db, identifier): return db.get(StockTransfer, identifier)
+def transfers(db, status=None):
+    query = select(StockTransfer).order_by(StockTransfer.created_at.desc(), StockTransfer.id)
+    if status: query = query.where(StockTransfer.status == status)
+    return list(db.scalars(query))
+def lines(db, identifier):
+    return list(db.scalars(select(StockTransferLine).where(StockTransferLine.transfer_id == identifier).order_by(StockTransferLine.id)))
+def fund_references(db, identifier):
+    return list(db.scalars(select(StockTransferFundReference).where(StockTransferFundReference.stock_transfer_id == identifier).order_by(StockTransferFundReference.fund_transfer_id)))
+def existing_submission(db, actor_id, key):
+    return db.scalar(select(StockTransfer).where(StockTransfer.actor_id == actor_id, StockTransfer.idempotency_key == key))
+def audit_events(db, identifier):
+    return list(db.scalars(select(StockAudit).where(StockAudit.stock_transfer_id == identifier).order_by(StockAudit.created_at, StockAudit.id)))
+def existing_action(db, actor_id, action, key):
+    if not key: return None
+    return db.scalar(select(StockAudit).where(StockAudit.actor_id == actor_id, StockAudit.action == action, StockAudit.idempotency_key == key))
