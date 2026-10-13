@@ -1,5 +1,6 @@
 """Stock plans and approval; formal quantities are created only by completion."""
 from datetime import date
+from sqlalchemy import text
 from backend.infrastructure import store, stock_store
 from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit, now
 from backend.application.funds import require_trusted
@@ -22,7 +23,7 @@ def get_transfer(db, identifier):
     return item
 
 
-def validate(db, data):
+def validate(db, data, transfer_id=None):
     source_id, destination_id = data['source_location_id'], data['destination_location_id']
     if source_id == destination_id: raise DomainError('来源与去向不能相同')
     profiles = [stock_store.get_profile(db, identifier) for identifier in (source_id, destination_id)]
@@ -40,6 +41,10 @@ def validate(db, data):
         'loss': direction == ('physical', 'external') and destination.external_kind == 'loss',
         'return': direction == ('physical', 'physical') or (direction == ('physical', 'external') and destination.external_kind == 'supplier') or (direction == ('external', 'physical') and source.external_kind == 'customer'),
     }
+    if action in ('adjustment_gain', 'adjustment_loss') and transfer_id:
+        difference = stock_store.adjustment_difference(db, transfer_id)
+        expected_action = 'adjustment_gain' if difference and difference.delta_minor > 0 else 'adjustment_loss'
+        valid[action] = bool(difference and action == expected_action and len(data['lines']) == 1 and data['lines'][0]['sku_id'] == difference.sku_id and quantity_to_minor(data['lines'][0]['quantity']) == abs(difference.delta_minor) and ((action == 'adjustment_gain' and direction == ('external','physical') and source.external_kind == action and destination_id == difference.location_id) or (action == 'adjustment_loss' and direction == ('physical','external') and destination.external_kind == action and source_id == difference.location_id)))
     if not valid.get(action, False): raise DomainError('动作与端点方向不符；盘点调整须通过差异入口')
     if not data['basis'].strip(): raise DomainError('须填写依据')
     if data.get('source_reference') is not None and not data['source_reference'].strip(): raise DomainError('来源引用不能为空')
@@ -72,8 +77,14 @@ def transfer_view(db, item):
     value['fund_references'] = []
     for reference in stock_store.fund_references(db, item.id):
         fund = store.get_transfer(db, reference.fund_transfer_id)
-        business = 'member_claim' if store.get_claim(db, fund.id) else 'repayment' if store.get_repayment(db, fund.id) else 'fund_transfer'
-        value['fund_references'].append(dict(id=fund.id, business_type=business, status=fund.status, description=fund.description))
+        claim = store.get_claim(db,fund.id)
+        business = 'member_claim' if claim else 'repayment' if store.get_repayment(db, fund.id) else 'fund_transfer'
+        value['fund_references'].append(dict(id=fund.id, business_type=business, status=fund.status, description=fund.description, amount_minor=fund.amount_minor, member_id=store.get_claim(db,fund.id).member_id if business == 'member_claim' else None, claim_id=fund.id if business == 'member_claim' else None, reversal_of=fund.reversal_of,claim=dict(id=claim.transfer_id,member_id=claim.member_id,declared_minor=claim.declared_minor,confirmed_minor=claim.confirmed_minor,basis=claim.basis) if claim else None))
+    from backend.application.stock_differences import difference_view
+    value['differences'] = [difference_view(db,d) for d in stock_store.differences(db,transfer_id=item.id)]
+    linked = stock_store.adjustment_difference(db,item.id)
+    value['difference_id'] = linked.id if linked else None
+    value['snapshot_at'] = now()
     value['audit'] = [dict(id=a.id, actor_id=a.actor_id, action=a.action, snapshot=a.snapshot, created_at=a.created_at) for a in stock_store.audit_events(db, item.id)]
     return value
 
@@ -88,7 +99,7 @@ def audit(db, item, user, action, snapshot, data=None):
 
 
 def approve(db, item, user, mode):
-    validate(db, item.payload)
+    validate(db, item.payload, item.id)
     item.approval_snapshot = content_snapshot(db, item) | dict(actor_id=user.id, role=user.role, mode=mode, approved_at=now().isoformat())
     item.approved_by, item.approval_mode = user.id, mode
     item.status = 'in_transit'
@@ -144,9 +155,13 @@ def decide_transfer(db, user, identifier, data, rejection=False):
     return lifecycle(db, user, identifier, data, 'reject' if rejection else 'approve')
 def cancel_transfer(db, user, identifier, data): return lifecycle(db, user, identifier, data, 'cancel')
 def transfer_detail(db, identifier):
-    with store.read_snapshot(db) as snapshot: return transfer_view(snapshot, get_transfer(snapshot, identifier))
-def list_transfers(db, status=None):
-    with store.read_snapshot(db) as snapshot: return [transfer_view(snapshot, item) for item in stock_store.transfers(snapshot, status)]
+    with store.read_snapshot(db) as snapshot:
+        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        return transfer_view(snapshot,get_transfer(snapshot,identifier)) | dict(snapshot_at=timestamp)
+def list_transfers(db, status=None, filters=None):
+    with store.read_snapshot(db) as snapshot:
+        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        return [transfer_view(snapshot,item) | dict(snapshot_at=timestamp) for item in stock_store.transfers(snapshot,status,filters)]
 
 
 def confirmation_view(item):
@@ -162,6 +177,7 @@ def post_completion(db, user, item, confirmation):
     if item.status != 'in_transit' or confirmation.status != 'pending': raise DomainError('确认状态已变化', 409)
     if item.content_version != confirmation.content_version or item.execution_version != confirmation.execution_version:
         raise DomainError('确认绑定版本已变化', 409)
+    validate(db,item.payload,item.id)
     profiles = [stock_store.get_profile(db, identifier) for identifier in (item.source_location_id, item.destination_location_id)]
     for profile in profiles:
         if profile is not None: store.refresh(db, profile)
@@ -235,24 +251,17 @@ def decide_completion(db, user, identifier, data, rejection=False):
 
 
 def inventory(db, filters=None):
-    filters = filters or {}
-    with store.read_snapshot(db) as snapshot:
-        quantities = []
-        totals = {}
-        for location in store.locations(snapshot):
-            profile = stock_store.get_profile(snapshot, location.id)
-            if profile is None or profile.kind != 'physical': continue
-            custody = stock_store.current_custody(snapshot, location.id)
-            if filters.get('location_id') and filters['location_id'] != location.id: continue
-            if filters.get('member_id') and (custody is None or custody.member_id != filters['member_id']): continue
-            for sku in stock_store.skus(snapshot):
-                if filters.get('sku_id') and filters['sku_id'] != sku.id: continue
-                quantity = stock_store.available(snapshot, location.id, sku.id)
-                quantities.append(dict(location_id=location.id, location_name=location.name, member_id=custody.member_id if custody else None, sku_id=sku.id, sku_name=sku.name, unit=sku.unit, quantity=quantity_string(quantity), valuation='未估值'))
-                totals[sku.id] = totals.get(sku.id, 0) + quantity
-        return dict(snapshot_at=now(), quantities=quantities, totals=[dict(sku_id=identifier, quantity=quantity_string(quantity), valuation='未估值') for identifier, quantity in totals.items()])
+    from backend.application.stock_queries import inventory as query_inventory
+    return query_inventory(db,filters)
 
 
-def list_moves(db):
+def list_moves(db, filters=None):
     with store.read_snapshot(db) as snapshot:
-        return [{key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_location_id','destination_location_id','effective_date','created_at')} | dict(quantity=quantity_string(move.quantity_minor)) for move in stock_store.moves(snapshot)]
+        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        result = []
+        for move in stock_store.moves(snapshot):
+            confirmation = snapshot.get(StockConfirmation,move.confirmation_id)
+            if any(value and (confirmation.transfer_id if key == 'transfer_id' else getattr(move,key)) != value for key,value in (filters or {}).items()): continue
+            sku = stock_store.get_sku(snapshot,move.sku_id)
+            result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_location_id','destination_location_id','effective_date','created_at')} | dict(quantity=quantity_string(move.quantity_minor),sku_name=sku.name,unit=sku.unit,source_location_name=store.get_location(snapshot,move.source_location_id).name,destination_location_name=store.get_location(snapshot,move.destination_location_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
+        return result

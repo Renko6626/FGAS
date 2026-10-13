@@ -40,9 +40,13 @@ def initialize_profiles(db):
 from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit
 
 def get_transfer(db, identifier): return db.get(StockTransfer, identifier)
-def transfers(db, status=None):
+def transfers(db, status=None, filters=None):
     query = select(StockTransfer).order_by(StockTransfer.created_at.desc(), StockTransfer.id)
     if status: query = query.where(StockTransfer.status == status)
+    for name,value in (filters or {}).items():
+        if not value: continue
+        if name == 'sku_id': query = query.where(StockTransfer.id.in_(select(StockTransferLine.transfer_id).where(StockTransferLine.sku_id == value)))
+        else: query = query.where(getattr(StockTransfer,name) == value)
     return list(db.scalars(query))
 def lines(db, identifier):
     return list(db.scalars(select(StockTransferLine).where(StockTransferLine.transfer_id == identifier).order_by(StockTransferLine.id)))
@@ -70,3 +74,16 @@ def available(db, location_id, sku_id):
     return int(incoming) - int(outgoing)
 
 def moves(db): return list(db.scalars(select(StockMove).order_by(StockMove.created_at, StockMove.id)))
+
+from backend.infrastructure.models import StockDifference, StockDifferenceAdjustment
+
+def differences(db, transfer_id=None, location_id=None, sku_id=None):
+    query = select(StockDifference).order_by(StockDifference.created_at, StockDifference.id)
+    for column, value in ((StockDifference.stock_transfer_id,transfer_id),(StockDifference.location_id,location_id),(StockDifference.sku_id,sku_id)):
+        if value: query = query.where(column == value)
+    return list(db.scalars(query))
+def adjustments(db, difference_id):
+    return list(db.scalars(select(StockTransfer).join(StockDifferenceAdjustment,StockDifferenceAdjustment.stock_transfer_id == StockTransfer.id).where(StockDifferenceAdjustment.difference_id == difference_id).order_by(StockTransfer.created_at,StockTransfer.id)))
+def adjustment_difference(db, transfer_id):
+    link = db.get(StockDifferenceAdjustment,transfer_id)
+    return db.get(StockDifference,link.difference_id) if link else None

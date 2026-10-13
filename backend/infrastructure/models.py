@@ -210,3 +210,27 @@ class StockMove(Base):
     quantity_minor: Mapped[int] = mapped_column(BigInteger)
     effective_date: Mapped[object] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+class StockDifference(Base):
+    __tablename__ = 'stock_differences'
+    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id','location_id'), UniqueConstraint('actor_id','idempotency_key'), CheckConstraint('delta_minor != 0'))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
+    confirmation_id: Mapped[str] = mapped_column(ForeignKey('stock_confirmations.id'))
+    transfer_line_id: Mapped[str] = mapped_column(ForeignKey('stock_transfer_lines.id'))
+    location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
+    sku_id: Mapped[str] = mapped_column(ForeignKey('skus.id'))
+    expected_minor: Mapped[int] = mapped_column(BigInteger)
+    observed_minor: Mapped[int] = mapped_column(BigInteger)
+    delta_minor: Mapped[int] = mapped_column(BigInteger)
+    comparison_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    basis: Mapped[str] = mapped_column(String)
+    actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    payload: Mapped[dict] = mapped_column(JSON)
+    idempotency_key: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+class StockDifferenceAdjustment(Base):
+    __tablename__ = 'stock_difference_adjustments'
+    stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'), primary_key=True)
+    difference_id: Mapped[str] = mapped_column(ForeignKey('stock_differences.id'))

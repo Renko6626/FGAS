@@ -184,7 +184,8 @@ def test_stock_move_failure_rolls_back(client):
         db.execute(text('CREATE TRIGGER fail_stock_move BEFORE INSERT ON stock_moves FOR EACH ROW EXECUTE FUNCTION fail_stock_move()'))
     try:
         with pytest.raises(Exception,match='induced stock failure'): complete(client,item,'rollback')
-        assert client.get(f"/api/stock-transfers/{item['id']}").json() == before
+        after = client.get(f"/api/stock-transfers/{item['id']}").json()
+        assert {k:v for k,v in after.items() if k != 'snapshot_at'} == {k:v for k,v in before.items() if k != 'snapshot_at'}
         assert client.get('/api/stock-moves').json() == []
         assert all(q == '0' for q in balances(client).values())
     finally:
@@ -220,3 +221,105 @@ def test_stock_competing_completions(client):
     assert sorted(results) == [200,409]
     assert balances(client)[a,skus[0]] == '30' and balances(client)[b,skus[0]] == '70'
     assert len(client.get('/api/stock-moves').json()) == 2
+
+
+def difference(client,item,location,observed,key):
+    payload = dict(line_id=item['lines'][0]['id'],location_id=location,observed_quantity=observed,comparison_at='2026-10-13T12:00:00+08:00',basis='本次转移实物核对',idempotency_key=key)
+    response = client.post(f"/api/stock-transfers/{item['id']}/differences",json=payload)
+    assert response.status_code == 201,response.text
+    return response.json(),payload
+
+
+def test_transfer_loss_difference_adjustments_and_custody(client):
+    opening,a,b,skus = stock_setup(client)
+    loss = client.post('/api/locations',json=dict(name='盘亏',kind='external',external_kind='adjustment_loss')).json()['id']
+    gain = client.post('/api/locations',json=dict(name='盘盈',kind='external',external_kind='adjustment_gain')).json()['id']
+    incoming = stock_plan(client,opening,a,skus[:1],['100'],'opening','opening')
+    assert complete(client,incoming,'open').status_code == 200
+    plan = stock_plan(client,a,b,skus[:1],['30'],'transfer')
+    assert client.post(f"/api/stock-transfers/{plan['id']}/differences",json=dict(line_id=plan['lines'][0]['id'],location_id=b,observed_quantity='28',comparison_at='2026-10-13T12:00:00Z',basis='核对',idempotency_key='early')).status_code == 409
+    finished = complete(client,plan,'transfer-complete').json()
+    d,payload = difference(client,finished,b,'28','loss')
+    assert d['delta'] == '-2' and d['status'] == 'unresolved'
+    path = f"/api/stock-transfers/{finished['id']}/differences"
+    assert client.post(path,json=payload).json()['id'] == d['id']
+    assert client.post(path,json=payload | {'idempotency_key':'duplicate'}).status_code == 409
+    assert client.post(path,json=payload | {'idempotency_key':'outside','location_id':opening}).status_code == 400
+    adjustment_path = f"/api/stock-differences/{d['id']}/adjustment"
+    adjustment_data = dict(external_location_id=loss,effective_date='2026-10-13',basis='核对盘亏',idempotency_key='adjust')
+    client.post('/api/auth/login',json={'user_id':'untrusted'})
+    assert client.post(path,json=payload | {'idempotency_key':'unauthorized'}).status_code == 403
+    assert client.post(adjustment_path,json=adjustment_data).status_code == 403
+    client.post('/api/auth/login',json={'user_id':'trusted'})
+    assert client.post(adjustment_path,json=adjustment_data | {'external_location_id':gain}).status_code == 400
+    adjustment = client.post(adjustment_path,json=adjustment_data).json()
+    assert adjustment['status'] == 'in_transit' and adjustment['lines'][0]['quantity'] == '2'
+    assert balances(client)[b,skus[0]] == '30'
+    assert client.post(adjustment_path,json=adjustment_data).json()['id'] == adjustment['id']
+    assert client.post(adjustment_path,json=adjustment_data | {'idempotency_key':'again'}).status_code == 409
+    cancel = dict(expected_content_version=1,expected_execution_version=adjustment['execution_version'],reason='重新核对依据',idempotency_key='cancel-adjustment')
+    assert client.post(f"/api/stock-transfers/{adjustment['id']}/cancel",json=cancel).status_code == 200
+    adjustment = client.post(adjustment_path,json=adjustment_data | {'idempotency_key':'retry'}).json()
+    assert complete(client,adjustment,'adjustment-complete').status_code == 200
+    assert complete(client,adjustment,'adjustment-complete').status_code == 200
+    inventory = client.get('/api/inventory',params={'sku_id':skus[0]}).json()
+    assert balances(client)[a,skus[0]] == '70' and balances(client)[b,skus[0]] == '28'
+    assert inventory['totals'][0]['quantity'] == '98'
+    row = next(q for q in inventory['quantities'] if q['location_id'] == b)
+    assert row['differences'][0]['status'] == 'resolved'
+    assert client.post(adjustment_path,json=adjustment_data | {'idempotency_key':'completed-again'}).status_code == 409
+    assert client.get('/api/stock-differences',params={'location_id':b}).json()[0]['id'] == d['id']
+    members = [client.post('/api/members',json={'name':name}).json() for name in ('旧保管人','新保管人')]
+    for member in members:
+        assert client.post(f'/api/locations/{b}/custody',json={'member_id':member['id']}).status_code == 200
+        current = client.get('/api/inventory',params={'member_id':member['id'],'sku_id':skus[0]}).json()
+        assert current['totals'][0]['quantity'] == '28' and current['quantities'][0]['member_name'] == member['name']
+    assert client.get('/api/inventory',params={'member_id':members[0]['id']}).json()['quantities'] == []
+    moves = client.get('/api/stock-moves').json()
+    assert next(m for m in moves if m['stock_transfer_id'] == finished['id'])['executor_id'] == 'trusted'
+
+
+def test_under_shipped_independent_endpoint_differences(client):
+    opening,a,b,skus = stock_setup(client)
+    boundaries = {kind:client.post('/api/locations',json=dict(name=kind,kind='external',external_kind=kind)).json()['id'] for kind in ('adjustment_gain','adjustment_loss')}
+    assert complete(client,stock_plan(client,opening,a,skus[:1],['100'],'opening','opening'),'open').status_code == 200
+    original = complete(client,stock_plan(client,a,b,skus[:1],['30'],'move'),'move-complete').json()
+    for location,key,kind in ((a,'source','adjustment_gain'),(b,'destination','adjustment_loss')):
+        d,_ = difference(client,original,location,'28',key)
+        assert d['delta'] == ('2' if location == a else '-2')
+        adjustment = client.post(f"/api/stock-differences/{d['id']}/adjustment",json=dict(external_location_id=boundaries[kind],effective_date='2026-10-13',basis='少发两本仍在来源',idempotency_key=key)).json()
+        assert complete(client,adjustment,key+'-complete').status_code == 200
+    assert balances(client)[a,skus[0]] == '72' and balances(client)[b,skus[0]] == '28'
+    assert client.get('/api/inventory',params={'sku_id':skus[0]}).json()['totals'][0]['quantity'] == '100'
+
+
+def test_stock_fund_references_do_not_change_money(client):
+    from backend.tests.test_member_claims import member,claim_payload,repayment_payload
+    m = member(client)
+    claim = client.post('/api/member-claims',json=claim_payload(m,'fund_pool',confirm=True)).json()
+    assert claim['confirmed_minor'] == 100000
+    repayment = client.post('/api/repayments',json=repayment_payload(client,m,'100','repayment')).json()
+    baseline = (client.get('/api/funds/summary').json(),client.get(f"/api/members/{m['id']}").json(),client.get(f"/api/member-claims/{claim['id']}").json(),client.get('/api/repayments').json())
+    source = client.post('/api/locations',json=dict(name='供应商',kind='external',external_kind='supplier')).json()['id']
+    target = client.post('/api/locations',json=dict(name='仓库')).json()['id']
+    sku = client.post('/api/skus',json=dict(name='书',unit='本')).json()['id']
+    receipts = [stock_plan(client,source,target,[sku],['10'],f'receipt{i}','arrival') for i in range(2)]
+    for i,item in enumerate(receipts):
+        assert complete(client,item,f'complete{i}').status_code == 200
+        path = f"/api/stock-transfers/{item['id']}/fund-references"
+        data = dict(fund_transfer_id=claim['id'],idempotency_key=f'reference{i}')
+        client.post('/api/auth/login',json={'user_id':'untrusted'})
+        assert client.post(path,json=data).status_code == 403
+        client.post('/api/auth/login',json={'user_id':'trusted'})
+        linked = client.post(path,json=data).json()
+        assert linked['fund_references'][0]['business_type'] == 'member_claim'
+        assert linked['fund_references'][0]['member_id'] == m['id'] and linked['fund_references'][0]['status'] == 'posted'
+        assert client.post(path,json=data).status_code == 200
+        assert len(client.post(path,json=data | {'idempotency_key':f'duplicate{i}'}).json()['fund_references']) == 1
+        assert client.post(path,json=data | {'idempotency_key':f'missing{i}','fund_transfer_id':'missing'}).status_code == 404
+    assert (client.get('/api/funds/summary').json(),client.get(f"/api/members/{m['id']}").json(),client.get(f"/api/member-claims/{claim['id']}").json(),client.get('/api/repayments').json()) == baseline
+    # Reverse the matched repayment first, then claim; stock links survive both money facts.
+    assert client.post(f"/api/transfers/{repayment['id']}/reverse",json=dict(reason='退回偿还',idempotency_key='reverse-repayment')).status_code == 201
+    assert client.post(f"/api/transfers/{claim['id']}/reverse",json=dict(reason='冲销垫付',idempotency_key='reverse-claim')).status_code == 201
+    assert all(client.get(f"/api/stock-transfers/{item['id']}").json()['fund_references'][0]['status'] == 'reversed' for item in receipts)
+    assert balances(client)[target,sku] == '20'
