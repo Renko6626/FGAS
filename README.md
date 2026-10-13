@@ -49,7 +49,26 @@ All business routes require the cookie session. Public development identity rout
 - `POST /api/transfers/{id}/reverse {reason,idempotency_key}` creates a linked reverse transfer using the original effective date. Untrusted reversal waits for approval; original becomes `reversed` only when reversal posts. A pending/posted reversal blocks another; rejected reversal permits a new request.
 - `GET /api/funds/summary` returns `{accounts,total_minor,currency}` from fund journal balances. Opening is ordinary `opening -> fund_pool` transfer. No balance editing, negative-funds restriction, journal editing or deleting exists.
 
-Formal posting serializes through one PostgreSQL transaction advisory lock and commits journal, state and audit together. Debit-minus-credit balances normalize to the normal side for each kind; only fund accounts contribute to cash totals. There is no pagination, reconciliation, attachment, inventory, member claims, SSO or password system in this increment.
+Formal posting serializes through one PostgreSQL transaction advisory lock and commits journal, state and audit together. Debit-minus-credit balances normalize to the normal side for each kind; only fund accounts contribute to cash totals. There is no pagination, reconciliation, attachment upload, inventory quantity ledger, SSO or password system in this increment. Member claims and repayment matching are implemented on the separate `feature/member-claims` branch; database acceptance is still pending.
+
+## Member claims and repayments
+
+All authenticated active identities may read members and their histories. Only trusted/admin identities create or edit members, declare/confirm/reject claims, preview/submit repayments, or reverse marked operations. A business member is independent of a login user and has a stable non-fund liability account. Basis is text or a document number; files are not uploaded.
+
+- `GET/POST /api/members` lists or creates `{name,note?}`; `PATCH /api/members/{id}` accepts `{name?,note?}` without changing its account identity.
+- `GET /api/members/{id}` returns `member`, `pending_minor`, `confirmed_minor`, `repaid_minor`, `outstanding_minor`, `ledger_balance_minor`, `other_movements_minor`, `claims`, `repayments`, and actual `other_transfers` references from one consistent read snapshot.
+- `GET /api/member-claims?member_id=&status=` and `GET /api/member-claims/{id}` return declared/confirmed amounts, basis/reason, status/version, effective repayments, outstanding and the linked transfer.
+- `POST /api/member-claims` accepts `{member_id,destination_account_id,amount,effective_date,description?,basis,confirm_now,idempotency_key,confirmed_amount?,confirmation_reason?}`. Amounts are yuan strings. Pending declarations have no journal; `confirm_now=false` forbids confirmation fields. Immediate confirmation defaults to full amount. Partial recognition requires a reason and cannot exceed the declaration.
+- `POST /api/member-claims/{id}/confirm` accepts `{expected_version,confirmed_amount,confirmation_reason?}`; `/reject` accepts `{expected_version,reason}`. Ordinary transfer approval cannot confirm an unconfirmed claim. The original declaration and request remain immutable after confirmation.
+- `POST /api/repayments/preview` accepts `{member_id,source_account_id,amount,effective_date,description?,basis,allocation_mode,allocations?}`. The source must be an organization fund account; destination is derived from the member. `oldest_first` orders by confirmation time then ID; `manual` uses `{claim_id,amount}` items. Preview saves nothing and returns visible `{claim_id,amount,expected_version}` allocations plus journal lines.
+- `POST /api/repayments` sends the original payment input, `idempotency_key`, and the exact preview allocations including versions. A stale or changed match returns 409 and requires a new preview; it never silently reallocates. `GET /api/repayments?member_id=` and `GET /api/repayments/{id}` return matches, effective status and linked transfer/reversal history.
+- Transfer detail includes nullable `business:{kind:'member_claim'|'repayment',id,member_id}`; a reversing transfer references the original business. Existing `/reverse {reason,idempotency_key}` remains the entrypoint. Effective repayments and pending linked repayment reversals block claim reversal. Reverse repayments first to restore outstanding; allocations remain historical. Reversing a marked reversal itself is rejected.
+
+The same actor/key with the same original request returns the saved operation even after confirmation, payment or reversal changes current state; changed input conflicts. An uncertain UI submission retains its exact payload/key for retry: check saved records first. Claim 400/422 rejection permits correction with a new attempt; uncertain results retain the attempt unless explicitly confirmed unsaved. Repayment matching conflicts require repreview. Identity changes clear in-memory drafts.
+
+For example, create member A, then submit `{"member_id":"<A>","destination_account_id":"expense","amount":"1000.00","effective_date":"2026-10-13","basis":"采购单 001","confirm_now":true,"idempotency_key":"claim-expense-001"}`. This debits expense and credits A's liability; the organization's pool is unchanged. With opening funds of 2,000 yuan, repayment preview for A from `fund_pool` of `"400.00"`, basis `"偿还单 001"`, mode `"oldest_first"`, followed by submit with its exact allocations/key leaves funds 1,600 and that claim outstanding 600 yuan. These are expected behaviors implemented in code, not executed acceptance results here.
+
+The same claim input with destination `"fund_pool"` and a new key increases organization funds by 1,000 yuan and creates A's outstanding claim of 1,000. Any distinct legal account may be a destination, including another member; non-fund balances follow their account's debit/credit convention. There is no expense whitelist. A subsequent ordinary unmarked `fund_pool -> A.account_id` transfer of 100 changes A's ledger balance to 900 but leaves claim outstanding 1,000, with other movements -100. `ledger_balance_minor = outstanding_minor + other_movements_minor`; other movements are independently read from real journal references. A marked A-to-B claim belongs to A; B sees its debit as other movement, with no automatic B claim or repayment. Generic member transfers never auto-match.
 
 ## Verification
 
@@ -59,20 +78,20 @@ Tests clear all application rows: use a **dedicated test database** and initiali
 export DATABASE_URL='postgresql+psycopg2://fgas@127.0.0.1:55432/fgas_test'
 export AUTH_MODE=development
 .venv/bin/python -m backend.application.initialize
-FGAS_TEST_DATABASE=1 .venv/bin/python -m pytest backend/tests/test_funds.py -q
+FGAS_TEST_DATABASE=1 .venv/bin/python -m pytest backend/tests/test_funds.py backend/tests/test_member_claims.py -q
 ```
 
-Four real PostgreSQL scenarios cover balances and reversal, pending approval and role restrictions, idempotency/precision, and rollback under an induced PostgreSQL journal trigger failure. No browser interaction tests.
+The runner `./tools/run_tests.sh` initializes only the dedicated test database and runs both files. Ten PostgreSQL tests are present (four existing funds tests and six claim/repayment tests), including matching, stale and competing payments, reversal and rollback. On 2026-10-13 they were collected only: the runner failed before tests executed because the sandbox denied the PostgreSQL Unix socket. Automatic escalation was rejected. Historical four-test success on 2026-10-12 does not verify this branch. The latest `npm run build` passed after the Task 4 fixes (vue-tsc and Vite, 2678 modules, 4.22s). No screenshots or browser interaction acceptance were performed.
 
 
 ## 当前服务器试用
 
 原型已在 FGAS 根目录安装依赖，并配置忽略提交的 `.env`。PostgreSQL 使用根目录 `.runtime` 的 Unix socket，端口 55438；这只是本机开发环境。根目录运行 `npm run dev` 同时启动 FastAPI（8000）和 Vue（5173）。开发账户选择器提供管理员、受信任用户和不受信任用户。
 
-资金初始余额为零。可以选择“期初权益”端点转入“社团资金池”，再录入收支和转账。资金账户与库存位置目录支持标签；库存位置目前不提供数量账，垫付标记与逐笔偿还匹配仍属下一增量。
+资金初始余额为零。可以选择“期初权益”端点转入“社团资金池”，再录入收支和转账。资金账户与库存位置目录支持标签；库存位置目前不提供数量账。成员垫付与逐笔偿还匹配已在独立 `feature/member-claims` 分支实现，尚待真实数据库验收。
 
-本环境的 `.git` 目录只读，Git 元数据实际保存在 `.fgas-git`。在根目录查看版本可用 `git --git-dir=.fgas-git --work-tree=. status`；当前代码已合回 `main`。普通可写环境中的 Git 不需要这个额外路径。
+本环境的 `.git` 目录只读，Git 元数据实际保存在 `.fgas-git`。在根目录查看版本可用 `git --git-dir=.fgas-git --work-tree=. status`；2026-10-12 的资金池检查点已合回 `main`；2026-10-13 的成员增量仍在 `feature/member-claims` 分支，未合并或部署。普通可写环境中的 Git 不需要这个额外路径。
 
-当前验证包括四个真实 PostgreSQL 行为用例、前端类型检查与构建、开发服务健康检查。没有执行浏览器自动点击、填表或端到端交互验收；Compose 安装与正式身份认证尚未验证。
+2026-10-12 检查点验证包括四个真实 PostgreSQL 行为用例、前端类型检查与构建、开发服务健康检查；这些是旧检查点证据，不代表成员增量验收。没有执行浏览器自动点击、填表或端到端交互验收；Compose 安装与正式身份认证尚未验证。
 
 阶段交付范围、检查点及下一步见 [阶段记录](docs/prototype-status.md)。
