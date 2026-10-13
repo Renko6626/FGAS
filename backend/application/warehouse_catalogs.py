@@ -12,12 +12,11 @@ def authorize_write(db, user):
 
 
 def sku_view(item):
-    return {key: getattr(item, key) for key in ('id', 'name', 'specification', 'unit', 'quantity_scale', 'active')}
+    return {key: getattr(item, key) for key in ('id', 'name', 'specification', 'unit', 'active')}
 def skus(db): return [sku_view(item) for item in stock_store.skus(db)]
 def validate_sku(values):
     for key in ('name', 'unit'):
         if key in values and (not isinstance(values[key], str) or not values[key].strip()): raise DomainError('名称和单位不能为空')
-    if 'quantity_scale' in values and (type(values['quantity_scale']) is not int or not 0 <= values['quantity_scale'] <= 3): raise DomainError('数量精度须为 0 至 3')
     if any(value is None for value in values.values()): raise DomainError('SKU 字段不能为空')
 def create_sku(db, user, data):
     authorize_write(db, user)
@@ -28,8 +27,8 @@ def update_sku(db, user, identifier, data):
     item = stock_store.get_sku(db, identifier)
     if item is None: raise DomainError('SKU 不存在', 404)
     validate_sku(data)
-    if any(key in data and data[key] != getattr(item, key) for key in ('unit', 'quantity_scale')) and stock_store.sku_referenced(db, identifier):
-        raise DomainError('已有货物转移引用，不能修改单位或精度', 409)
+    if any(key in data and data[key] != getattr(item, key) for key in ('unit',)) and stock_store.sku_referenced(db, identifier):
+        raise DomainError('已有货物转移引用，不能修改单位', 409)
     store.update(item, data)
     db.flush()
     return sku_view(item)

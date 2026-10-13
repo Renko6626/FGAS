@@ -9,16 +9,16 @@ from backend.infrastructure.models import StockTransfer, StockTransferLine, Jour
 def test_stock_submission_approval_and_retry(client):
     source = client.post('/api/locations', json=dict(name='商家', kind='external', external_kind='supplier')).json()['id']
     target = client.post('/api/locations', json=dict(name='仓库')).json()['id']
-    skus = [client.post('/api/skus', json=dict(name=name, unit=unit, quantity_scale=scale)).json()['id'] for name, unit, scale in [('书','本',0),('材料','千克',3)]]
-    payload = dict(source_location_id=source, destination_location_id=target, action_kind='arrival', effective_date='2026-10-13', basis='到货单 A', source_reference='receipt:A', lines=[dict(sku_id=skus[0], quantity='2'),dict(sku_id=skus[1],quantity='1.250')], idempotency_key='trusted')
+    skus = [client.post('/api/skus', json=dict(name=name, unit=unit)).json()['id'] for name, unit in [('书','本'),('材料','件')]]
+    payload = dict(source_location_id=source, destination_location_id=target, action_kind='arrival', effective_date='2026-10-13', basis='到货单 A', source_reference='receipt:A', lines=[dict(sku_id=skus[0], quantity='2'),dict(sku_id=skus[1],quantity='125')], idempotency_key='trusted')
     trusted = client.post('/api/stock-transfers', json=payload)
     assert trusted.status_code == 201
     trusted = trusted.json()
     assert trusted['status'] == 'in_transit' and trusted['approval_mode'] == 'automatic'
-    assert {line['sku_id']: line['quantity'] for line in trusted['lines']} == {skus[0]:'2',skus[1]:'1.250'}
+    assert {line['sku_id']: line['quantity'] for line in trusted['lines']} == {skus[0]:'2',skus[1]:'125'}
     assert trusted['approval_snapshot']['lines'] == trusted['lines']
     assert client.patch(f'/api/skus/{skus[0]}', json={'unit':'套'}).status_code == 409
-    assert client.patch(f'/api/skus/{skus[1]}', json={'quantity_scale':2}).status_code == 409
+    assert client.patch(f'/api/skus/{skus[1]}', json={'quantity_scale':2}).status_code == 422
     assert client.patch(f'/api/locations/{source}', json={'external_kind':'customer'}).status_code == 409
     assert client.patch(f'/api/locations/{target}', json={'kind':'external','external_kind':'customer'}).status_code == 409
     client.post('/api/auth/login', json={'user_id':'untrusted'})
@@ -64,7 +64,7 @@ def test_stock_invalid_contents_and_terminal_actions(client):
     target = client.post('/api/locations', json=dict(name='仓库')).json()['id']
     sku = client.post('/api/skus', json=dict(name='书',unit='本')).json()['id']
     data = dict(source_location_id=source,destination_location_id=target,action_kind='opening',effective_date='2026-10-13',basis='期初单',lines=[dict(sku_id=sku,quantity='2')],idempotency_key='invalid')
-    for patch in ({'action_kind':'internal'}, {'action_kind':'adjustment_gain'}, {'destination_location_id':source}, {'fund_transfer_ids':['missing']}, {'lines':[dict(sku_id=sku,quantity='2'),dict(sku_id=sku,quantity='1')]}, *({'lines':[dict(sku_id=sku,quantity=q)]} for q in ['0','-1','1e2','1.1','9007199254740992'])):
+    for patch in ({'action_kind':'internal'}, {'action_kind':'adjustment_gain'}, {'destination_location_id':source}, {'fund_transfer_ids':['missing']}, {'lines':[dict(sku_id=sku,quantity='2'),dict(sku_id=sku,quantity='1')]}, *({'lines':[dict(sku_id=sku,quantity=q)]} for q in ['0','-1','1e2','1.1','1.0','１２','9007199254740992'])):
         assert client.post('/api/stock-transfers',json=data | patch).status_code in (400,404,409)
     client.post('/api/auth/login',json={'user_id':'untrusted'})
     pending = client.post('/api/stock-transfers',json=data).json()
@@ -104,8 +104,15 @@ def balances(client):
 
 def test_stock_completion_and_exact_inventory(client):
     opening,a,b,skus = stock_setup(client)
+    assert all(q == '0' for q in balances(client).values())
     incoming = stock_plan(client,opening,a,skus,['100','10'],'opening','opening')
     assert complete(client,incoming,'opening-complete').json()['status'] == 'completed'
+    from backend.infrastructure import stock_store
+    with Session() as db:
+        actual = stock_store.available(db,a,skus[0])
+        zero = stock_store.available(db,b,skus[0])
+        assert type(actual) is int and actual == 100
+        assert type(zero) is int and zero == 0
     first = stock_plan(client,a,b,skus,['30','2'],'batch1')
     second = stock_plan(client,a,b,skus,['20','3'],'batch2')
     assert balances(client)[a,skus[0]] == '100' and balances(client)[b,skus[0]] == '0'

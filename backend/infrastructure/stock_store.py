@@ -66,6 +66,7 @@ def existing_completion(db, actor_id, key):
 def available(db, location_id, sku_id):
     incoming = db.scalar(select(func.coalesce(func.sum(StockMove.quantity_minor), 0)).where(StockMove.destination_location_id == location_id, StockMove.sku_id == sku_id))
     outgoing = db.scalar(select(func.coalesce(func.sum(StockMove.quantity_minor), 0)).where(StockMove.source_location_id == location_id, StockMove.sku_id == sku_id))
-    return incoming - outgoing
+    # PostgreSQL SUM(bigint) returns exact numeric (Decimal); counts are integers.
+    return int(incoming) - int(outgoing)
 
 def moves(db): return list(db.scalars(select(StockMove).order_by(StockMove.created_at, StockMove.id)))

@@ -1,13 +1,11 @@
 import re
 from backend.kernel.accounting import DomainError
 
-def quantity_to_minor(value, scale, allow_zero=False):
-    if not isinstance(value, str) or not re.fullmatch(r'[0-9]+(?:\.[0-9]+)?', value):
-        raise DomainError('数量须为正十进制字符串')
-    whole, _, fraction = value.partition('.')
-    if len(fraction) > scale: raise DomainError('数量超过 SKU 精度')
+def quantity_to_minor(value, allow_zero=False):
+    if not isinstance(value, str) or not re.fullmatch(r'[0-9]+', value):
+        raise DomainError('数量须为整数数字字符串')
     # Bound length before converting arbitrary input into a Python integer.
-    digits = (whole + fraction.ljust(scale, '0')).lstrip('0')
+    digits = value.lstrip('0')
     if not digits and allow_zero: return 0
     if not digits or len(digits) > 16: raise DomainError('数量超出有效范围')
     minor = int(digits)
@@ -15,10 +13,8 @@ def quantity_to_minor(value, scale, allow_zero=False):
     return minor
 
 
-def quantity_string(minor, scale):
-    if not scale: return str(minor)
-    whole, fraction = divmod(minor, 10 ** scale)
-    return f'{whole}.{fraction:0{scale}d}'
+def quantity_string(minor):
+    return str(minor)
 
 
 def validate_move(source_kind, destination_kind, quantity_minor, available_minor):

@@ -100,12 +100,10 @@ class RepaymentAllocation(Base):
 
 class Sku(Base):
     __tablename__ = 'skus'
-    __table_args__ = (CheckConstraint('quantity_scale BETWEEN 0 AND 3'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String)
     specification: Mapped[str] = mapped_column(String, default='')
     unit: Mapped[str] = mapped_column(String)
-    quantity_scale: Mapped[int] = mapped_column(Integer, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 class LocationProfile(Base):

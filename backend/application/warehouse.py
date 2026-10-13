@@ -49,7 +49,7 @@ def validate(db, data):
     for line in data['lines']:
         sku = stock_store.get_sku(db, line['sku_id'])
         if sku is None or not sku.active: raise DomainError('SKU 不存在或已停用', 409)
-        lines.append(dict(sku_id=sku.id, quantity_minor=quantity_to_minor(line['quantity'], sku.quantity_scale)))
+        lines.append(dict(sku_id=sku.id, quantity_minor=quantity_to_minor(line['quantity'])))
     funds = data.get('fund_transfer_ids', [])
     if len(set(funds)) != len(funds): raise DomainError('资金引用不能重复')
     if any(store.get_transfer(db, identifier) is None for identifier in funds): raise DomainError('资金引用不存在', 404)
@@ -67,7 +67,7 @@ def transfer_view(db, item):
     value['lines'] = []
     for line in stock_store.lines(db, item.id):
         sku = stock_store.get_sku(db, line.sku_id)
-        value['lines'].append(dict(id=line.id, sku_id=sku.id, sku_name=sku.name, specification=sku.specification, unit=sku.unit, quantity_scale=sku.quantity_scale, quantity_minor=line.quantity_minor, quantity=quantity_string(line.quantity_minor, sku.quantity_scale)))
+        value['lines'].append(dict(id=line.id, sku_id=sku.id, sku_name=sku.name, specification=sku.specification, unit=sku.unit, quantity_minor=line.quantity_minor, quantity=quantity_string(line.quantity_minor)))
     value['confirmations'] = [confirmation_view(c) for c in stock_store.confirmations(db, item.id)]
     value['fund_references'] = []
     for reference in stock_store.fund_references(db, item.id):
@@ -201,9 +201,8 @@ def request_completion(db, user, identifier, data):
         identifier = observation['line_id']
         if identifier not in lines or identifier in seen or not observation['basis'].strip(): raise DomainError('核对明细或依据无效')
         seen.add(identifier)
-        sku = stock_store.get_sku(db, lines[identifier].sku_id)
-        # Zero is a valid observation; conversion still validates exact decimal scale.
-        quantity_to_minor(observation['observed_quantity'], sku.quantity_scale, allow_zero=True)
+        # Zero is a valid observation; ordinary stock lines remain positive integers.
+        quantity_to_minor(observation['observed_quantity'], allow_zero=True)
     item.execution_version += 1
     confirmation = stock_store.create(db, StockConfirmation, dict(transfer_id=item.id, content_version=item.content_version, execution_version=item.execution_version, actor_id=user.id, effective_date=date.fromisoformat(data['effective_date']), basis=data['basis'], status='pending', payload=request, idempotency_key=data['idempotency_key']))
     audit(db, item, user, 'completion_requested', dict(confirmation_id=confirmation.id, request=request, execution_version=item.execution_version))
@@ -249,11 +248,11 @@ def inventory(db, filters=None):
             for sku in stock_store.skus(snapshot):
                 if filters.get('sku_id') and filters['sku_id'] != sku.id: continue
                 quantity = stock_store.available(snapshot, location.id, sku.id)
-                quantities.append(dict(location_id=location.id, location_name=location.name, member_id=custody.member_id if custody else None, sku_id=sku.id, sku_name=sku.name, unit=sku.unit, quantity=quantity_string(quantity, sku.quantity_scale), valuation='未估值'))
+                quantities.append(dict(location_id=location.id, location_name=location.name, member_id=custody.member_id if custody else None, sku_id=sku.id, sku_name=sku.name, unit=sku.unit, quantity=quantity_string(quantity), valuation='未估值'))
                 totals[sku.id] = totals.get(sku.id, 0) + quantity
-        return dict(snapshot_at=now(), quantities=quantities, totals=[dict(sku_id=identifier, quantity=quantity_string(quantity, stock_store.get_sku(snapshot, identifier).quantity_scale), valuation='未估值') for identifier, quantity in totals.items()])
+        return dict(snapshot_at=now(), quantities=quantities, totals=[dict(sku_id=identifier, quantity=quantity_string(quantity), valuation='未估值') for identifier, quantity in totals.items()])
 
 
 def list_moves(db):
     with store.read_snapshot(db) as snapshot:
-        return [{key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_location_id','destination_location_id','effective_date','created_at')} | dict(quantity=quantity_string(move.quantity_minor, stock_store.get_sku(snapshot, move.sku_id).quantity_scale)) for move in stock_store.moves(snapshot)]
+        return [{key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_location_id','destination_location_id','effective_date','created_at')} | dict(quantity=quantity_string(move.quantity_minor)) for move in stock_store.moves(snapshot)]
