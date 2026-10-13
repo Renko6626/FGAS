@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import String, Integer, BigInteger, Boolean, Date, DateTime, ForeignKey, JSON, UniqueConstraint, CheckConstraint
+from sqlalchemy import String, Integer, BigInteger, Boolean, Date, DateTime, ForeignKey, JSON, UniqueConstraint, CheckConstraint, Index, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 def new_id(): return str(uuid4())
@@ -96,3 +96,36 @@ class RepaymentAllocation(Base):
     repayment_id: Mapped[str] = mapped_column(ForeignKey('repayments.transfer_id'), primary_key=True)
     claim_id: Mapped[str] = mapped_column(ForeignKey('member_claims.transfer_id'), primary_key=True)
     amount_minor: Mapped[int] = mapped_column(BigInteger)
+
+
+class Sku(Base):
+    __tablename__ = 'skus'
+    __table_args__ = (CheckConstraint('quantity_scale BETWEEN 0 AND 3'),)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String)
+    specification: Mapped[str] = mapped_column(String, default='')
+    unit: Mapped[str] = mapped_column(String)
+    quantity_scale: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+class LocationProfile(Base):
+    __tablename__ = 'stock_location_profiles'
+    __table_args__ = (CheckConstraint("(kind = 'physical' AND external_kind IS NULL) OR (kind = 'external' AND external_kind IS NOT NULL AND external_kind IN ('supplier','customer','opening','loss','adjustment_gain','adjustment_loss'))"),)
+    location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'), primary_key=True)
+    kind: Mapped[str] = mapped_column(String)
+    external_kind: Mapped[str | None] = mapped_column(String, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+class LocationCustody(Base):
+    __tablename__ = 'location_custodies'
+    __table_args__ = (
+        CheckConstraint('valid_to IS NULL OR valid_to >= valid_from'),
+        Index('one_current_location_custody', 'location_id', unique=True, postgresql_where=text('valid_to IS NULL')),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
+    member_id: Mapped[str] = mapped_column(ForeignKey('members.id'))
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    ended_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)

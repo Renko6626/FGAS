@@ -12,14 +12,35 @@ class AccountCreate(Input):
 class AccountPatch(Input):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     tags: list[str] | None = None
+ExternalKind = Literal['supplier', 'customer', 'opening', 'loss', 'adjustment_gain', 'adjustment_loss']
 class LocationCreate(Input):
     name: str = Field(min_length=1, max_length=200)
     custodian_label: str = ''
     tags: list[str] = Field(default_factory=list)
+    kind: Literal['physical', 'external'] = 'physical'
+    external_kind: ExternalKind | None = None
+    active: bool = True
 class LocationPatch(Input):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     custodian_label: str | None = None
     tags: list[str] | None = None
+    kind: Literal['physical', 'external'] | None = None
+    external_kind: ExternalKind | None = None
+    active: bool | None = None
+class CustodyInput(Input):
+    member_id: str | None
+class SkuCreate(Input):
+    name: str = Field(min_length=1, max_length=200)
+    specification: str = ''
+    unit: str = Field(min_length=1, max_length=100)
+    quantity_scale: int = Field(default=0, ge=0, le=3, strict=True)
+    active: bool = True
+class SkuPatch(Input):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    specification: str | None = None
+    unit: str | None = Field(default=None, min_length=1, max_length=100)
+    quantity_scale: int | None = Field(default=None, ge=0, le=3, strict=True)
+    active: bool | None = None
 class UserPatch(Input):
     role: Literal['admin', 'trusted', 'untrusted'] | None = None
     active: bool | None = None

@@ -1,10 +1,12 @@
-from backend.infrastructure import store
+from backend.infrastructure import store, stock_store
+from backend.infrastructure.models import LocationProfile
+from backend.application import warehouse_catalogs
 from backend.application.funds import require_trusted, account_view
 from backend.kernel.accounting import DomainError
 
-def location_view(item): return dict(id=item.id, name=item.name, custodian_label=item.custodian_label, tags=item.tags)
+def location_view(db, item): return warehouse_catalogs.location_view(db, item)
 def accounts(db, tag=None): return [account_view(db, item) for item in store.accounts(db, tag)]
-def locations(db, tag=None): return [location_view(item) for item in store.locations(db, tag)]
+def locations(db, tag=None): return [location_view(db, item) for item in store.locations(db, tag)]
 def create_account(db, user, values):
     require_trusted(user)
     values = dict(values)
@@ -20,12 +22,32 @@ def update_account(db, user, identifier, values):
     return account_view(db, item)
 
 def create_location(db, user, values):
-    require_trusted(user)
-    return location_view(store.create_location(db, values))
+    warehouse_catalogs.authorize_write(db, user)
+    values = dict(values)
+    profile = {key: values.pop(key, default) for key, default in (('kind', 'physical'), ('external_kind', None), ('active', True))}
+    warehouse_catalogs.validate_profile(profile['kind'], profile['external_kind'])
+    item = store.create_location(db, values)
+    stock_store.create(db, LocationProfile, dict(location_id=item.id, **profile))
+    return location_view(db, item)
 
 def update_location(db, user, identifier, values):
-    require_trusted(user)
+    warehouse_catalogs.authorize_write(db, user)
     item = store.get_location(db, identifier)
     if not item: raise DomainError('位置不存在', 404)
+    values = dict(values)
+    profile_values = {key: values.pop(key) for key in ('kind', 'external_kind', 'active') if key in values}
+    if any(value is None for key, value in values.items()): raise DomainError('位置字段不能为空')
+    if profile_values:
+        profile = stock_store.get_profile(db, identifier)
+        if profile is None: raise DomainError('旧位置须先显式初始化库存类型', 409)
+        kind = profile_values.get('kind', profile.kind)
+        external_kind = profile_values.get('external_kind', profile.external_kind)
+        warehouse_catalogs.validate_profile(kind, external_kind)
+        if profile_values.get('active', profile.active) is None: raise DomainError('启用状态不能为空')
+        if (kind, external_kind) != (profile.kind, profile.external_kind):
+            if stock_store.location_referenced(db, identifier): raise DomainError('已有货物转移引用，不能修改库存边界', 409)
+            if kind != 'physical' and stock_store.current_custody(db, identifier): raise DomainError('须先结束当前保管关系', 409)
+        store.update(profile, profile_values)
     store.update(item, values)
-    return location_view(item)
+    db.flush()
+    return location_view(db, item)

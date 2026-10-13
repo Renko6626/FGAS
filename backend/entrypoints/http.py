@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from backend.infrastructure.store import transaction as database
 from backend.kernel.accounting import DomainError
-from backend.application import funds, catalogs, member_claims, identity as identities
+from backend.application import funds, catalogs, warehouse_catalogs, member_claims, identity as identities
 from backend.entrypoints.schemas import *
 
 AUTH_MODE = os.getenv('AUTH_MODE', '')
@@ -60,7 +60,7 @@ def create_location(data: LocationCreate, user=Depends(identity), db=Depends(dat
     return catalogs.create_location(db, user, data.model_dump())
 @app.patch('/api/locations/{identifier}')
 def patch_location(identifier: str, data: LocationPatch, user=Depends(identity), db=Depends(database)):
-    return catalogs.update_location(db, user, identifier, data.model_dump(exclude_none=True))
+    return catalogs.update_location(db, user, identifier, data.model_dump(exclude_unset=True))
 @app.post('/api/transfers/preview')
 def preview(data: Preview, user=Depends(identity), db=Depends(database)):
     return funds.preview(db, user, data.model_dump(mode='json'))
@@ -129,3 +129,17 @@ def repayment_detail(identifier: str, user=Depends(identity), db=Depends(databas
 @app.get('/api/members/{identifier}')
 def member_detail(identifier: str, user=Depends(identity), db=Depends(database)):
     return member_claims.member_detail(db, identifier)
+
+
+@app.get('/api/skus')
+def skus(user=Depends(identity), db=Depends(database)):
+    return warehouse_catalogs.skus(db)
+@app.post('/api/skus', status_code=201)
+def create_sku(data: SkuCreate, user=Depends(identity), db=Depends(database)):
+    return warehouse_catalogs.create_sku(db, user, data.model_dump())
+@app.patch('/api/skus/{identifier}')
+def patch_sku(identifier: str, data: SkuPatch, user=Depends(identity), db=Depends(database)):
+    return warehouse_catalogs.update_sku(db, user, identifier, data.model_dump(exclude_unset=True))
+@app.post('/api/locations/{identifier}/custody')
+def set_custody(identifier: str, data: CustodyInput, user=Depends(identity), db=Depends(database)):
+    return warehouse_catalogs.set_custody(db, user, identifier, data.member_id)
