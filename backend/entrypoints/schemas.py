@@ -106,44 +106,19 @@ class StockTransferInput(Input):
     effective_date: date
     description: str = ''
     basis: str = Field(min_length=1)
+    related_transfer_id: str | None = None
     source_reference: str | None = None
     fund_transfer_ids: list[str] = Field(default_factory=list)
     lines: list[StockLineInput] = Field(min_length=1)
-    idempotency_key: str = Field(min_length=1, max_length=200)
 class StockApproval(Input):
-    expected_content_version: int = Field(ge=1, strict=True)
-    expected_execution_version: int = Field(ge=1, strict=True)
-    idempotency_key: str | None = Field(default=None, min_length=1, max_length=200)
+    pass
 class StockRejection(StockApproval):
     reason: str = Field(min_length=1)
-
-class StockObservation(Input):
-    line_id: str
-    observed_quantity: str
-    basis: str = Field(min_length=1)
-class CompletionInput(StockApproval):
+class CompletionInput(Input):
     effective_date: date
     basis: str = Field(min_length=1)
-    idempotency_key: str = Field(min_length=1, max_length=200)
-    observations: list[StockObservation] = Field(default_factory=list)
-
-class StockDifferenceInput(Input):
-    line_id: str
-    location_id: str
-    observed_quantity: str
-    comparison_at: AwareDatetime
-    basis: str
-    idempotency_key: str = Field(min_length=1)
-
-class StockAdjustmentInput(Input):
-    external_location_id: str
-    effective_date: date
-    basis: str
-    idempotency_key: str = Field(min_length=1)
-
 class StockFundReferenceInput(Input):
     fund_transfer_id: str
-    idempotency_key: str = Field(min_length=1)
 
 class StockFundMoney(Input):
     kind: Literal['fund_transfer']
@@ -154,4 +129,3 @@ class StockClaimMoney(Input):
 class StockOperationInput(Input):
     stock: StockTransferInput
     money: StockFundMoney | StockClaimMoney = Field(discriminator='kind')
-    idempotency_key: str = Field(min_length=1, max_length=200)

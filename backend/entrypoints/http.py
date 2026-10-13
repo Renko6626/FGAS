@@ -181,23 +181,9 @@ def stock_inventory(sku_id: str | None=None, location_id: str | None=None, membe
 def stock_moves(sku_id: str | None=None, source_location_id: str | None=None, destination_location_id: str | None=None, transfer_id: str | None=None, user=Depends(identity), db=Depends(database)):
     return warehouse.list_moves(db,dict(sku_id=sku_id,source_location_id=source_location_id,destination_location_id=destination_location_id,transfer_id=transfer_id))
 
-from backend.application import stock_differences
-
-@app.post('/api/stock-transfers/{identifier}/differences',status_code=201)
-def register_stock_difference(identifier: str,data: StockDifferenceInput,user=Depends(identity),db=Depends(database)):
-    return stock_differences.register_difference(db,user,identifier,data.model_dump(mode='json'))
 @app.post('/api/stock-transfers/{identifier}/fund-references')
-def add_stock_fund_reference(identifier: str,data: StockFundReferenceInput,user=Depends(identity),db=Depends(database)):
-    return stock_differences.add_fund_reference(db,user,identifier,data.model_dump(mode='json'))
-@app.get('/api/stock-differences')
-def stock_difference_list(transfer_id: str | None=None,location_id: str | None=None,sku_id: str | None=None,user=Depends(identity),db=Depends(database)):
-    return stock_differences.list_differences(db,dict(transfer_id=transfer_id,location_id=location_id,sku_id=sku_id))
-@app.get('/api/stock-differences/{identifier}')
-def stock_difference_detail(identifier: str,user=Depends(identity),db=Depends(database)):
-    return stock_differences.difference_detail(db,identifier)
-@app.post('/api/stock-differences/{identifier}/adjustment',status_code=201)
-def adjust_stock_difference(identifier: str,data: StockAdjustmentInput,user=Depends(identity),db=Depends(database)):
-    return stock_differences.create_adjustment(db,user,identifier,data.model_dump(mode='json'))
+def add_stock_fund_reference(identifier: str, data: StockFundReferenceInput, user=Depends(identity), db=Depends(database)):
+    return warehouse.add_fund_reference(db, user, identifier, data.model_dump(mode='json'))
 
 @app.post('/api/stock-operations', status_code=201)
 def submit_stock_operation(data: StockOperationInput, user=Depends(identity), db=Depends(database)):

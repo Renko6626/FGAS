@@ -130,7 +130,7 @@ class LocationCustody(Base):
 
 class StockTransfer(Base):
     __tablename__ = 'stock_transfers'
-    __table_args__ = (UniqueConstraint('actor_id', 'idempotency_key'), CheckConstraint("status IN ('pending','in_transit','completed','rejected','cancelled')"))
+    __table_args__ = (CheckConstraint("status IN ('pending','in_transit','completed','rejected','cancelled')"),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     source_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
     destination_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
@@ -138,16 +138,13 @@ class StockTransfer(Base):
     effective_date: Mapped[object] = mapped_column(Date)
     description: Mapped[str] = mapped_column(String, default='')
     basis: Mapped[str] = mapped_column(String)
+    related_transfer_id: Mapped[str | None] = mapped_column(ForeignKey('stock_transfers.id'), nullable=True)
     source_reference: Mapped[str | None] = mapped_column(String, nullable=True)
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     status: Mapped[str] = mapped_column(String)
-    content_version: Mapped[int] = mapped_column(Integer, default=1)
-    execution_version: Mapped[int] = mapped_column(Integer, default=1)
     approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
     approval_mode: Mapped[str | None] = mapped_column(String, nullable=True)
     approval_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    payload: Mapped[dict] = mapped_column(JSON)
-    idempotency_key: Mapped[str] = mapped_column(String)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -166,36 +163,28 @@ class StockTransferFundReference(Base):
 
 class StockAudit(Base):
     __tablename__ = 'stock_audit_events'
-    __table_args__ = (UniqueConstraint('actor_id', 'action', 'idempotency_key'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     action: Mapped[str] = mapped_column(String)
     snapshot: Mapped[dict] = mapped_column(JSON)
-    idempotency_key: Mapped[str | None] = mapped_column(String, nullable=True)
-    request_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 class StockConfirmation(Base):
     __tablename__ = 'stock_confirmations'
     __table_args__ = (
-        UniqueConstraint('actor_id', 'idempotency_key'),
         CheckConstraint("status IN ('pending','completed','rejected','invalidated')"),
         Index('one_pending_stock_confirmation', 'transfer_id', unique=True, postgresql_where=text("status = 'pending'")),
         Index('one_completed_stock_confirmation', 'transfer_id', unique=True, postgresql_where=text("status = 'completed'")),
     )
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
-    content_version: Mapped[int] = mapped_column(Integer)
-    execution_version: Mapped[int] = mapped_column(Integer)
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     effective_date: Mapped[object] = mapped_column(Date)
     basis: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String)
     approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
     execution_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    payload: Mapped[dict] = mapped_column(JSON)
-    idempotency_key: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 class StockMove(Base):
@@ -209,40 +198,4 @@ class StockMove(Base):
     destination_location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
     quantity_minor: Mapped[int] = mapped_column(BigInteger)
     effective_date: Mapped[object] = mapped_column(Date)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-
-class StockDifference(Base):
-    __tablename__ = 'stock_differences'
-    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id','location_id'), UniqueConstraint('actor_id','idempotency_key'), CheckConstraint('delta_minor != 0'))
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
-    confirmation_id: Mapped[str] = mapped_column(ForeignKey('stock_confirmations.id'))
-    transfer_line_id: Mapped[str] = mapped_column(ForeignKey('stock_transfer_lines.id'))
-    location_id: Mapped[str] = mapped_column(ForeignKey('stock_locations.id'))
-    sku_id: Mapped[str] = mapped_column(ForeignKey('skus.id'))
-    expected_minor: Mapped[int] = mapped_column(BigInteger)
-    observed_minor: Mapped[int] = mapped_column(BigInteger)
-    delta_minor: Mapped[int] = mapped_column(BigInteger)
-    comparison_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    basis: Mapped[str] = mapped_column(String)
-    actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
-    payload: Mapped[dict] = mapped_column(JSON)
-    idempotency_key: Mapped[str] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-
-class StockDifferenceAdjustment(Base):
-    __tablename__ = 'stock_difference_adjustments'
-    stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'), primary_key=True)
-    difference_id: Mapped[str] = mapped_column(ForeignKey('stock_differences.id'))
-
-class StockOperation(Base):
-    """Replay record for one atomic money/stock submission, without a lifecycle."""
-    __tablename__ = 'stock_operations'
-    __table_args__ = (UniqueConstraint('actor_id', 'idempotency_key'),)
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
-    idempotency_key: Mapped[str] = mapped_column(String)
-    payload: Mapped[dict] = mapped_column(JSON)
-    stock_transfer_id: Mapped[str | None] = mapped_column(ForeignKey('stock_transfers.id'), nullable=True)
-    fund_transfer_id: Mapped[str | None] = mapped_column(ForeignKey('transfers.id'), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

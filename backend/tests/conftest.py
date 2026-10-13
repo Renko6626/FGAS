@@ -11,6 +11,12 @@ from backend.entrypoints.http import app
 def client():
     if not os.getenv('FGAS_TEST_DATABASE'): pytest.skip('Set FGAS_TEST_DATABASE=1 with dedicated DATABASE_URL')
     with engine.begin() as db:
+        from sqlalchemy import text, inspect
+        if db.scalar(text('SELECT current_database()')) != 'fgas_test':
+            raise RuntimeError('Fixture requires dedicated fgas_test database')
+        historical = set(inspect(db).get_table_names())
+        for name in ('stock_operations', 'stock_difference_adjustments', 'stock_differences'):
+            if name in historical: db.execute(text(f'DELETE FROM {name}'))
         for table in reversed(Base.metadata.sorted_tables): db.execute(table.delete())
     initialize()
     with TestClient(app) as client:

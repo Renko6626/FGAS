@@ -18,5 +18,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Initialize the FGAS development database')
     parser.add_argument('--reset', action='store_true', help='Delete and rebuild configured FGAS application tables')
     parser.add_argument('--initialize-stock-profiles', action='store_true', help='Explicitly add physical profiles for legacy locations; preserve custodian text')
+    parser.add_argument('--simplify-stock-schema', action='store_true', help='Explicitly add transfer links and allow legacy stock columns to be omitted; preserve history')
     args = parser.parse_args()
-    initialize(reset=args.reset, initialize_stock_profiles=args.initialize_stock_profiles)
+    if args.simplify_stock_schema:
+        if args.reset or args.initialize_stock_profiles: parser.error('Schema simplification must run separately')
+        from backend.infrastructure.stock_schema import simplify_stock_schema
+        simplify_stock_schema()
+    else:
+        initialize(reset=args.reset, initialize_stock_profiles=args.initialize_stock_profiles)

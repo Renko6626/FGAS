@@ -52,21 +52,13 @@ def lines(db, identifier):
     return list(db.scalars(select(StockTransferLine).where(StockTransferLine.transfer_id == identifier).order_by(StockTransferLine.id)))
 def fund_references(db, identifier):
     return list(db.scalars(select(StockTransferFundReference).where(StockTransferFundReference.stock_transfer_id == identifier).order_by(StockTransferFundReference.fund_transfer_id)))
-def existing_submission(db, actor_id, key):
-    return db.scalar(select(StockTransfer).where(StockTransfer.actor_id == actor_id, StockTransfer.idempotency_key == key))
 def audit_events(db, identifier):
     return list(db.scalars(select(StockAudit).where(StockAudit.stock_transfer_id == identifier).order_by(StockAudit.created_at, StockAudit.id)))
-def existing_action(db, actor_id, action, key):
-    if not key: return None
-    return db.scalar(select(StockAudit).where(StockAudit.actor_id == actor_id, StockAudit.action == action, StockAudit.idempotency_key == key))
-
 from sqlalchemy import func
 from backend.infrastructure.models import StockConfirmation, StockMove
 
 def confirmations(db, identifier):
     return list(db.scalars(select(StockConfirmation).where(StockConfirmation.transfer_id == identifier).order_by(StockConfirmation.created_at, StockConfirmation.id)))
-def existing_completion(db, actor_id, key):
-    return db.scalar(select(StockConfirmation).where(StockConfirmation.actor_id == actor_id, StockConfirmation.idempotency_key == key))
 def available(db, location_id, sku_id):
     incoming = db.scalar(select(func.coalesce(func.sum(StockMove.quantity_minor), 0)).where(StockMove.destination_location_id == location_id, StockMove.sku_id == sku_id))
     outgoing = db.scalar(select(func.coalesce(func.sum(StockMove.quantity_minor), 0)).where(StockMove.source_location_id == location_id, StockMove.sku_id == sku_id))
@@ -75,20 +67,5 @@ def available(db, location_id, sku_id):
 
 def moves(db): return list(db.scalars(select(StockMove).order_by(StockMove.created_at, StockMove.id)))
 
-from backend.infrastructure.models import StockDifference, StockDifferenceAdjustment
-
-def differences(db, transfer_id=None, location_id=None, sku_id=None):
-    query = select(StockDifference).order_by(StockDifference.created_at, StockDifference.id)
-    for column, value in ((StockDifference.stock_transfer_id,transfer_id),(StockDifference.location_id,location_id),(StockDifference.sku_id,sku_id)):
-        if value: query = query.where(column == value)
-    return list(db.scalars(query))
-def adjustments(db, difference_id):
-    return list(db.scalars(select(StockTransfer).join(StockDifferenceAdjustment,StockDifferenceAdjustment.stock_transfer_id == StockTransfer.id).where(StockDifferenceAdjustment.difference_id == difference_id).order_by(StockTransfer.created_at,StockTransfer.id)))
-def adjustment_difference(db, transfer_id):
-    link = db.get(StockDifferenceAdjustment,transfer_id)
-    return db.get(StockDifference,link.difference_id) if link else None
-
-from backend.infrastructure.models import StockOperation
-
-def existing_operation(db, actor_id, key):
-    return db.scalar(select(StockOperation).where(StockOperation.actor_id == actor_id, StockOperation.idempotency_key == key))
+def adjustments(db, transfer_id):
+    return list(db.scalars(select(StockTransfer).where(StockTransfer.related_transfer_id == transfer_id).order_by(StockTransfer.created_at, StockTransfer.id)))
