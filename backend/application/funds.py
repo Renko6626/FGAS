@@ -34,6 +34,13 @@ def post(db, item, user, mode):
     item.approval_mode = mode
     item.version += 1
     store.audit(db, item.id, user.id, 'posted', mode)
+    repayment_id = item.reversal_of or item.id
+    if store.get_repayment(db, repayment_id):
+        for allocation in store.repayment_allocations(db, repayment_id):
+            claim_transfer = get_transfer(db, allocation.claim_id)
+            claim_transfer.version += 1
+            store.audit(db, claim_transfer.id, user.id,
+                        'repayment_reversed' if item.reversal_of else 'repaid', item.id)
     store.flush(db)
 
 def validate_business_post(db, item, user) -> None:
@@ -49,7 +56,8 @@ def validate_business_post(db, item, user) -> None:
         require_trusted(user)
         if claim:
             if item.reversal_of:
-                if store.claim_repaid_minor(db, original.id): raise DomainError('垫付已有有效偿还，不能冲销', 409)
+                if store.claim_repaid_minor(db, original.id) or store.claim_has_pending_repayment_reversal(db, original.id):
+                    raise DomainError('垫付已有有效偿还或关联冲销未完成，不能冲销', 409)
             else:
                 member = store.get_member(db, claim.member_id)
                 if not member or item.source_account_id != member.account_id:
@@ -58,6 +66,35 @@ def validate_business_post(db, item, user) -> None:
                     raise DomainError('请通过垫付确认入口 /api/member-claims/{id}/confirm 确认金额', 409)
                 validate_confirmation(claim.declared_minor, claim.confirmed_minor, claim.confirmation_reason or '')
                 if item.amount_minor != claim.confirmed_minor: raise DomainError('转移金额与确认金额不一致', 409)
+        if repayment:
+            if item.reversal_of:
+                if item.amount_minor != original.amount_minor:
+                    raise DomainError('偿还冲销金额与原付款不一致', 409)
+                for allocation in store.repayment_allocations(db, original.id):
+                    store.refresh(db, get_transfer(db, allocation.claim_id))
+            else:
+                member = store.get_member(db, repayment.member_id)
+                if not member or item.destination_account_id != member.account_id or not store.is_fund(db, item.source_account_id):
+                    raise DomainError('偿还须从组织资金付至该成员往来科目')
+                validate_repayment_current(db, item.payload['business'], item.amount_minor)
+                persisted = [(a.claim_id, a.amount_minor) for a in store.repayment_allocations(db, item.id)]
+                requested = [(a['claim_id'], a['amount_minor']) for a in item.payload['business']['allocations']]
+                if sorted(persisted) != sorted(requested): raise DomainError('偿还匹配与原请求不一致', 409)
+
+
+def validate_repayment_current(db, business, amount_minor):
+    from backend.modules.member_claims.rules import allocate_oldest, validate_allocations
+    claims = store.open_claims(db, business['member_id'])
+    current = {claim.id: claim for claim in claims}
+    allocations = business['allocations']
+    for allocation in allocations:
+        claim = current.get(allocation['claim_id'])
+        if not claim or claim.version != allocation.get('expected_version'):
+            raise DomainError('垫付版本或状态已变化，请重新预览', 409)
+    pairs = [(a['claim_id'], a['amount_minor']) for a in allocations]
+    validate_allocations(claims, business['member_id'], amount_minor, pairs)
+    if business['allocation_mode'] == 'oldest_first' and pairs != allocate_oldest(claims, amount_minor):
+        raise DomainError('默认匹配结果已变化，请重新预览', 409)
 
 
 def validate_business(db, business, data, amount_minor, defer_post):
@@ -99,6 +136,7 @@ def validate_business(db, business, data, amount_minor, defer_post):
             seen.add(claim_id)
             total += amount
         if total != amount_minor: raise DomainError('匹配总额须等于偿还金额')
+        validate_repayment_current(db, business, amount_minor)
 
 
 def save_business(db, item, business):

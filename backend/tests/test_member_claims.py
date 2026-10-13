@@ -108,3 +108,134 @@ def test_claim_reversal_refreshes_preloaded_pending_amount(client):
     retry = client.post(f'/api/transfers/{identifier}/reverse', json=dict(
         reason='撤回垫付', idempotency_key='stale-reversal'))
     assert retry.status_code == 201 and retry.json()['id'] == reversal['id']
+
+
+def repayment_payload(client, m, amount, key, allocations=None):
+    data = dict(member_id=m['id'], source_account_id='fund_pool', amount=amount,
+                effective_date='2026-10-13', basis='偿还付款凭据',
+                allocation_mode='manual' if allocations is not None else 'oldest_first')
+    if allocations is not None: data['allocations'] = allocations
+    preview = client.post('/api/repayments/preview', json=data)
+    assert preview.status_code == 200
+    return dict(data, allocations=preview.json()['allocations'], idempotency_key=key)
+
+
+def test_repayment_allocation_and_reversal(client):
+    m = member(client)
+    assert transfer(client, 'opening', 'fund_pool', '2000', 'opening').status_code == 201
+    first = client.post('/api/member-claims', json=claim_payload(m, confirm=True)).json()
+    payload = repayment_payload(client, m, '400', 'repay-400')
+    assert client.get('/api/repayments').json() == []  # Preview has no writes.
+    response = client.post('/api/repayments', json=payload)
+    assert response.status_code == 201
+    payment = response.json()
+    assert client.post('/api/repayments', json=payload).json()['id'] == payment['id']
+    assert client.post('/api/repayments', json=dict(payload, basis='修改付款依据')).status_code == 409
+    assert len(client.get('/api/repayments').json()) == 1
+    assert client.get('/api/funds/summary').json()['total_minor'] == 160000
+    assert client.get(f"/api/member-claims/{first['id']}").json()['outstanding_minor'] == 60000
+    assert next(a for a in client.get('/api/accounts').json() if a['id'] == m['account_id'])['balance_minor'] == 60000
+    second = client.post('/api/member-claims', json=dict(claim_payload(m, key='claim-300', confirm=True), amount='300')).json()
+    multi = repayment_payload(client, m, '700', 'repay-700')
+    assert [(a['claim_id'], a['amount']) for a in multi['allocations']] == [(first['id'], '600.00'), (second['id'], '100.00')]
+    response = client.post('/api/repayments', json=multi)
+    assert response.status_code == 201
+    multi_payment = response.json()
+    assert client.get(f"/api/member-claims/{second['id']}").json()['outstanding_minor'] == 20000
+    manual = repayment_payload(client, m, '50', 'manual', [dict(claim_id=second['id'], amount='50')])
+    response = client.post('/api/repayments', json=manual)
+    assert response.status_code == 201
+    manual_payment = response.json()
+    other = member(client)
+    invalid = {k: v for k, v in manual.items() if k != 'idempotency_key'}
+    invalid['allocations'] = [dict(claim_id=second['id'], amount='50')]
+    assert client.post('/api/repayments/preview', json=dict(invalid, member_id=other['id'])).status_code == 400
+    assert client.post('/api/repayments/preview', json=dict(invalid, amount='60')).status_code == 400
+    assert client.post('/api/repayments/preview', json=dict(invalid, amount='151', allocations=[dict(claim_id=second['id'], amount='151')])).status_code == 400
+    assert client.post(f"/api/transfers/{second['id']}/reverse", json=dict(reason='撤回', idempotency_key='blocked')).status_code == 409
+    for index, repayment in enumerate([manual_payment, multi_payment, payment]):
+        reverse = client.post(f"/api/transfers/{repayment['id']}/reverse", json=dict(reason='撤回付款', idempotency_key=f'repay-reverse-{index}'))
+        assert reverse.status_code == 201 and reverse.json()['amount_minor'] == repayment['amount_minor']
+        history = client.get(f"/api/repayments/{repayment['id']}").json()
+        assert history['status'] == 'reversed' and not history['effective'] and history['allocations'] == repayment['allocations']
+        expected = [(0, 20000), (60000, 30000), (100000, 30000)][index]
+        assert tuple(client.get(f"/api/member-claims/{c['id']}").json()['outstanding_minor']
+                     for c in [first, second]) == expected
+    assert client.get(f"/api/member-claims/{first['id']}").json()['outstanding_minor'] == 100000
+    assert client.get(f"/api/member-claims/{second['id']}").json()['outstanding_minor'] == 30000
+    for index, claim in enumerate([first, second]):
+        assert client.post(f"/api/transfers/{claim['id']}/reverse", json=dict(reason='撤回垫付', idempotency_key=f'claim-reverse-{index}')).status_code == 201
+
+
+def test_stale_and_competing_repayments(client):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from backend.application import member_claims
+    from backend.infrastructure import store
+    from backend.infrastructure.database import Session
+    from backend.kernel.accounting import DomainError
+
+    m = member(client)
+    transfer(client, 'opening', 'fund_pool', '2000', 'opening')
+    claim = client.post('/api/member-claims', json=claim_payload(m, confirm=True)).json()
+    stale = repayment_payload(client, m, '100', 'stale')
+    current = repayment_payload(client, m, '100', 'first')
+    assert client.post('/api/repayments', json=current).status_code == 201
+    assert client.post('/api/repayments', json=stale).status_code == 409
+    remaining = repayment_payload(client, m, '900', 'competing')
+    barrier = Barrier(2)
+
+    def pay(index):
+        try:
+            with Session.begin() as db:
+                # Identity map is deliberately populated before either writer takes the lock.
+                original = store.get_transfer(db, claim['id'])
+                user = store.get_user(db, 'trusted')
+                barrier.wait(timeout=5)
+                member_claims.submit_repayment(db, user, dict(remaining, idempotency_key=f'competing-{index}'))
+                assert original.status == 'posted'
+            return 201
+        except DomainError as error:
+            return error.status
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(pay, [0, 1]))
+    assert sorted(results) == [201, 409]
+    payments = client.get('/api/repayments', params={'member_id': m['id']}).json()
+    assert len(payments) == 2 and sum(p['amount_minor'] for p in payments) == 100000
+    assert client.get(f"/api/member-claims/{claim['id']}").json()['outstanding_minor'] == 0
+    assert client.get('/api/funds/summary').json()['total_minor'] == 100000
+
+
+def test_repayment_write_failure_rolls_back(client):
+    import pytest
+    from sqlalchemy import text
+    from backend.infrastructure.database import engine
+
+    m = member(client)
+    transfer(client, 'opening', 'fund_pool', '2000', 'opening')
+    claim = client.post('/api/member-claims', json=claim_payload(m, confirm=True)).json()
+    payload = repayment_payload(client, m, '400', 'failure')
+    before = client.get(f"/api/transfers/{claim['id']}").json()
+    with engine.begin() as db:
+        audit_count = db.scalar(text('SELECT count(*) FROM audit_events'))
+        db.execute(text("CREATE OR REPLACE FUNCTION fail_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'induced journal failure'; END $$"))
+        db.execute(text('CREATE TRIGGER fail_journal BEFORE INSERT ON journal_lines FOR EACH ROW EXECUTE FUNCTION fail_journal()'))
+    try:
+        with pytest.raises(Exception, match='induced journal failure'):
+            client.post('/api/repayments', json=payload)
+        assert client.get('/api/repayments').json() == []
+        assert len(client.get('/api/transfers').json()) == 2
+        assert client.get('/api/funds/summary').json()['total_minor'] == 200000
+        current = client.get(f"/api/member-claims/{claim['id']}").json()
+        assert current['outstanding_minor'] == 100000 and current['version'] == before['version']
+        assert current['transfer']['audit'] == before['audit']
+        with engine.connect() as db:
+            assert db.scalar(text('SELECT count(*) FROM repayments')) == 0
+            assert db.scalar(text('SELECT count(*) FROM repayment_allocations')) == 0
+            assert db.scalar(text('SELECT count(*) FROM audit_events')) == audit_count
+            assert db.scalar(text('SELECT count(*) FROM journal_lines')) == 4
+    finally:
+        with engine.begin() as db:
+            db.execute(text('DROP TRIGGER fail_journal ON journal_lines'))
+            db.execute(text('DROP FUNCTION fail_journal()'))

@@ -115,3 +115,69 @@ def reject_claim(db, user, identifier: str, expected_version: int, reason: str) 
     if not reason.strip(): raise DomainError('须填写拒绝原因')
     funds.decide(db, user, identifier, expected_version, reason)
     return get_claim(db, identifier)
+
+
+def repayment_values(db, data):
+    member = store.get_member(db, data['member_id'])
+    if not member: raise DomainError('成员不存在', 404)
+    return dict(source_account_id=data['source_account_id'], destination_account_id=member.account_id,
+                amount=data['amount'], effective_date=data['effective_date'],
+                description=data.get('description', ''), counterparty=None)
+
+
+def preview_repayment(db, user, data: dict) -> dict:
+    from backend.application import funds
+    from backend.kernel.accounting import yuan_to_minor
+    from backend.modules.member_claims.rules import allocate_oldest, validate_allocations
+    require_trusted(user)
+    values = repayment_values(db, data)
+    amount = yuan_to_minor(data['amount'])
+    if not store.is_fund(db, values['source_account_id']): raise DomainError('偿还来源须为组织资金账户')
+    if not data['basis'].strip(): raise DomainError('须填写依据')
+    claims = store.open_claims(db, data['member_id'])
+    mode = data['allocation_mode']
+    if mode == 'oldest_first':
+        allocations = allocate_oldest(claims, amount)
+    elif mode == 'manual':
+        allocations = [(a['claim_id'], yuan_to_minor(a['amount'])) for a in data.get('allocations') or []]
+    else: raise DomainError('匹配方式无效')
+    validate_allocations(claims, data['member_id'], amount, allocations)
+    versions = {claim.id: claim.version for claim in claims}
+    lines = funds.validate(db, values['source_account_id'], values['destination_account_id'], values['amount'])
+    return dict(amount_minor=amount, source_account_id=values['source_account_id'],
+                destination_account_id=values['destination_account_id'], allocation_mode=mode,
+                allocations=[dict(claim_id=identifier, amount=f'{value // 100}.{value % 100:02d}',
+                                  expected_version=versions[identifier]) for identifier, value in allocations],
+                journal_lines=[vars(line) for line in lines])
+
+
+def submit_repayment(db, user, data: dict) -> dict:
+    from backend.application import funds
+    from backend.kernel.accounting import yuan_to_minor
+    values = repayment_values(db, data)
+    values['idempotency_key'] = data['idempotency_key']
+    # Original amount strings and expected versions are immutable request facts.
+    business = dict(kind='repayment', member_id=data['member_id'], basis=data['basis'],
+                    allocation_mode=data['allocation_mode'], allocations=[dict(
+                        claim_id=a['claim_id'], amount=a['amount'], amount_minor=yuan_to_minor(a['amount']),
+                        expected_version=a['expected_version']) for a in data['allocations']])
+    item = funds.submit(db, user, values, business=business)
+    return get_repayment(db, item.id)
+
+
+def get_repayment(db, identifier: str) -> dict:
+    from backend.application import funds
+    repayment = store.get_repayment(db, identifier)
+    if not repayment: raise DomainError('偿还不存在', 404)
+    item = funds.get_transfer(db, identifier)
+    reversal = store.existing_reversal(db, identifier)
+    return dict(id=identifier, member_id=repayment.member_id, basis=repayment.basis,
+                allocation_mode=repayment.allocation_mode, status=item.status, version=item.version,
+                amount_minor=item.amount_minor, effective=item.status == 'posted',
+                allocations=[dict(claim_id=a.claim_id, amount_minor=a.amount_minor)
+                             for a in store.repayment_allocations(db, identifier)],
+                reversal_id=reversal.id if reversal else None, transfer=funds.transfer_view(db, item, True))
+
+
+def list_repayments(db, member_id: str | None=None) -> list[dict]:
+    return [get_repayment(db, item.transfer_id) for item in store.repayments(db, member_id)]

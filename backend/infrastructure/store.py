@@ -124,3 +124,35 @@ def claim_repaid_minor(db, identifier):
         Transfer, Transfer.id == RepaymentAllocation.repayment_id).where(
         RepaymentAllocation.claim_id == identifier, Transfer.status == 'posted')
     return int(db.scalar(query))
+
+
+def open_claims(db, member_id):
+    from backend.modules.member_claims.rules import OpenClaim
+    items = claims(db, member_id, 'posted')
+    result = []
+    for claim in items:
+        item = get_transfer(db, claim.transfer_id)
+        refresh(db, item)
+        refresh(db, claim)
+        if item.status == 'posted' and claim.confirmed_minor is not None:
+            result.append(OpenClaim(item.id, claim.member_id, claim.confirmed_at, item.version,
+                                    claim.confirmed_minor - claim_repaid_minor(db, item.id)))
+    return result
+
+
+def repayment_allocations(db, identifier):
+    return list(db.scalars(select(RepaymentAllocation).where(
+        RepaymentAllocation.repayment_id == identifier).order_by(RepaymentAllocation.claim_id)))
+
+
+def repayments(db, member_id=None):
+    query = select(Repayment).join(Transfer, Transfer.id == Repayment.transfer_id)
+    if member_id: query = query.where(Repayment.member_id == member_id)
+    return list(db.scalars(query.order_by(Transfer.created_at, Transfer.id)))
+
+
+def claim_has_pending_repayment_reversal(db, identifier):
+    original = Transfer.__table__.alias('repayment_original')
+    return db.scalar(select(Transfer.id).join(original, Transfer.reversal_of == original.c.id).join(
+        RepaymentAllocation, RepaymentAllocation.repayment_id == original.c.id).where(
+        RepaymentAllocation.claim_id == identifier, Transfer.status == 'pending').limit(1)) is not None

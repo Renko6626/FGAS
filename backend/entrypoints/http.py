@@ -111,3 +111,16 @@ def confirm_claim(identifier: str, data: ClaimConfirmation, user=Depends(identit
 @app.post('/api/member-claims/{identifier}/reject')
 def reject_claim(identifier: str, data: Rejection, user=Depends(identity), db=Depends(database)):
     return member_claims.reject_claim(db, user, identifier, data.expected_version, data.reason)
+
+@app.post('/api/repayments/preview')
+def preview_repayment(data: RepaymentPreview, user=Depends(identity), db=Depends(database)):
+    return member_claims.preview_repayment(db, user, data.model_dump(mode='json'))
+@app.post('/api/repayments', status_code=201)
+def submit_repayment(data: RepaymentSubmit, user=Depends(identity), db=Depends(database)):
+    return member_claims.submit_repayment(db, user, data.model_dump(mode='json'))
+@app.get('/api/repayments')
+def repayments(member_id: str | None=None, user=Depends(identity), db=Depends(database)):
+    return member_claims.list_repayments(db, member_id)
+@app.get('/api/repayments/{identifier}')
+def repayment_detail(identifier: str, user=Depends(identity), db=Depends(database)):
+    return member_claims.get_repayment(db, identifier)
