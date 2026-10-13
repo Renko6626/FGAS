@@ -650,4 +650,6 @@ BoothKernel 仍是独立现场 POS，不把其数据库作为中央账本，也�
 
 旧 Location 缺少 profile 时必须显式运行 `--initialize-stock-profiles`，普通启动不赋予库存用途、不把自由保管人文本匹配为 Member；该非重置入口保留原有数据。本轮未触碰根目录旧原型开发库，也未合并或部署。开发直接建表不等于正式迁移方案；Casdoor、附件、备份恢复和正式部署仍待落实。
 
-已有真实 PostgreSQL 行为检查覆盖整笔执行、权限刷新、重试、竞争库存、失败回滚、差异调整及钱货创建原子性。前端编译证据与未验证边界见 [阶段记录](docs/prototype-status.md)；浏览器交互尚未验收，逐任务审阅后仍需控制器进行整分支最终审阅。接口详情见 [README](README.md#stock-transfers-and-quantity-inventory)。
+已有真实 PostgreSQL 行为检查覆盖整笔执行、权限刷新、重试、竞争库存、失败回滚、差异调整及钱货创建原子性。前端编译证据与未验证边界见 [阶段记录](docs/prototype-status.md)；浏览器交互尚未验收；库存逐任务审阅、整分支审阅与最终修复复审已完成。接口详情见 [README](README.md#stock-transfers-and-quantity-inventory)。
+
+前端完成、差异登记和详情操作的请求恢复共用 `useOperationAttempt`：保存本次请求、控制重复提交、原键重试及明确失败后的查询确认。它不依赖库存业务类型，不承担审批或记账判断；业务组件提供执行、查询和成功回调。只覆盖当前页面会话，不引入全局队列或持久化。低频使用的保留与删除清单见 [操作机制整理](docs/stock-operation-simplification.md)。
