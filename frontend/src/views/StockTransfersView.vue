@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref, watch, computed, onBeforeUnmount} from 'vue'
+import {ref, watch, computed} from 'vue'
 import {NButton, NInput, NModal, NSelect} from 'naive-ui'
 import type {Location, Transfer} from '../api/funds'
 import {money, statuses as fundStatuses} from '../api/funds'
@@ -7,6 +7,7 @@ import {
   warehouse, versions, key, failure, today, stockStatuses, actions,
   isDefinitiveStockConflict, type StockTransfer, type Difference
 } from '../api/warehouse'
+import {useOperationAttempt} from '../composables/useOperationAttempt'
 import StockCompletionEditor from '../components/StockCompletionEditor.vue'
 import StockDifferenceEditor from '../components/StockDifferenceEditor.vue'
 
@@ -24,21 +25,29 @@ const completionPending = ref(false)
 const differencePending = ref(false)
 const childPending = computed(() => completionPending.value || differencePending.value)
 const detail = ref<StockTransfer | null>(null)
-const error = ref('')
-const busy = ref(false)
 const reason = ref('')
 const fund = ref('')
 const adjust = ref<Difference | null>(null)
 const external = ref('')
 const basis = ref('')
 const date = ref(today())
-let actionPending: {path: string; body: Record<string, unknown>; transferId: string} | null = null
-const conflict = ref(false)
-const currentRecord = ref<StockTransfer | null>(null)
-let disposed = false
+type StockAttempt = {path: string; body: Record<string, unknown>; transferId: string}
+const {
+  pending: actionPending, busy, error, conflict, currentRecord,
+  start, retry, readCurrent, acknowledgeConflict, isActive
+} = useOperationAttempt<StockAttempt, StockTransfer>({
+  submit: saved => warehouse.action(saved.path, saved.body),
+  readCurrent: saved => warehouse.detail(saved.transferId),
+  isDefinitiveConflict: isDefinitiveStockConflict,
+  describeError: failure,
+  onCurrent: reconcileDetail,
+  onResolved: async resolution => {
+    adjust.value = null
+    if (resolution === 'submitted') await changed()
+    else emit('changed')
+  }
+})
 let detailReadSerial = 0
-onBeforeUnmount(() => { disposed = true })
-const retrying = ref(false)
 const fundOptions = computed(() => props.funds.map(f => ({
   label: `${f.description || f.id}（${fundStatuses[f.status]}）`, value: f.id
 })))
@@ -50,16 +59,16 @@ const visibleItems = computed(() => props.items.filter(item =>
 const showCompletion = computed(() => completionPending.value || (
   detail.value?.status === 'in_transit' &&
   !detail.value.confirmations.some(confirmation => confirmation.status === 'pending') &&
-  !retrying.value && !busy.value && !differencePending.value
+  !actionPending.value && !busy.value && !differencePending.value
 ))
 const showDifference = computed(() => differencePending.value || (
   props.trusted && detail.value?.status === 'completed' &&
-  !retrying.value && !busy.value && !completionPending.value
+  !actionPending.value && !busy.value && !completionPending.value
 ))
-const canAct = computed(() => props.trusted && !retrying.value && !busy.value && !childPending.value)
+const canAct = computed(() => props.trusted && !actionPending.value && !busy.value && !childPending.value)
 
 async function open(id: string) {
-  if ((childPending.value || actionPending) && detail.value?.id !== id) {
+  if ((childPending.value || actionPending.value) && detail.value?.id !== id) {
     error.value = '请先核对并重试当前详情保留的原请求。'
     return
   }
@@ -68,11 +77,11 @@ async function open(id: string) {
     detailShow.value = true
     const result = await warehouse.detail(id)
     // A query started earlier must not replace an editor submitted while it was in flight.
-    if (disposed || readSerial !== detailReadSerial || ((childPending.value || actionPending) && detail.value?.id !== id)) return
+    if (!isActive() || readSerial !== detailReadSerial || ((childPending.value || actionPending.value) && detail.value?.id !== id)) return
     detail.value = result
     error.value = ''
   } catch (e) {
-    if (!disposed) error.value = (e as Error).message
+    if (isActive()) error.value = (e as Error).message
   }
 }
 watch(() => props.focus, id => { if (id) open(id) }, {immediate: true})
@@ -82,75 +91,16 @@ async function changed() {
   if (detail.value) await open(detail.value.id)
 }
 
-async function run(path: string, body: Record<string, unknown>) {
-  if (actionPending || childPending.value || busy.value || !detail.value) return
-  actionPending = {path, body, transferId: detail.value.id}
-  await retry()
-}
-
-async function retry() {
-  if (!actionPending || childPending.value || busy.value) return
-  busy.value = true
-  conflict.value = false
-  currentRecord.value = null
-  try {
-    await warehouse.action(actionPending.path, actionPending.body)
-    if (disposed) return
-    actionPending = null
-    retrying.value = false
-    adjust.value = null
-    await changed()
-  } catch (e) {
-    if (disposed) return
-    conflict.value = isDefinitiveStockConflict(e)
-    error.value = conflict.value
-      ? (e as Error).message + '。这次尝试未提交，请读取当前记录后核对处理。'
-      : failure(e)
-    retrying.value = true
-    if ([400, 422].includes((e as {status?: number}).status || 0)) {
-      actionPending = null
-      conflict.value = false
-      retrying.value = false
-      error.value = (e as Error).message + '。请修正输入后提交。'
-    }
-  } finally {
-    busy.value = false
-  }
+function run(path: string, body: Record<string, unknown>) {
+  if (actionPending.value || childPending.value || busy.value || !detail.value) return
+  return start(() => ({path, body, transferId: detail.value!.id}))
 }
 
 function reconcileDetail(result: StockTransfer) {
-  if (!disposed && detail.value?.id === result.id) {
+  if (isActive() && detail.value?.id === result.id) {
     detailReadSerial++
     detail.value = result
   }
-}
-
-async function readCurrent() {
-  if (!actionPending || !conflict.value || childPending.value || busy.value) return
-  const attempt = actionPending
-  busy.value = true
-  currentRecord.value = null
-  try {
-    const result = await warehouse.detail(attempt.transferId)
-    if (disposed || actionPending !== attempt) return
-    currentRecord.value = result
-    reconcileDetail(result)
-  } catch (e) {
-    if (!disposed) error.value = (e as Error).message + '。读取失败，原请求仍保留。'
-  } finally {
-    busy.value = false
-  }
-}
-
-function acknowledgeConflict() {
-  if (!actionPending || !conflict.value || !currentRecord.value || busy.value) return
-  reconcileDetail(currentRecord.value)
-  actionPending = null
-  conflict.value = false
-  currentRecord.value = null
-  retrying.value = false
-  adjust.value = null
-  emit('changed')
 }
 
 function decide(item: StockTransfer, action: string, confirmationId?: string) {
@@ -181,7 +131,7 @@ function adjustment() {
   </div>
   <p class="error">{{error}}</p>
   <p v-if="childPending">详情保留了原请求。请刷新核对，再打开原表单重试；完成核对前不能提交其他操作。</p>
-  <div v-if="retrying" class="banner">
+  <div v-if="actionPending" class="banner">
     <p>原操作内容已保留。先刷新详情核对结果；重试只发送同一请求，不需要再次交货。</p>
     <NButton :loading="busy" @click="retry">重试原操作</NButton>
     <section v-if="conflict">
@@ -313,14 +263,14 @@ function adjustment() {
   <NModal :show="!!adjust" preset="card" title="创建差异调整" class="dialog" @update:show="!$event&&(adjust=null)">
     <template v-if="adjust">
       <p>库存差异 {{adjust.delta}}，调整转移仍须手动确认完成。</p>
-      <label>调整外部端点<NSelect :disabled="retrying||childPending||busy" v-model:value="external" :options="locations.filter(l=>l.active&&l.kind==='external'&&l.external_kind===(adjust?.delta.startsWith('-')?'adjustment_loss':'adjustment_gain')).map(l=>({label:l.name,value:l.id}))"/>
+      <label>调整外部端点<NSelect :disabled="actionPending||childPending||busy" v-model:value="external" :options="locations.filter(l=>l.active&&l.kind==='external'&&l.external_kind===(adjust?.delta.startsWith('-')?'adjustment_loss':'adjustment_gain')).map(l=>({label:l.name,value:l.id}))"/>
       </label>
-      <label>日期<NInput :disabled="retrying||childPending||busy" v-model:value="date"/>
+      <label>日期<NInput :disabled="actionPending||childPending||busy" v-model:value="date"/>
       </label>
-      <label>依据<NInput :disabled="retrying||childPending||busy" v-model:value="basis"/>
+      <label>依据<NInput :disabled="actionPending||childPending||busy" v-model:value="basis"/>
       </label>
       <p class="error">{{error}}</p>
-      <NButton :disabled="retrying||childPending||busy" :loading="busy" @click="adjustment">创建调整</NButton>
+      <NButton :disabled="actionPending||childPending||busy" :loading="busy" @click="adjustment">创建调整</NButton>
     </template>
   </NModal>
 </template>

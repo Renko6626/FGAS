@@ -1,99 +1,43 @@
 <script setup lang="ts">
-import {ref, onBeforeUnmount} from 'vue'
+import {ref} from 'vue'
 import {NButton, NInput, NModal, NSelect} from 'naive-ui'
 import {request} from '../api/client'
 import {warehouse, key, failure, isDefinitiveStockConflict, stockStatuses, type StockTransfer} from '../api/warehouse'
+import {useOperationAttempt} from '../composables/useOperationAttempt'
 
 const props = defineProps<{item: StockTransfer}>()
 const emit = defineEmits<{changed: []; pending: [boolean]; current: [StockTransfer]}>()
 const show = ref(false)
-const busy = ref(false)
-const error = ref('')
 const line = ref('')
 const location = ref('')
 const quantity = ref('')
 const basis = ref('')
 const at = ref(new Date().toISOString())
-const locked = ref(false)
-const conflict = ref(false)
-const currentRecord = ref<StockTransfer | null>(null)
-let pending: {transferId: string; body: Record<string, unknown>} | null = null
-let disposed = false
-onBeforeUnmount(() => { disposed = true })
+type DifferenceAttempt = {transferId: string; body: Record<string, unknown>}
+const {
+  pending: locked, busy, error, conflict, currentRecord,
+  start, readCurrent, acknowledgeConflict
+} = useOperationAttempt<DifferenceAttempt, StockTransfer>({
+  submit: saved => request(`/stock-transfers/${saved.transferId}/differences`, 'POST', saved.body),
+  readCurrent: saved => warehouse.detail(saved.transferId),
+  isDefinitiveConflict: isDefinitiveStockConflict,
+  describeError: failure,
+  onPendingChange: value => emit('pending', value),
+  onCurrent: current => emit('current', current),
+  onResolved: () => { show.value = false; emit('changed') }
+})
 
-function clearPending() {
-  pending = null
-  locked.value = false
-  conflict.value = false
-  currentRecord.value = null
-  emit('pending', false)
-}
-
-async function save() {
-  if (busy.value) return
-  try {
-    if (!pending) {
-      if (!/^[0-9]+$/.test(quantity.value)) throw new Error('实际数量须为非负整数')
-      pending = {
-        transferId: props.item.id,
-        body: {
-          line_id: line.value,
-          location_id: location.value,
-          observed_quantity: quantity.value,
-          comparison_at: at.value,
-          basis: basis.value,
-          idempotency_key: key()
-        }
+function save() {
+  return start(() => {
+    if (!/^[0-9]+$/.test(quantity.value)) throw new Error('实际数量须为非负整数')
+    return {
+      transferId: props.item.id,
+      body: {
+        line_id: line.value, location_id: location.value, observed_quantity: quantity.value,
+        comparison_at: at.value, basis: basis.value, idempotency_key: key()
       }
-      locked.value = true
-      emit('pending', true)
     }
-    busy.value = true
-    conflict.value = false
-    currentRecord.value = null
-    await request(`/stock-transfers/${pending.transferId}/differences`, 'POST', pending.body)
-    if (disposed) return
-    show.value = false
-    clearPending()
-    emit('changed')
-  } catch (e) {
-    if (disposed) return
-    conflict.value = isDefinitiveStockConflict(e)
-    error.value = conflict.value
-      ? (e as Error).message + '。这次尝试未提交，请读取当前记录后核对处理。'
-      : failure(e)
-    if ([400, 422].includes((e as {status?: number}).status || 0)) {
-      clearPending()
-      error.value = (e as Error).message + '。请修正输入后提交。'
-    }
-  } finally {
-    busy.value = false
-  }
-}
-
-async function readCurrent() {
-  if (!pending || !conflict.value || busy.value) return
-  const attempt = pending
-  busy.value = true
-  currentRecord.value = null
-  try {
-    const result = await warehouse.detail(attempt.transferId)
-    if (disposed || pending !== attempt) return
-    currentRecord.value = result
-    emit('current', result)
-  } catch (e) {
-    if (!disposed) error.value = (e as Error).message + '。读取失败，原请求仍保留。'
-  } finally {
-    busy.value = false
-  }
-}
-
-function acknowledgeConflict() {
-  if (!pending || !conflict.value || !currentRecord.value || busy.value) return
-  emit('current', currentRecord.value)
-  clearPending()
-  show.value = false
-  emit('changed')
+  })
 }
 </script>
 

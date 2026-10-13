@@ -1,111 +1,51 @@
 <script setup lang="ts">
-import {computed, ref, onBeforeUnmount} from 'vue'
+import {computed, ref} from 'vue'
 import {NButton, NInput, NModal} from 'naive-ui'
 import {warehouse, versions, today, key, failure, isDefinitiveStockConflict, stockStatuses, type StockTransfer} from '../api/warehouse'
+import {useOperationAttempt} from '../composables/useOperationAttempt'
 
 const props = defineProps<{item: StockTransfer; trusted: boolean}>()
 const emit = defineEmits<{changed: []; pending: [boolean]; current: [StockTransfer]}>()
 const show = ref(false)
-const busy = ref(false)
-const error = ref('')
 const date = ref(today())
 const basis = ref('')
 const observations = ref<Record<string, string>>({})
-const locked = ref(false)
-const conflict = ref(false)
-const currentRecord = ref<StockTransfer | null>(null)
-let disposed = false
-onBeforeUnmount(() => { disposed = true })
-const submittedItem = ref<StockTransfer | null>(null)
-const displayedItem = computed(() => submittedItem.value || props.item)
-let pending: {path: string; body: Record<string, unknown>} | null = null
+type CompletionAttempt = {path: string; body: Record<string, unknown>; snapshot: StockTransfer}
+const {
+  attempt, pending: locked, busy, error, conflict, currentRecord,
+  start, readCurrent, acknowledgeConflict
+} = useOperationAttempt<CompletionAttempt, StockTransfer>({
+  submit: saved => warehouse.action(saved.path, saved.body),
+  readCurrent: saved => warehouse.detail(saved.snapshot.id),
+  isDefinitiveConflict: isDefinitiveStockConflict,
+  describeError: failure,
+  onPendingChange: value => emit('pending', value),
+  onCurrent: current => emit('current', current),
+  onResolved: () => { show.value = false; emit('changed') }
+})
+const displayedItem = computed(() => attempt.value?.snapshot || props.item)
 
-function clearPending() {
-  pending = null
-  locked.value = false
-  submittedItem.value = null
-  conflict.value = false
-  currentRecord.value = null
-  emit('pending', false)
-}
-
-async function save() {
-  if (busy.value) return
-  error.value = ''
-  try {
-    if (!pending) {
-      const observed = props.item.lines.filter(line => {
-        const value = observations.value[line.id]
-        return value !== undefined && value !== ''
-      })
-      if (observed.some(line => !/^[0-9]+$/.test(observations.value[line.id]!))) {
-        throw new Error('实际数量须为非负整数，留空表示未观察')
-      }
-      submittedItem.value = JSON.parse(JSON.stringify(props.item)) as StockTransfer
-      pending = {
-        path: `/stock-transfers/${props.item.id}/completion`,
-        body: {
-          ...versions(props.item),
-          effective_date: date.value,
-          basis: basis.value,
-          idempotency_key: key(),
-          observations: observed.map(line => ({
-            line_id: line.id,
-            observed_quantity: observations.value[line.id],
-            basis: basis.value
-          }))
-        }
-      }
-      locked.value = true
-      emit('pending', true)
+function save() {
+  return start(() => {
+    const observed = props.item.lines.filter(line => {
+      const value = observations.value[line.id]
+      return value !== undefined && value !== ''
+    })
+    if (observed.some(line => !/^[0-9]+$/.test(observations.value[line.id]!))) {
+      throw new Error('实际数量须为非负整数，留空表示未观察')
     }
-    busy.value = true
-    conflict.value = false
-    currentRecord.value = null
-    await warehouse.action(pending.path, pending.body)
-    if (disposed) return
-    show.value = false
-    clearPending()
-    emit('changed')
-  } catch (e) {
-    if (disposed) return
-    conflict.value = isDefinitiveStockConflict(e)
-    error.value = conflict.value
-      ? (e as Error).message + '。这次尝试未提交，请读取当前记录后核对处理。'
-      : failure(e)
-    if ([400, 422].includes((e as {status?: number}).status || 0)) {
-      clearPending()
-      error.value = (e as Error).message + '。请修正输入后提交。'
+    return {
+      snapshot: props.item,
+      path: `/stock-transfers/${props.item.id}/completion`,
+      body: {
+        ...versions(props.item), effective_date: date.value, basis: basis.value,
+        idempotency_key: key(),
+        observations: observed.map(line => ({
+          line_id: line.id, observed_quantity: observations.value[line.id], basis: basis.value
+        }))
+      }
     }
-  } finally {
-    busy.value = false
-  }
-}
-
-async function readCurrent() {
-  if (!pending || !conflict.value || busy.value) return
-  const attempt = pending
-  busy.value = true
-  currentRecord.value = null
-  try {
-    const result = await warehouse.detail(submittedItem.value!.id)
-    if (disposed || pending !== attempt) return
-    currentRecord.value = result
-    emit('current', result)
-  } catch (e) {
-    if (!disposed) error.value = (e as Error).message + '。读取失败，原请求仍保留。'
-  } finally {
-    busy.value = false
-  }
-}
-
-function acknowledgeConflict() {
-  if (!pending || !conflict.value || !currentRecord.value || busy.value) return
-  // Only an explicit acknowledgement after a successful authoritative read releases this owner.
-  emit('current', currentRecord.value)
-  clearPending()
-  show.value = false
-  emit('changed')
+  })
 }
 </script>
 
