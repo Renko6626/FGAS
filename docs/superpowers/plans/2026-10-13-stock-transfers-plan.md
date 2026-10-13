@@ -92,7 +92,7 @@ A 实际发30、B实收28：原转移入账 A减30、B加30，目标盘亏2后 B
 
 ### 拟议持久化对象（已确认）
 
-- `Sku` / `skus`：id、name、specification、unit、quantity_scale、active；数量按最小单位整数保存，接口输入输出十进制字符串；库存合计同样返回精确量值字符串，不经 JavaScript 浮点数求和。
+- `Sku` / `skus`：id、name、specification、unit、active；数量按整数个数保存，接口输入输出不带小数点的整数字符串；库存合计同样返回精确量值字符串，不经 JavaScript 浮点数求和。
 - `LocationProfile` / `stock_location_profiles`：location_id 外键到已有 Location、kind=`physical|external`、external_kind、active；避免在现有表直接新增必填列。已有未配置位置通过显式初始化补 physical profile，不静默改变其用途。
 - `LocationCustody` / `location_custodies`：location_id、member_id、valid_from、valid_to、记录操作者；当前保管关系从有效区间读取，老 custodian_label 只作为历史文本展示，不能自动按名字匹配成员。
 - `StockTransfer` / `stock_transfers`：来源/去向 location_id、action_kind、effective_date、description、basis、来源引用、actor_id、status、content_version、execution_version、批准依据、原始提交快照、idempotency_key、记录时间。
@@ -103,11 +103,11 @@ A 实际发30、B实收28：原转移入账 A减30、B加30，目标盘亏2后 B
 - `StockTransferFundReference`：stock_transfer_id、fund_transfer_id，联合唯一且外键指向已有资金记录；仅作追溯，不保存分摊金额。
 - `StockAudit`：stock_transfer_id、确认申请可选引用、actor_id、action、版本/依据快照、created_at；避免改现有资金 Audit 外键。
 
-不存可独立修改的库存余额。数量最小单位必须为正整数且不超过 9,007,199,254,740,991，接口量值以十进制字符串传输，拒绝科学计数法、负数、零及超精度，不静默舍入。一个 SKU 的计量单位及精度在有转移引用后不允许普通编辑；已引用的位置类型不允许改为另一种库存边界。停用对象保留历史，待完成 Transfer 遇到停用需明确冲突，不能静默替换端点。
+不存可独立修改的库存余额。转移数量必须为正整数且不超过 9,007,199,254,740,991，接口量值以十进制字符串传输，拒绝科学计数法、负数、零及小数数量，不静默舍入。一个 SKU 的计量单位在有转移引用后不允许普通编辑；已引用的位置类型不允许改为另一种库存边界。停用对象保留历史，待完成 Transfer 遇到停用需明确冲突，不能静默替换端点。
 
 ### 拟议应用及 HTTP 接口（已确认）
 
-- `backend/kernel/stock.py`：`quantity_to_minor(value: str, scale: int) -> int`、`validate_move(source_kind: str, destination_kind: str, quantity_minor: int, available_minor: int | None) -> None`，精度、端点和负库存纯校验。
+- `backend/kernel/stock.py`：`quantity_to_minor(value: str, *, allow_zero: bool = False) -> int`、`validate_move(source_kind: str, destination_kind: str, quantity_minor: int, available_minor: int | None) -> None`，整数数量、端点和负库存纯校验。
 - `backend/modules/warehouse/plans.py`：`build_moves(source_id: str, destination_id: str, lines: list[dict]) -> list[dict]`，为整个完成动作生成通用数量方案，不访问数据库。
 - `backend/application/warehouse_catalogs.py`（新增）：`create_sku(db, user, data: dict) -> dict`、`update_sku(db, user, id: str, data: dict) -> dict`、`set_custody(db, user, location_id: str, member_id: str | None) -> dict`；目录写入锁内刷新身份，保管变更以服务器时刻生效，本阶段不提供回溯/未来区间编辑。
 - `backend/application/warehouse.py`：`submit_transfer(db, user, data: dict) -> dict`、`decide_transfer(db, user, id: str, expected_version: int, rejection: str | None = None) -> dict`、`request_completion(db, user, id: str, data: dict) -> dict`、`decide_completion(db, user, confirmation_id: str, data: dict) -> dict`、`cancel_transfer(db, user, id: str, data: dict) -> dict`、`transfer_detail(db, id: str) -> dict`、`inventory(db, filters: dict) -> dict`。
@@ -117,7 +117,7 @@ A 实际发30、B实收28：原转移入账 A减30、B加30，目标盘亏2后 B
 - `/api/stock-transfers` GET/POST、`/{id}` GET、`/{id}/approve` POST、`/{id}/reject` POST、`/{id}/cancel` POST、`/{id}/completion` POST。
 - `/api/stock-confirmations/{id}/approve` POST、`/{id}/reject` POST；普通用户提交 completion 后无库存变化，可信用户主动提交 completion 则自动批准该事实并在本次手动操作中完成。
 - `/api/stock-transfers/{id}/fund-references` POST：`{fund_transfer_id,idempotency_key}`；可信角色可后补追溯关联，锁内校验目标存在及联合唯一，完整保存操作者和审计。不修改任何已批准数量、资金状态或 SKU 成本，不提供覆盖删除引用。原单已完成也可补关联，现有资金冲销后关联仍保留。
-- `/api/stock-transfers/{id}/differences` POST：`{line_id,location_id,observed_quantity,comparison_at,basis,idempotency_key}`；本次转移核对的 observed_quantity 是本次实收/核对量，不是全仓余额。服务端从原明细生成应收基准并保存原始输入、精度与差额；先只允许可信角色，普通用户实际核对记录随完成申请保留并由可信用户审阅登记。
+- `/api/stock-transfers/{id}/differences` POST：`{line_id,location_id,observed_quantity,comparison_at,basis,idempotency_key}`；本次转移核对的 observed_quantity 是本次实收/核对量，不是全仓余额。服务端从原明细生成应收基准并保存原始输入及整数差额；先只允许可信角色，普通用户实际核对记录随完成申请保留并由可信用户审阅登记。
 - `/api/stock-differences` GET、`/{id}` GET、`/{id}/adjustment` POST：`{external_location_id,effective_date,basis,idempotency_key}`，根据差额生成普通盈亏 Transfer，不接受任意调整数量或位置。可信角色办理；生成后仍须手动完成调整，不自动扣增。
 - `/api/inventory` GET：按 SKU、实际位置、成员过滤；返回 snapshot_at、数量、单位与未估值说明；`/api/stock-moves` GET 提供正式历史查询。
 
@@ -137,7 +137,7 @@ Transfer 使用 content_version 标记冻结的批准内容，execution_version 
 
 | 决策 | 推荐 | 主要取舍 |
 | --- | --- | --- |
-| 数量表示 | 每 SKU 指定单位和 0–3 位小数，整数最小单位存储；本类商品默认 0 位 | 支持本、件及可分割物品；超精度拒绝，不静默舍入 |
+| 数量表示 | 所有 SKU 统一整数计数，无 quantity_scale 或小数精度配置 | 支持本、件等计数单位标签；小数拒绝，不静默舍入 |
 | 库存执行 | 不预留，整笔完成时拒绝负库存 | 简单且符合当前架构建议；批准不保证之后一定能执行 |
 | 模型和接口 | 第 4 节库存专用模型、接口，复用事务锁和三档权限 | 保持资金与库存职责清楚，避免较大资金表重构 |
 | 保管关系 | 使用已有业务成员及有效时间，不自动匹配旧文本 | 可查当前成员库存并保留历史，无需引入登录绑定 |
@@ -176,7 +176,7 @@ Transfer 使用 content_version 标记冻结的批准内容，execution_version 
 - [ ] 实现精确数量、整笔方案及完成申请；批准状态变化与正式库存执行分开。
 - [ ] 共用现有数据库事务和咨询锁，锁内重新加载角色、单据、SKU、位置和来源数量；一次写所有 SKU 的流水、完成状态及审计。
 - [ ] 真实主例：期初/到货确认 100 本到 A，批准 A→B 的 30 本后 A 仍为 100、B 为 0；手动完成后 A 为 70、B 为 30，总量 100。两批各一条 Transfer，另一个 SKU 同单转移也全部完成。
-- [ ] 在同一测试文件覆盖：普通用户完成申请在审批前无变化；批准后一次生效；虚拟端点不计库存；精度超限拒绝；一行库存不足不完成其余行。
+- [ ] 在同一测试文件覆盖：普通用户完成申请在审批前无变化；批准后一次生效；虚拟端点不计库存；小数数量拒绝；一行库存不足不完成其余行。
 - [ ] 复用真实数据库失败注入与短屏障做代表性验证：流水写入失败整体回滚，重试不重复，两个 Transfer 竞争同一剩余库存仅可执行足额的一条。不扩为压力或组合矩阵。
 
 ### Task 4：关联盘点盈亏、资金引用与库存查询
@@ -207,7 +207,7 @@ Transfer 使用 content_version 标记冻结的批准内容，execution_version 
 
 **Files:** 新增 `frontend/src/api/warehouse.ts`、`frontend/src/views/InventoryView.vue`、`frontend/src/views/StockTransfersView.vue`、`frontend/src/components/StockTransferEditor.vue`；修改 `frontend/src/views/CatalogView.vue`、`frontend/src/App.vue`，新增 `frontend/src/views/SkusView.vue`、`frontend/src/components/StockCompletionEditor.vue`、`frontend/src/components/StockDifferenceEditor.vue`。
 
-- [ ] 仓库目录可创建实际及虚拟端点、维护成员保管；SKU 目录包含单位及精度。
+- [ ] 仓库目录可创建实际及虚拟端点、维护成员保管；SKU 目录包含计数单位，不提供小数精度配置。
 - [ ] Transfer 编辑器选择来源、去向、多个 SKU、数量、依据及可选关联记录；可选同入口新增普通资金或垫付，资金端点及成员金额确认沿用已有组件/API语义，展示钱货各自的生效时点；不出现父单、批次父层或部分完成字段。
 - [ ] 列表显示待审批、在途、已完成；详情独立提供“确认完成”，展示整条数量影响；普通用户确认申报进入审批待办，可信用户明确审阅实际事实。
 - [ ] 库存页按成员/位置/SKU 查询并显示“未估值”及未调整差异，完成详情提供“记录数量差异”并追溯调整；审批入口同时汇集资金和货物待办，分派至对应接口，不套用资金 approve。
@@ -261,3 +261,7 @@ Transfer 使用 content_version 标记冻结的批准内容，execution_version 
 同入口先保存未正式过账的钱货方案，额外完成确认时资金分录与 StockMove 一次提交。优点是该复合动作正式事实同进退；代价是资金批准后立即过账的既有语义出现特例，付款先于到货时仍须另行登记，还需改变已有资金/垫付批准入口的业务保护。选择此方案须补资金延期依据、禁止普通 approve 提前过账和跨模块完成接口，不可直接复用现有资金批准操作。
 
 用户已选择推荐的第一种方案。第二种仅留作取舍说明，本次不实施。
+
+## 执行中用户修订：整数 SKU
+
+用户在 Task3 审阅期间明确要求 SKU 统一按整数计数。取消 quantity_scale 及小数支持，数量、实收观察、盘点差额和合计都使用精确整数；数量接口仍传整数字符串，资金金额语义不变。Task1–2 的历史报告保留当时精度设计，新修订覆盖其精度描述。Task3 修复同时规范 PostgreSQL SUM(bigint) 的 Decimal 返回值为 Python int，保留真实整数库存查询回归，不新增已取消的小数支持用例。
