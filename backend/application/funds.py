@@ -21,6 +21,7 @@ def post(db, item, user, mode):
     if item.status != 'pending': raise DomainError('流水已处理', 409)
     if not all(store.get_account(db, aid) for aid in (item.source_account_id, item.destination_account_id)):
         raise DomainError('记账对象不存在', 404)
+    validate_business_post(db, item, user)
     if item.reversal_of:
         original = get_transfer(db, item.reversal_of)
         if original.status != 'posted': raise DomainError('原流水已冲销或不可冲销', 409)
@@ -34,6 +35,30 @@ def post(db, item, user, mode):
     item.version += 1
     store.audit(db, item.id, user.id, 'posted', mode)
     store.flush(db)
+
+def validate_business_post(db, item, user) -> None:
+    from backend.modules.member_claims.rules import validate_confirmation
+    original = get_transfer(db, item.reversal_of) if item.reversal_of else item
+    claim = store.get_claim(db, original.id)
+    repayment = store.get_repayment(db, original.id)
+    if original.reversal_of:
+        linked = original.reversal_of
+        if store.get_claim(db, linked) or store.get_repayment(db, linked):
+            raise DomainError('业务冲销记录不能再次冲销', 409)
+    if claim or repayment:
+        require_trusted(user)
+        if claim:
+            if item.reversal_of:
+                if store.claim_repaid_minor(db, original.id): raise DomainError('垫付已有有效偿还，不能冲销', 409)
+            else:
+                member = store.get_member(db, claim.member_id)
+                if not member or item.source_account_id != member.account_id:
+                    raise DomainError('垫付来源须为该成员往来科目')
+                if claim.confirmed_minor is None:
+                    raise DomainError('请通过垫付确认入口 /api/member-claims/{id}/confirm 确认金额', 409)
+                validate_confirmation(claim.declared_minor, claim.confirmed_minor, claim.confirmation_reason or '')
+                if item.amount_minor != claim.confirmed_minor: raise DomainError('转移金额与确认金额不一致', 409)
+
 
 def validate_business(db, business, data, amount_minor, defer_post):
     """Check marker identity and endpoints before persisting any marker."""
@@ -115,6 +140,9 @@ def submit(db, user, data, reversal_of=None, reason=None, *, business: dict | No
         validate_business(db, business, data, lines[0].credit_minor, defer_post)
     if reversal_of:
         original = get_transfer(db, reversal_of)
+        store.refresh(db, original)
+        if store.get_claim(db, original.id) or store.get_repayment(db, original.id) or (original.reversal_of and (store.get_claim(db, original.reversal_of) or store.get_repayment(db, original.reversal_of))):
+            require_trusted(user)
         existing = store.existing_reversal(db, reversal_of)
         if original.status != 'posted' or existing: raise DomainError('流水已有冲销或不可冲销', 409)
     from datetime import date
@@ -154,6 +182,11 @@ def transfer_view(db, item, detail=False):
         value[side + '_account_name'] = store.get_account(db, getattr(item, side + '_account_id')).name
     value['actor_name'] = store.get_user(db, item.actor_id).display_name
     value['approved_by_name'] = store.get_user(db, item.approved_by).display_name if item.approved_by else None
+    business_id = item.reversal_of or item.id
+    claim = store.get_claim(db, business_id)
+    repayment = store.get_repayment(db, business_id)
+    marker = claim or repayment
+    value['business'] = dict(kind='member_claim' if claim else 'repayment', id=business_id, member_id=marker.member_id) if marker else None
     if detail:
         value['journal_lines'] = store.journal(db, item.id)
         value['audit'] = store.audit_events(db, item.id)

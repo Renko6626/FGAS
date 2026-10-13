@@ -43,3 +43,18 @@ class MemberCreate(Input):
 class MemberPatch(Input):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     note: str | None = None
+
+class ClaimSubmit(Input):
+    member_id: str
+    destination_account_id: str
+    amount: str
+    effective_date: date
+    description: str = ''
+    basis: str = Field(min_length=1)
+    confirm_now: bool = False
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    confirmed_amount: str | None = None
+    confirmation_reason: str = ''
+class ClaimConfirmation(Approval):
+    confirmed_amount: str
+    confirmation_reason: str = ''

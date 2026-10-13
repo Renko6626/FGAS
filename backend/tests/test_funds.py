@@ -9,16 +9,6 @@ from backend.infrastructure.models import Base, JournalLine
 from backend.application.initialize import initialize
 from backend.entrypoints.http import app
 
-@pytest.fixture
-def client():
-    if not os.getenv('FGAS_TEST_DATABASE'): pytest.skip('Set FGAS_TEST_DATABASE=1 with dedicated DATABASE_URL')
-    with engine.begin() as db:
-        for table in reversed(Base.metadata.sorted_tables): db.execute(table.delete())
-    initialize()
-    with TestClient(app) as client:
-        client.post('/api/auth/login', json={'user_id': 'trusted'})
-        yield client
-
 def transfer(client, source, destination, amount, key):
     return client.post('/api/transfers', json=dict(source_account_id=source, destination_account_id=destination, amount=amount, effective_date='2026-10-12', idempotency_key=key))
 

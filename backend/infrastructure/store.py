@@ -111,3 +111,16 @@ def create_repayment(db, values, allocations):
         db.add(RepaymentAllocation(repayment_id=item.transfer_id, **allocation))
     db.flush()
     return item
+
+
+def claims(db, member_id=None, status=None):
+    query = select(MemberClaim).join(Transfer, Transfer.id == MemberClaim.transfer_id)
+    if member_id: query = query.where(MemberClaim.member_id == member_id)
+    if status: query = query.where(Transfer.status == status)
+    return list(db.scalars(query.order_by(Transfer.effective_date, Transfer.created_at, Transfer.id)))
+
+def claim_repaid_minor(db, identifier):
+    query = select(func.coalesce(func.sum(RepaymentAllocation.amount_minor), 0)).join(
+        Transfer, Transfer.id == RepaymentAllocation.repayment_id).where(
+        RepaymentAllocation.claim_id == identifier, Transfer.status == 'posted')
+    return int(db.scalar(query))

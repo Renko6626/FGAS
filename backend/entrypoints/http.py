@@ -95,3 +95,19 @@ def create_member(data: MemberCreate, user=Depends(identity), db=Depends(databas
 @app.patch('/api/members/{identifier}')
 def patch_member(identifier: str, data: MemberPatch, user=Depends(identity), db=Depends(database)):
     return member_claims.update_member(db, user, identifier, data.model_dump(exclude_none=True))
+
+@app.get('/api/member-claims')
+def claims(member_id: str | None=None, status: str | None=None, user=Depends(identity), db=Depends(database)):
+    return member_claims.list_claims(db, member_id, status)
+@app.post('/api/member-claims', status_code=201)
+def submit_claim(data: ClaimSubmit, user=Depends(identity), db=Depends(database)):
+    return member_claims.submit_claim(db, user, data.model_dump(mode='json'))
+@app.get('/api/member-claims/{identifier}')
+def claim_detail(identifier: str, user=Depends(identity), db=Depends(database)):
+    return member_claims.get_claim(db, identifier)
+@app.post('/api/member-claims/{identifier}/confirm')
+def confirm_claim(identifier: str, data: ClaimConfirmation, user=Depends(identity), db=Depends(database)):
+    return member_claims.confirm_claim(db, user, identifier, data.expected_version, data.confirmed_amount, data.confirmation_reason)
+@app.post('/api/member-claims/{identifier}/reject')
+def reject_claim(identifier: str, data: Rejection, user=Depends(identity), db=Depends(database)):
+    return member_claims.reject_claim(db, user, identifier, data.expected_version, data.reason)
