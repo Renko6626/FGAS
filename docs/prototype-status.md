@@ -161,4 +161,4 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 
 本次删除库存请求回放/双版本、StockOperation及子键碰撞/额外保存点、前端恢复与互锁，以及独立差异登记/调整管理。盈亏改为普通Transfer，通过related_transfer_id关联原已完成转移。原资金、垫付、完成二次审批和保管历史不改。删除清单见 [操作机制整理](stock-operation-simplification.md)，现行接口见 [README](../README.md#stock-transfers-and-quantity-inventory)，此前计划作为历史保留。
 
-兼容只在专用fgas_test执行，开发数据库未迁移或清空；历史旧表/字段保留，活动代码不再引用。实际检查：`./tools/run_tests.sh` 集中资金/垫付/库存21项通过（8.85s）；随后迁移保留已有两端盈亏案例并核对持久化资金引用，最终受影响库存检查12项通过（6.17s）。前端一次 `npm run build` 通过（2691 modules，4.96s），随后按后端实际简表字段修正类型/展示，最终 `npx vue-tsc --noEmit` 通过；构建产物早于该小修正，未重复打包。整份改动 `git diff --check` 通过。定向审阅待完成。未运行浏览器交互、服务、部署或新增云端CI。
+兼容只在专用fgas_test执行，开发数据库未迁移或清空；历史旧表/字段保留，活动代码不再引用。实际检查：`./tools/run_tests.sh` 集中资金/垫付/库存21项通过（8.85s）；随后迁移保留已有两端盈亏案例并核对持久化资金引用，最终受影响库存检查12项通过（6.17s）。前端一次 `npm run build` 通过（2691 modules，4.96s），随后按后端实际简表字段修正类型/展示，最终 `npx vue-tsc --noEmit` 通过；构建产物早于该小修正，未重复打包。整份改动 `git diff --check` 通过。定向整份删减审阅通过，无必修问题；最终收尾只修正文档措辞。开发历史数据实际回填和浏览器验收未执行。未运行浏览器交互、服务、部署或新增云端CI。
