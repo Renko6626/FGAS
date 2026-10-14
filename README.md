@@ -26,11 +26,11 @@ npm run dev -- --reset-db
 npm run dev
 ```
 
-普通启动只建缺少的表和初始化种子，不自动清库、不升级旧表。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
+普通启动只建缺少的表和初始化种子，不自动清库、不升级旧表。2026-10-15 新增 SKU 图片字段；此前已有数据库可显式执行 `ALTER TABLE skus ADD COLUMN IF NOT EXISTS avatar_url VARCHAR;`，仅加可空列，保留原数据；新库由 metadata 建立该列。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
 
 ## 账户与标签
 
-资金表 `fund_accounts`、货物表 `stock_accounts` 共用 `id/name/kind/member_id/avatar_url/tags/active`。类型 `public/private/external` 创建后固定；联系人可空，公私分类不由联系人决定。头像为空或加载失败时显示账户名首字。
+资金表 `fund_accounts`、货物表 `stock_accounts` 共用 `id/name/kind/member_id/avatar_url/tags/active`。类型 `public/private/external` 创建后固定；联系人可空，公私分类不由联系人决定。图片为空或加载失败时显示名称首字，按名称生成稳定的浅背景、深文字配色。SKU 也保存可空 `avatar_url`，可在货物目录中维护缩略图 URL；货物账户复用同名字段。
 
 资金公账合计只计 `public`；私账正数应交回、负数社团应偿还。货物 `public/private` 均计组织库存，外部账户不计入。联系人与实际保管人分别记录，保管交接保留历史。
 

@@ -91,6 +91,7 @@ class Sku(Base):
     name: Mapped[str] = mapped_column(String)
     specification: Mapped[str] = mapped_column(String, default='')
     unit: Mapped[str] = mapped_column(String)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 class StockAccountCustody(Base):

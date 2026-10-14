@@ -8,6 +8,18 @@ from backend.infrastructure.models import StockTransfer, StockTransferLine, Jour
 
 
 
+def test_sku_thumbnail_url(client):
+    image = 'https://example.com/book.png'
+    response = client.post('/api/skus', json=dict(name='书', unit='本', avatar_url=image))
+    assert response.status_code == 201
+    item = response.json()
+    assert item['avatar_url'] == image
+    assert next(s for s in client.get('/api/skus').json() if s['id'] == item['id'])['avatar_url'] == image
+    cleared = client.patch(f"/api/skus/{item['id']}", json={'avatar_url': None})
+    assert cleared.status_code == 200 and cleared.json()['avatar_url'] is None
+    assert next(s for s in client.get('/api/skus').json() if s['id'] == item['id'])['avatar_url'] is None
+
+
 def test_stock_submission_and_approval(client):
     source = client.post('/api/stock-accounts', json=dict(name='商家', kind='external')).json()['id']
     target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='public')).json()['id']

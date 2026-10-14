@@ -6,7 +6,7 @@ export interface AccountBase{id:string;name:string;kind:AccountKind;member_id:st
 export interface Account extends AccountBase{balance_minor:number}
 export interface StockAccount extends AccountBase{current_custody:{id:string;member_id:string;member_name:string;valid_from:string;actor_id:string}|null}
 export interface Member{id:string;name:string;note:string}
-export interface Sku{id:string;name:string;specification:string;unit:string;active:boolean}
+export interface Sku{id:string;name:string;specification:string;unit:string;avatar_url:string|null;active:boolean}
 export interface Line{account_id:string;debit_minor:number;credit_minor:number}
 export interface Transfer{id:string;source_account_id:string;destination_account_id:string;source_account_name:string;destination_account_name:string;amount_minor:number;effective_date:string;description:string;tags:string[];counterparty:string|null;status:string;version:number;actor_name:string;approved_by_name:string|null;approval_mode:string|null;reversal_of:string|null;reason:string|null;journal_lines?:Line[];audit?:unknown[]}
 export interface TransferInput{source_account_id:string;destination_account_id:string;amount:string;effective_date:string;description:string;tags:string[];counterparty:string|null}

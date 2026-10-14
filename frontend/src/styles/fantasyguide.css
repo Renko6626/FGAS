@@ -1,0 +1,150 @@
+/* Extracted from fantasyguide_statics/template/template.css and normal.css.
+   Original selectors and border geometry retained. Assets served locally.
+   Source: https://cdn.jsdelivr.net/gh/Nipporita/fantasyguide_statics/template/ */
+@font-face {
+  font-family: "YanSong";
+  src: url("/fantasyguide/YanSong.otf") format("opentype");
+  font-display: swap;
+}
+:root {
+  --uni-background-color: white;
+  --uni-text-color: black;
+  --uni-border-color: black;
+  --uni-anti-background-color: black;
+  --uni-anti-text-color: white;
+  --uni-gray-color: gray;
+  --fantasy-guide-div-1-shadow-color: rgba(0, 0, 0, 0.8);
+  --fantasy-guide-div-1-button-border-image: url("/fantasyguide/border_image_1.png");
+  --fantasy-guide-div-1-border-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='364' height='364' viewBox='0 0 364 364'%3E%3Cg%3E%3Cpolygon points='22 360 22 342 4 342 4 22 22 22 22 4 342 4 342 22 360 22 360 342 342 342 342 360 22 360' fill='white'/%3E%3Cpath d='M756,426v18h18V756H756v18H444V756H426V444h18V426H756m8-8H436v18H418V764h18v18H764V764h18V436H764V418Z' transform='translate(-418 -418)' fill='black'/%3E%3Cpath d='M749.7857,433.5v16.7143H766.5V749.7857H749.7857V766.5H450.2143V749.7857H433.5V450.2143h16.7143V433.5H749.7857m2.5-2.5H447.7143v16.7143H431V752.2857h16.7143V769H752.2857V752.2857H769V447.7143H752.2857V431Z' transform='translate(-418 -418)' fill='black'/%3E%3C/g%3E%3C/svg%3E");
+}
+.fantasy_guide_div_1 {
+  font-family: Arial, Helvetica, sans-serif;
+  border-image: var(--fantasy-guide-div-1-border-image);
+  border-image-repeat: stretch;
+  border-image-slice: 36;
+  border-image-width: 14px;
+  border-image-outset: 7px;
+  background: var(--uni-background-color);
+  padding: 0.8125rem 1.4375rem;
+  margin: 7px;
+  box-shadow: 0px 0px 11px 3px var(--fantasy-guide-div-1-shadow-color);
+  color: var(--uni-text-color) !important;
+}
+
+div.fantasy_guide_div_1 {
+  position: relative;
+}
+
+.fantasy_guide_div_1 h1,
+.fantasy_guide_div_1 h2,
+.fantasy_guide_div_1 h3,
+.fantasy_guide_div_1 h4,
+.fantasy_guide_div_1 h5,
+.fantasy_guide_div_1 h6,
+.fantasy_guide_div_1 span {
+  font-family: "YanSong", Arial, Helvetica, sans-serif;
+  font-weight: normal;
+  color: var(--uni-text-color);
+}
+
+.main_content_content h1,
+.main_content_content h2,
+.main_content_content h3,
+.main_content_content h4,
+.main_content_content h5,
+.main_content_content h6,
+.main_content_content span {
+  color: var(--uni-text-color);
+}
+
+.fantasy_guide_div_1 hr {
+  width: calc(100% - 45rem / 16 - 14px) !important;
+  margin: calc(25rem / 16) auto calc(25rem / 16) !important;
+  color: var(--uni-text-color) !important;
+  height: 0.7px !important;
+  background: var(--uni-anti-background-color) !important;
+  border: none !important;
+}
+
+.fantasy_guide_div_1 hr::before {
+  content: "";
+  display: block;
+  position: absolute;
+  left: calc(23rem / 16);
+  height: calc(39rem / 16);
+  width: calc(28rem / 16);
+  margin: 0;
+  background-color: var(--uni-anti-background-color);
+  --image-mask: url("/fantasyguide/Yin.svg");
+  -webkit-mask-image: var(--image-mask);
+  -webkit-mask-position: center;
+  -webkit-mask-size: 1.25rem;
+  -webkit-mask-repeat: no-repeat;
+  -moz-mask-image: var(--image-mask);
+  -moz-mask-position: center;
+  -moz-mask-size: 1.25rem;
+  -moz-mask-repeat: no-repeat;
+  -o-mask-image: var(--image-mask);
+  -o-mask-position: center;
+  -o-mask-size: 1.25rem;
+  -o-mask-repeat: no-repeat;
+  mask-image: var(--image-mask);
+  mask-position: center;
+  mask-size: 1.25rem;
+  mask-repeat: no-repeat;
+  transform: translate(0px, -18.9px);
+}
+
+.fantasy_guide_div_1 hr::after {
+  content: "";
+  display: block;
+  position: absolute;
+  right: calc(23rem / 16);
+  height: calc(39rem / 16);
+  width: calc(28rem / 16);
+  margin: 0;
+  background-color: var(--uni-anti-background-color);
+  --image-mask: url("/fantasyguide/Yang.svg");
+  -webkit-mask-image: var(--image-mask);
+  -webkit-mask-position: center;
+  -webkit-mask-size: 1.25rem;
+  -webkit-mask-repeat: no-repeat;
+  -moz-mask-image: var(--image-mask);
+  -moz-mask-position: center;
+  -moz-mask-size: 1.25rem;
+  -moz-mask-repeat: no-repeat;
+  -o-mask-image: var(--image-mask);
+  -o-mask-position: center;
+  -o-mask-size: 1.25rem;
+  -o-mask-repeat: no-repeat;
+  mask-image: var(--image-mask);
+  mask-position: center;
+  mask-size: 1.25rem;
+  mask-repeat: no-repeat;
+  transform: translate(0px, -18.9px);
+}
+
+.fantasy_guide_div_1 button {
+  min-width: calc(4rem + 20px);
+  font-family: "YanSong", Arial, Helvetica, sans-serif;
+  border-image: var(--fantasy-guide-div-1-button-border-image);
+  border-image-repeat: stretch;
+  border-image-slice: 36;
+  border-image-width: 10px;
+}
+
+.fantasy_guide_div_1 a {
+  color: var(--uni-text-color);
+}
+
+.fantasy_guide_div_1 a:visited {
+  color: var(--uni-text-color);
+}
+
+.fantasy_guide_div_1 a:active {
+  color: var(--uni-gray-color);
+}
+
+.button {
+  cursor: pointer;
+}

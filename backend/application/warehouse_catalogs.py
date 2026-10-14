@@ -12,12 +12,12 @@ def authorize_write(db, user):
 
 
 def sku_view(item):
-    return {key: getattr(item, key) for key in ('id', 'name', 'specification', 'unit', 'active')}
+    return {key: getattr(item, key) for key in ('id', 'name', 'specification', 'unit', 'avatar_url', 'active')}
 def skus(db): return [sku_view(item) for item in stock_store.skus(db)]
 def validate_sku(values):
     for key in ('name', 'unit'):
         if key in values and (not isinstance(values[key], str) or not values[key].strip()): raise DomainError('名称和单位不能为空')
-    if any(value is None for value in values.values()): raise DomainError('SKU 字段不能为空')
+    if any(value is None for key, value in values.items() if key != 'avatar_url'): raise DomainError('SKU 字段不能为空')
 def create_sku(db, user, data):
     authorize_write(db, user)
     validate_sku(data)

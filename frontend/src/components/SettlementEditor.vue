@@ -1,16 +1,311 @@
 <script setup lang="ts">
-import {computed,ref,watch} from 'vue'
-import {NButton,NInput,NModal,NSelect} from 'naive-ui'
-import {money,type Account} from '../api/funds'
-import {settlementsApi,type SettlementItem,type SettlementPayment} from '../api/settlements'
-import {today} from '../api/warehouse'
-import TagInput from './TagInput.vue'
-const props=defineProps<{show:boolean;direction:'expense'|'receipt';account:Account;accounts:Account[];items:SettlementItem[];payments:SettlementPayment[]}>()
-const emit=defineEmits<{close:[];saved:[]}>()
-const mode=ref('new'),publicId=ref(''),paymentId=ref(''),amount=ref(''),date=ref(today()),description=ref(''),tags=ref<string[]>([]),allocations=ref<Record<string,string>>({}),busy=ref(false),error=ref('')
-const items=computed(()=>props.items.filter(i=>i.transfer.status==='posted'&&i.outstanding_minor>0))
-const paymentOptions=computed(()=>props.payments.filter(p=>p.transfer.status==='posted'&&p.unmatched_minor>0&&(props.direction==='expense'?p.transfer.destination_account_id===props.account.id:p.transfer.source_account_id===props.account.id)).map(p=>({label:`${p.transfer.effective_date}，¥${money(p.transfer.amount_minor)}，未匹配 ¥${money(p.unmatched_minor)}`,value:p.transfer.id})))
-watch(()=>props.show,show=>{if(show){mode.value='new';publicId.value='';paymentId.value='';amount.value='';date.value=today();description.value='';tags.value=[];allocations.value={};error.value=''}})
-async function save(){if(busy.value)return;busy.value=true;error.value='';try{const selected=Object.entries(allocations.value).filter(([,v])=>v.trim()).map(([item_transfer_id,amount])=>({item_transfer_id,amount}));if(mode.value==='existing')await settlementsApi.add(paymentId.value,selected);else await settlementsApi.create({source_account_id:props.direction==='expense'?publicId.value:props.account.id,destination_account_id:props.direction==='expense'?props.account.id:publicId.value,amount:amount.value,effective_date:date.value,description:description.value,tags:tags.value,counterparty:null},selected);emit('saved');emit('close')}catch(e){error.value=(e as Error).message+'。请查看结算记录后再操作。'}finally{busy.value=false}}
+import { computed, h, ref, watch } from "vue";
+import { NButton, NInput, NModal, NSelect, type SelectOption } from "naive-ui";
+import { money, type Account } from "../api/funds";
+import {
+  settlementsApi,
+  type SettlementItem,
+  type SettlementPayment,
+} from "../api/settlements";
+import { today } from "../api/warehouse";
+import AccountLabel from "./AccountLabel.vue";
+import AccountRoute from "./AccountRoute.vue";
+import TagInput from "./TagInput.vue";
+const props = defineProps<{
+  show: boolean;
+  direction: "expense" | "receipt";
+  account: Account;
+  accounts: Account[];
+  items: SettlementItem[];
+  payments: SettlementPayment[];
+}>();
+const emit = defineEmits<{ close: []; saved: [] }>();
+const mode = ref("new"),
+  publicId = ref(""),
+  paymentId = ref(""),
+  amount = ref(""),
+  date = ref(today()),
+  description = ref(""),
+  tags = ref<string[]>([]),
+  allocations = ref<Record<string, string>>({}),
+  busy = ref(false),
+  error = ref("");
+const items = computed(() =>
+  props.items.filter(
+    (i) => i.transfer.status === "posted" && i.outstanding_minor > 0,
+  ),
+);
+const paymentOptions = computed(() =>
+  props.payments
+    .filter(
+      (p) =>
+        p.transfer.status === "posted" &&
+        p.unmatched_minor > 0 &&
+        (props.direction === "expense"
+          ? p.transfer.destination_account_id === props.account.id
+          : p.transfer.source_account_id === props.account.id),
+    )
+    .map((p) => ({
+      label: `${p.transfer.effective_date}，${p.transfer.source_account_name} → ${p.transfer.destination_account_name}，¥${money(p.transfer.amount_minor)}，未匹配 ¥${money(p.unmatched_minor)}`,
+      value: p.transfer.id,
+    })),
+);
+function renderAccountLabel(option: SelectOption) {
+  const account = props.accounts.find((a) => a.id === option.value);
+  return h(AccountLabel, {
+    name: account?.name || String(option.label ?? option.value),
+    url: account?.avatar_url,
+  });
+}
+function renderPaymentLabel(option: SelectOption) {
+  const payment = props.payments.find((p) => p.transfer.id === option.value);
+  if (!payment) return String(option.label ?? option.value);
+  const transfer = payment.transfer;
+  return h("span", { class: "payment-option" }, [
+    h("span", `${transfer.effective_date}，`),
+    h(AccountRoute, {
+      accounts: props.accounts,
+      sourceId: transfer.source_account_id,
+      destinationId: transfer.destination_account_id,
+      sourceName: transfer.source_account_name,
+      destinationName: transfer.destination_account_name,
+    }),
+    h(
+      "span",
+      `¥${money(transfer.amount_minor)}，可匹配 ¥${money(payment.unmatched_minor)}`,
+    ),
+  ]);
+}
+const selectedPayment = computed(() =>
+  props.payments.find((payment) => payment.transfer.id === paymentId.value),
+);
+watch(
+  () => props.show,
+  (show) => {
+    if (show) {
+      mode.value = "new";
+      publicId.value = "";
+      paymentId.value = "";
+      amount.value = "";
+      date.value = today();
+      description.value = "";
+      tags.value = [];
+      allocations.value = {};
+      error.value = "";
+    }
+  },
+);
+async function save() {
+  if (busy.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    const selected = Object.entries(allocations.value)
+      .filter(([, v]) => v.trim())
+      .map(([item_transfer_id, amount]) => ({ item_transfer_id, amount }));
+    if (mode.value === "existing")
+      await settlementsApi.add(paymentId.value, selected);
+    else
+      await settlementsApi.create(
+        {
+          source_account_id:
+            props.direction === "expense" ? publicId.value : props.account.id,
+          destination_account_id:
+            props.direction === "expense" ? props.account.id : publicId.value,
+          amount: amount.value,
+          effective_date: date.value,
+          description: description.value,
+          tags: tags.value,
+          counterparty: null,
+        },
+        selected,
+      );
+    emit("saved");
+    emit("close");
+  } catch (e) {
+    error.value = (e as Error).message + "。请查看结算记录后再操作。";
+  } finally {
+    busy.value = false;
+  }
+}
 </script>
-<template><NModal :show="show" preset="card" :title="direction==='expense'?'报销支出':'交回代收款'" class="dialog" @close="emit('close')"><p>{{account.name}}。选择本次结清的原收支和金额。</p><NSelect v-model:value="mode" :disabled="busy" :options="[{label:'新建结算转移',value:'new'},{label:'匹配已有结算转移',value:'existing'}]"/><template v-if="mode==='new'"><label>公账账户<NSelect v-model:value="publicId" :disabled="busy" :options="accounts.filter(a=>a.kind==='public'&&a.active).map(a=>({label:a.name,value:a.id}))"/></label><label>实际付款或交回金额（元）<NInput v-model:value="amount" :disabled="busy"/></label><label>日期<input v-model="date" type="date" :disabled="busy"></label><label>说明<NInput v-model:value="description" :disabled="busy"/></label><label>标签<TagInput v-model="tags" :disabled="busy"/></label></template><label v-else>已有转移<NSelect v-model:value="paymentId" :disabled="busy" :options="paymentOptions"/></label><label v-for="item in items" :key="item.transfer.id">{{item.transfer.effective_date}}，{{item.transfer.description||item.transfer.id}}，未结 ¥{{money(item.outstanding_minor)}}<NInput :value="allocations[item.transfer.id]||''" :disabled="busy" placeholder="本次匹配金额，留空不匹配" @update:value="allocations[item.transfer.id]=$event"/></label><p>匹配不超过实际付款金额。未匹配金额会保留在结算记录中。</p><p class="error">{{error}}</p><NButton :loading="busy" @click="save">保存结算</NButton></NModal></template>
+
+<template>
+  <NModal
+    :show="show"
+    preset="card"
+    :title="direction === 'expense' ? '报销支出' : '交回代收款'"
+    class="dialog"
+    :closable="!busy"
+    :mask-closable="!busy"
+    :close-on-esc="!busy"
+    @close="emit('close')"
+  >
+    <AccountLabel :name="account.name" :url="account.avatar_url" />
+    <section class="editor-section">
+      <h3>付款资料</h3>
+      <NSelect
+        v-model:value="mode"
+        :disabled="busy"
+        :options="[
+          { label: '新建结算转移', value: 'new' },
+          { label: '追加已有付款的匹配', value: 'existing' },
+        ]"
+      />
+      <template v-if="mode === 'new'">
+        <label
+          >公账账户<NSelect
+            v-model:value="publicId"
+            :disabled="busy"
+            :options="
+              accounts
+                .filter((a) => a.kind === 'public' && a.active)
+                .map((a) => ({ label: a.name, value: a.id }))
+            "
+            :render-label="renderAccountLabel"
+        /></label>
+        <div v-if="publicId" class="payment-route">
+          <AccountRoute
+            :accounts="accounts"
+            :source-id="direction === 'expense' ? publicId : account.id"
+            :destination-id="direction === 'expense' ? account.id : publicId"
+          />
+        </div>
+        <div class="pair">
+          <label
+            >实际付款或交回金额（元）<NInput
+              v-model:value="amount"
+              :disabled="busy"
+              placeholder="0.00" /></label
+          ><label
+            >日期<input v-model="date" type="date" required :disabled="busy"
+          /></label>
+        </div>
+        <details class="disclosure">
+          <summary>说明与标签（选填）</summary>
+          <label
+            >说明<NInput v-model:value="description" :disabled="busy" /></label
+          ><label>标签<TagInput v-model="tags" :disabled="busy" /></label>
+        </details>
+      </template>
+      <template v-else>
+        <label
+          >已有付款<NSelect
+            v-model:value="paymentId"
+            :disabled="busy"
+            :options="paymentOptions"
+            :render-label="renderPaymentLabel"
+            placeholder="选择已有结算转移"
+        /></label>
+        <div v-if="selectedPayment" class="payment-route">
+          <AccountRoute
+            :accounts="accounts"
+            :source-id="selectedPayment.transfer.source_account_id"
+            :destination-id="selectedPayment.transfer.destination_account_id"
+            :source-name="selectedPayment.transfer.source_account_name"
+            :destination-name="
+              selectedPayment.transfer.destination_account_name
+            "
+          />
+          <p>
+            实际金额 ¥{{ money(selectedPayment.transfer.amount_minor) }}，可匹配
+            ¥{{ money(selectedPayment.unmatched_minor) }}
+          </p>
+        </div>
+      </template>
+    </section>
+    <section class="editor-section">
+      <h3>逐笔匹配</h3>
+      <div v-if="items.length" class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>日期 / 原收支</th>
+              <th class="numeric">未结</th>
+              <th>本次匹配（元）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in items" :key="item.transfer.id">
+              <td>
+                <p class="item-date">{{ item.transfer.effective_date }}</p>
+                <AccountRoute
+                  :accounts="accounts"
+                  :source-id="item.transfer.source_account_id"
+                  :destination-id="item.transfer.destination_account_id"
+                  :source-name="item.transfer.source_account_name"
+                  :destination-name="item.transfer.destination_account_name"
+                />
+                <div v-if="item.transfer.description" class="item-description">
+                  {{ item.transfer.description }}
+                </div>
+                <span
+                  v-for="tag in item.transfer.tags"
+                  :key="tag"
+                  class="tag"
+                  >{{ tag }}</span
+                >
+              </td>
+              <td class="numeric">¥{{ money(item.outstanding_minor) }}</td>
+              <td class="allocation-input">
+                <NInput
+                  :value="allocations[item.transfer.id] || ''"
+                  :disabled="busy"
+                  placeholder="留空不匹配"
+                  :input-props="{
+                    'aria-label': `${item.transfer.effective_date} ${item.transfer.description || item.transfer.source_account_name + ' → ' + item.transfer.destination_account_name} 本次匹配金额`,
+                  }"
+                  @update:value="allocations[item.transfer.id] = $event"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else>暂无未结条目</p>
+      <p class="matching-note">
+        匹配金额不超过实际付款金额，未匹配部分保留在结算记录中。
+      </p>
+    </section>
+    <p v-if="error" class="error">{{ error }}</p>
+    <div class="actions">
+      <NButton :disabled="busy" @click="emit('close')">取消</NButton
+      ><NButton :loading="busy" @click="save">保存结算</NButton>
+    </div>
+  </NModal>
+</template>
+
+<style scoped>
+.payment-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.editor-section {
+  margin-top: 24px;
+}
+.editor-section h3 {
+  margin-bottom: 12px;
+}
+.payment-route {
+  margin-top: 16px;
+}
+.payment-route p {
+  margin: 12px 0 0;
+}
+.item-date {
+  margin: 0 0 8px;
+}
+.item-description {
+  margin-top: 8px;
+}
+.allocation-input {
+  min-width: 140px;
+  width: 170px;
+}
+.matching-note {
+  margin-top: 16px;
+  margin-bottom: 0;
+}
+</style>

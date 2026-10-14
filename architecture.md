@@ -50,6 +50,8 @@ Vue / HTTP
 
 `FundAccount/fund_accounts` 与 `StockAccount/stock_accounts` 共用 `id/name/kind/member_id/avatar_url/tags/active`。`kind` 为公账、私账、外部，创建后不可变。可选成员关联表示对应人/联系人，独立于类型；名称、联系人、头像、标签和启用状态可修改。
 
+SKU 保存名称、规格、单位、启用状态及可空 `avatar_url`，缩略图只用于目录和货物显示，不影响库存规则；已被引用的单位仍固定。货物账户和 SKU 的图片 URL 可修改或清空。文字头像按名称生成稳定配色，不增加颜色存储字段。
+
 成员仅保存 `id/name/note`，不自动开账户、不强制唯一账户、不联动账户名称。`StockAccountCustody/stock_account_custodies` 单独记录保管成员与起止、操作人，联系人不是保管历史。
 
 余额和数量从正式流水计算。资金余额统一借方减贷方即流入减流出，公账合计只计公账。私账为正表示应交回，为负表示社团应偿还。停用不影响历史统计，阻止新单但允许已有单处理。

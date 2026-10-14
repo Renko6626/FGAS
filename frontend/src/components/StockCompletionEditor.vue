@@ -1,39 +1,106 @@
 <script setup lang="ts">
-import {ref} from 'vue'
-import {NButton, NInput, NModal} from 'naive-ui'
-import {warehouse, today, type StockTransfer} from '../api/warehouse'
-const props = defineProps<{item: StockTransfer; trusted: boolean}>()
-const emit = defineEmits<{changed: []}>()
-const show = ref(false), busy = ref(false), error = ref(''), date = ref(today())
+import { ref } from "vue";
+import { NButton, NModal } from "naive-ui";
+import type { StockAccount, Sku } from "../api/funds";
+import AccountRoute from "./AccountRoute.vue";
+import AccountLabel from "./AccountLabel.vue";
+import { warehouse, today, type StockTransfer } from "../api/warehouse";
+const props = defineProps<{
+  item: StockTransfer;
+  trusted: boolean;
+  locations?: StockAccount[];
+  skus?: Sku[];
+  disabled?: boolean;
+}>();
+const emit = defineEmits<{ changed: [] }>();
+const show = ref(false),
+  busy = ref(false),
+  error = ref(""),
+  date = ref(today());
 async function save() {
-  if (busy.value) return
-  busy.value = true
-  error.value = ''
+  if (busy.value) return;
+  busy.value = true;
+  error.value = "";
   try {
     await warehouse.action(`/stock-transfers/${props.item.id}/completion`, {
-      effective_date: date.value
-    })
-    show.value = false
-    emit('changed')
+      effective_date: date.value,
+    });
+    show.value = false;
+    emit("changed");
   } catch (e) {
-    error.value = (e as Error).message + '。请刷新查看当前记录后再操作。'
-  } finally { busy.value = false }
+    error.value = (e as Error).message + "。请刷新查看当前记录后再操作。";
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 <template>
-  <NButton @click="show=true">{{trusted?'确认完成':'申报已完成'}}</NButton>
-  <NModal v-model:show="show" preset="card" title="确认整条转移已完成" class="dialog">
-    <p>{{item.source_account_name}} → {{item.destination_account_name}}，按整条批准数量记账。</p>
-    <ul>
-      <li v-for="l in item.lines" :key="l.id">{{l.sku_name}}：{{l.quantity}} {{l.unit}}
-        <small v-if="item.source_kind!=='external'">{{item.source_account_name}} 扣减 {{l.quantity}} {{l.unit}}</small>
-        <small v-if="item.destination_kind!=='external'">{{item.destination_account_name}} 增加 {{l.quantity}} {{l.unit}}</small>
-      </li>
-    </ul>
-    <label>完成日期<NInput v-model:value="date" :disabled="busy"/></label>
-
-    <p v-if="!trusted">申报提交后等待受信任用户审阅，批准后才记录库存。</p>
-    <p class="error">{{error}}</p>
-    <NButton :loading="busy" @click="save">{{trusted?'确认整条转移已完成':'提交完成申报'}}</NButton>
+  <NButton
+    :disabled="disabled || busy"
+    @click="
+      date = today();
+      error = '';
+      show = true;
+    "
+    >{{ trusted ? "确认完成" : "申报已完成" }}</NButton
+  >
+  <NModal
+    v-model:show="show"
+    preset="card"
+    :title="trusted ? '确认整条转移已完成' : '申报整条转移已完成'"
+    class="dialog"
+    :mask-closable="!busy"
+    :closable="!busy"
+    :close-on-esc="!busy"
+  >
+    <AccountRoute
+      :accounts="locations || []"
+      :source-id="item.source_account_id"
+      :destination-id="item.destination_account_id"
+      :source-name="item.source_account_name"
+      :destination-name="item.destination_account_name"
+    />
+    <h3>完成数量</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>货物</th>
+            <th>数量</th>
+            <th>库存变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="l in item.lines" :key="l.id">
+            <td>
+              <AccountLabel
+                :name="l.sku_name"
+                :url="skus?.find((s) => s.id === l.sku_id)?.avatar_url"
+              />
+            </td>
+            <td>{{ l.quantity }} {{ l.unit }}</td>
+            <td>
+              <div v-if="item.source_kind !== 'external'">
+                {{ item.source_account_name }} 扣减 {{ l.quantity }}
+                {{ l.unit }}
+              </div>
+              <div v-if="item.destination_kind !== 'external'">
+                {{ item.destination_account_name }} 增加 {{ l.quantity }}
+                {{ l.unit }}
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <label>完成日期<input v-model="date" type="date" :disabled="busy" /></label>
+    <p v-if="!trusted">申报提交后等待受信任用户审阅，批准后记录库存。</p>
+    <p v-if="error" class="error">{{ error }}</p>
+    <div class="actions">
+      <NButton :disabled="busy" @click="show = false">关闭</NButton
+      ><NButton type="primary" :loading="busy" :disabled="busy" @click="save">{{
+        trusted ? "确认整条转移已完成" : "提交完成申报"
+      }}</NButton>
+    </div>
   </NModal>
 </template>

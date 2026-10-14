@@ -27,11 +27,13 @@ class SkuCreate(Input):
     name: str = Field(min_length=1, max_length=200)
     specification: str = ''
     unit: str = Field(min_length=1, max_length=100)
+    avatar_url: str | None = None
     active: bool = True
 class SkuPatch(Input):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     specification: str | None = None
     unit: str | None = Field(default=None, min_length=1, max_length=100)
+    avatar_url: str | None = None
     active: bool | None = None
 class UserPatch(Input):
     role: Literal['admin', 'trusted', 'untrusted'] | None = None
