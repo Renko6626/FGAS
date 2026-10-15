@@ -8,12 +8,16 @@ from backend.application import funds, catalogs, warehouse_catalogs, members as 
 from backend.entrypoints.schemas import *
 from backend.entrypoints.agent_schemas import CredentialCreate, CredentialPatch
 from backend.application import agent_access
+from backend.entrypoints.mcp import create_mcp_app
+
+mcp_app = create_mcp_app()
 
 AUTH_MODE = os.getenv('AUTH_MODE', '')
 @asynccontextmanager
 async def lifespan(app):
     if AUTH_MODE != 'development': raise RuntimeError('Only explicit AUTH_MODE=development is available in this prototype')
-    yield
+    async with mcp_app.session_manager.run():
+        yield
 
 app = FastAPI(title='FGAS development funds prototype', lifespan=lifespan)
 @app.exception_handler(DomainError)
@@ -211,3 +215,7 @@ def patch_stock_stocktake(identifier: str, data: StocktakePatch, user=Depends(id
 @app.post('/api/stock-stocktakes/{identifier}/end')
 def end_stock_stocktake(identifier: str, user=Depends(identity), db=Depends(database)):
     return stocktakes.end_stocktake(db, user, 'stock', identifier)
+
+
+# Last route: the SDK owns the exact /mcp path without a mount redirect.
+app.mount('/', mcp_app)

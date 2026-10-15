@@ -386,3 +386,252 @@ QUERY_INPUT_SCHEMAS = {
     'list_fund_stocktakes': StocktakeFilters, 'get_fund_stocktake': IdentifierInput,
     'list_stock_stocktakes': StocktakeFilters, 'get_stock_stocktake': IdentifierInput,
 }
+
+# Writes reuse business inputs. Only fields that support clearing accept explicit null.
+from pydantic import model_validator
+from backend.entrypoints import schemas as business
+
+
+class AgentAccountPatch(business.AccountPatch):
+    @model_validator(mode='before')
+    @classmethod
+    def reject_null(cls, value):
+        if isinstance(value, dict) and any(key in value and value[key] is None for key in ('name', 'tags', 'active')):
+            raise ValueError('名称、标签和启用状态不能为 null')
+        return value
+
+
+class AgentSkuPatch(business.SkuPatch):
+    @model_validator(mode='before')
+    @classmethod
+    def reject_null(cls, value):
+        if isinstance(value, dict) and any(key in value and value[key] is None for key in ('name', 'specification', 'unit', 'active')):
+            raise ValueError('名称、规格、单位和启用状态不能为 null')
+        return value
+
+
+class AgentMemberPatch(business.MemberPatch):
+    @model_validator(mode='before')
+    @classmethod
+    def reject_null(cls, value):
+        if isinstance(value, dict) and any(key in value and value[key] is None for key in ('name', 'note')):
+            raise ValueError('名称和备注不能为 null')
+        return value
+
+
+class AccountPatchOperation(AgentAccountPatch, IdentifierInput): pass
+class SkuPatchOperation(AgentSkuPatch, IdentifierInput): pass
+class MemberPatchOperation(AgentMemberPatch, IdentifierInput): pass
+class CustodyOperation(business.CustodyInput, IdentifierInput): pass
+class CompletionOperation(business.CompletionInput, IdentifierInput): pass
+class FundApprovalOperation(business.Approval, IdentifierInput): pass
+class FundRejectionOperation(business.Rejection, IdentifierInput): pass
+class FundReversalOperation(business.Reversal, IdentifierInput): pass
+class StockApprovalOperation(business.StockApproval, IdentifierInput): pass
+class StockRejectionOperation(business.StockRejection, IdentifierInput): pass
+class SettlementMatchesOperation(business.SettlementMatches, IdentifierInput): pass
+class StockFundReferenceOperation(business.StockFundReferenceInput, IdentifierInput): pass
+class StocktakePatchOperation(business.StocktakePatch, IdentifierInput): pass
+
+
+class WriteEffect(BaseModel):
+    status: str
+    ledger_effect_applied: bool
+    approval_required: bool
+
+
+class FundWriteData(WriteEffect):
+    resource_type: Literal['fund_transfer']
+    transfer_id: str
+
+
+class StockWriteData(WriteEffect):
+    resource_type: Literal['stock_transfer']
+    stock_transfer_id: str
+
+
+class CompletionWriteData(WriteEffect):
+    resource_type: Literal['stock_confirmation']
+    confirmation_id: str
+    stock_transfer_id: str
+    stock_transfer_status: str
+
+
+class CustodyRow(BaseModel):
+    id: str
+    member_id: str
+    member_name: str
+    valid_from: datetime
+    actor_id: str
+
+
+class SavedAccount(AccountRow):
+    avatar_url: str | None
+    stocktake: StocktakeMetadata | None
+
+
+class SavedFundAccount(SavedAccount):
+    balance_minor: int
+    balance: str
+
+
+class SavedStockAccount(SavedAccount):
+    current_custody: CustodyRow | None
+
+
+class SavedSku(SkuRow):
+    avatar_url: str | None
+
+
+class SavedMember(MemberRow):
+    note: str
+
+
+class FundAccountWriteData(WriteEffect):
+    resource_type: Literal['fund_account']
+    account_id: str
+    object: SavedFundAccount
+
+
+class StockAccountWriteData(WriteEffect):
+    resource_type: Literal['stock_account']
+    account_id: str
+    object: SavedStockAccount
+
+
+class SkuWriteData(WriteEffect):
+    resource_type: Literal['sku']
+    sku_id: str
+    object: SavedSku
+
+
+class MemberWriteData(WriteEffect):
+    resource_type: Literal['member']
+    member_id: str
+    object: SavedMember
+
+
+class FundStocktakeWriteData(WriteEffect):
+    resource_type: Literal['fund_stocktake']
+    stocktake_id: str
+    object: StocktakeRow
+
+
+class StockStocktakeWriteData(WriteEffect):
+    resource_type: Literal['stock_stocktake']
+    stocktake_id: str
+    object: StocktakeRow
+
+
+class SettlementWriteData(WriteEffect):
+    resource_type: Literal['settlement']
+    transfer_id: str
+    matches: list[SettlementMatchRow]
+
+
+class StockOperationWriteData(BaseModel):
+    resource_type: Literal['stock_operation']
+    fund_transfer: FundWriteData
+    stock_transfer: StockWriteData
+
+
+# Identifier-bearing inputs are flat MCP objects. The adapter removes identifier,
+# then dumps with mode='json'. Patch tools additionally use exclude_unset=True;
+# creation tools retain Schema defaults required by existing business services.
+OPERATION_INPUT_SCHEMAS = {
+    'propose_fund_transfer': business.Submit,
+    'propose_stock_transfer': business.StockTransferInput,
+    'propose_stock_completion': CompletionOperation,
+    'create_fund_transfer': business.Submit,
+    'create_stock_transfer': business.StockTransferInput,
+    'complete_stock_transfer': CompletionOperation,
+    'create_fund_account': business.AccountCreate,
+    'update_fund_account': AccountPatchOperation,
+    'create_stock_account': business.AccountCreate,
+    'update_stock_account': AccountPatchOperation,
+    'create_sku': business.SkuCreate,
+    'update_sku': SkuPatchOperation,
+    'create_member': business.MemberCreate,
+    'update_member': MemberPatchOperation,
+    'set_stock_custody': CustodyOperation,
+    'approve_fund_transfer': FundApprovalOperation,
+    'reject_fund_transfer': FundRejectionOperation,
+    'reverse_fund_transfer': FundReversalOperation,
+    'approve_stock_transfer': StockApprovalOperation,
+    'reject_stock_transfer': StockRejectionOperation,
+    'cancel_stock_transfer': StockRejectionOperation,
+    'approve_stock_completion': StockApprovalOperation,
+    'reject_stock_completion': StockRejectionOperation,
+    'create_settlement': business.SettlementCreate,
+    'add_settlement_matches': SettlementMatchesOperation,
+    'create_stock_operation': business.StockOperationInput,
+    'add_stock_fund_reference': StockFundReferenceOperation,
+    'create_fund_stocktake': business.StocktakeCreate,
+    'update_fund_stocktake': StocktakePatchOperation,
+    'end_fund_stocktake': IdentifierInput,
+    'create_stock_stocktake': business.StocktakeCreate,
+    'update_stock_stocktake': StocktakePatchOperation,
+    'end_stock_stocktake': IdentifierInput,
+}
+
+OPERATION_OUTPUT_SCHEMAS = {
+    'propose_fund_transfer': QueryResult[FundWriteData],
+    'propose_stock_transfer': QueryResult[StockWriteData],
+    'propose_stock_completion': QueryResult[CompletionWriteData],
+    'create_fund_transfer': QueryResult[FundWriteData],
+    'create_stock_transfer': QueryResult[StockWriteData],
+    'complete_stock_transfer': QueryResult[CompletionWriteData],
+    'create_fund_account': QueryResult[FundAccountWriteData],
+    'update_fund_account': QueryResult[FundAccountWriteData],
+    'create_stock_account': QueryResult[StockAccountWriteData],
+    'update_stock_account': QueryResult[StockAccountWriteData],
+    'create_sku': QueryResult[SkuWriteData],
+    'update_sku': QueryResult[SkuWriteData],
+    'create_member': QueryResult[MemberWriteData],
+    'update_member': QueryResult[MemberWriteData],
+    'set_stock_custody': QueryResult[StockAccountWriteData],
+    'approve_fund_transfer': QueryResult[FundWriteData],
+    'reject_fund_transfer': QueryResult[FundWriteData],
+    'reverse_fund_transfer': QueryResult[FundWriteData],
+    'approve_stock_transfer': QueryResult[StockWriteData],
+    'reject_stock_transfer': QueryResult[StockWriteData],
+    'cancel_stock_transfer': QueryResult[StockWriteData],
+    'approve_stock_completion': QueryResult[CompletionWriteData],
+    'reject_stock_completion': QueryResult[CompletionWriteData],
+    'create_settlement': QueryResult[SettlementWriteData],
+    'add_settlement_matches': QueryResult[SettlementWriteData],
+    'create_stock_operation': QueryResult[StockOperationWriteData],
+    'add_stock_fund_reference': QueryResult[StockWriteData],
+    'create_fund_stocktake': QueryResult[FundStocktakeWriteData],
+    'update_fund_stocktake': QueryResult[FundStocktakeWriteData],
+    'end_fund_stocktake': QueryResult[FundStocktakeWriteData],
+    'create_stock_stocktake': QueryResult[StockStocktakeWriteData],
+    'update_stock_stocktake': QueryResult[StockStocktakeWriteData],
+    'end_stock_stocktake': QueryResult[StockStocktakeWriteData],
+}
+
+
+class ContextInput(Input):
+    pass
+
+
+class ContextSemantics(BaseModel):
+    currency: Literal['CNY']
+    amount_input: str
+    business_date: str
+    created_at: str
+    pagination: str
+    proposals: str
+    stock: str
+    patch: str
+    human_management: str
+    uncertain_result: str
+
+
+class ContextOutput(BaseModel):
+    api_version: Literal['1']
+    guide_version: str
+    guide: str
+    level: Literal['low', 'high']
+    available_tools: list[str]
+    semantics: ContextSemantics
