@@ -12,6 +12,17 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String)
     role: Mapped[str] = mapped_column(String)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+class AgentCredential(Base):
+    __tablename__ = 'agent_credentials'
+    __table_args__ = (CheckConstraint("level IN ('low','high')"),)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    owner_user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    name: Mapped[str] = mapped_column(String)
+    secret_hash: Mapped[str] = mapped_column(String, unique=True)
+    level: Mapped[str] = mapped_column(String)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 class LoginSession(Base):
     __tablename__ = 'login_sessions'
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
@@ -55,6 +66,8 @@ class Transfer(Base):
     reversal_of: Mapped[str | None] = mapped_column(ForeignKey('transfers.id'), nullable=True)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    submitted_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
+    submitted_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)
 class JournalLine(Base):
     __tablename__ = 'journal_lines'
     __table_args__ = (CheckConstraint('(debit_minor > 0 AND credit_minor = 0) OR (credit_minor > 0 AND debit_minor = 0)'),)
@@ -71,6 +84,9 @@ class Audit(Base):
     action: Mapped[str] = mapped_column(String)
     detail: Mapped[str] = mapped_column(String, default='')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    agent_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
+    agent_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
 
 class Member(Base):
     __tablename__ = 'members'
@@ -126,6 +142,9 @@ class StockTransfer(Base):
     approval_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    submitted_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
+    submitted_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
 
 class StockTransferLine(Base):
     __tablename__ = 'stock_transfer_lines'
@@ -148,6 +167,9 @@ class StockAudit(Base):
     action: Mapped[str] = mapped_column(String)
     snapshot: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    agent_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
+    agent_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
 
 class StockConfirmation(Base):
     __tablename__ = 'stock_confirmations'
@@ -164,6 +186,9 @@ class StockConfirmation(Base):
     approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
     execution_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    submitted_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
+    submitted_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
 
 class StockMove(Base):
     __tablename__ = 'stock_moves'

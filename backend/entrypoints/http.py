@@ -6,6 +6,8 @@ from backend.infrastructure.store import transaction as database
 from backend.kernel.accounting import DomainError
 from backend.application import funds, catalogs, warehouse_catalogs, members as member_service, settlements, identity as identities
 from backend.entrypoints.schemas import *
+from backend.entrypoints.agent_schemas import CredentialCreate, CredentialPatch
+from backend.application import agent_access
 
 AUTH_MODE = os.getenv('AUTH_MODE', '')
 @asynccontextmanager
@@ -43,6 +45,16 @@ def users(user=Depends(identity), db=Depends(database)):
 @app.patch('/api/users/{identifier}')
 def update_user(identifier: str, data: UserPatch, user=Depends(identity), db=Depends(database)):
     return identities.update_user(db, user, identifier, data.model_dump(exclude_none=True))
+@app.get('/api/agent-credentials')
+def agent_credentials(user=Depends(identity), db=Depends(database)):
+    return agent_access.list_credentials(db, user)
+@app.post('/api/agent-credentials')
+def create_agent_credential(data: CredentialCreate, user=Depends(identity), db=Depends(database)):
+    return agent_access.create_credential(db, user, data.model_dump())
+@app.patch('/api/agent-credentials/{identifier}')
+def patch_agent_credential(identifier: str, data: CredentialPatch, user=Depends(identity), db=Depends(database)):
+    return agent_access.update_credential(db, user, identifier, data.model_dump(exclude_unset=True))
+
 @app.get('/api/accounts')
 def accounts(tag: str | None=None, kind: str | None=None, member_id: str | None=None, user=Depends(identity), db=Depends(database)):
     return catalogs.accounts(db, tag, kind, member_id)
