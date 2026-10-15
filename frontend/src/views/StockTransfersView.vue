@@ -2,7 +2,7 @@
 import { ref, computed } from "vue";
 import { NButton, NInput, NModal, NSelect } from "naive-ui";
 import type { StockAccount, Transfer } from "../api/funds";
-import { money, statuses as fundStatuses } from "../api/funds";
+import { money, approvalLabel, statuses as fundStatuses } from "../api/funds";
 import { warehouse, stockStatuses, type StockTransfer } from "../api/warehouse";
 import AccountRoute from "../components/AccountRoute.vue";
 import AccountLabel from "../components/AccountLabel.vue";
@@ -59,6 +59,7 @@ const visibleItems = computed(() =>
           .includes(search.value.trim().toLowerCase())),
   ),
 );
+const approvalAgent = computed(() => detail.value?.audit.find(event => ["approve", "automatic_approval"].includes(event.action) && event.agent_credential_id));
 const fundOptions = computed(() =>
   props.funds.map((f) => ({
     label: `${f.description || f.id}（${fundStatuses[f.status]}）`,
@@ -235,6 +236,8 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
             ><dt>标签</dt>
             <dd>{{ detail.tags.join("，") }}</dd></template
           >
+          <dt>发起人</dt><dd>{{ detail.actor_id }}<p v-if="detail.submitted_credential_id">由 {{ detail.submitted_credential_name || detail.submitted_credential_id }} 提交</p></dd>
+          <dt>审批</dt><dd>{{ approvalLabel(detail.approval_mode) }}<template v-if="approvalAgent">（{{ approvalAgent.agent_credential_name || approvalAgent.agent_credential_id }}）</template><template v-if="detail.approved_by">，审批人 {{ detail.approved_by }}</template></dd>
           <dt>转移编号</dt>
           <dd>{{ detail.id }}</dd>
         </dl>
@@ -303,7 +306,7 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
             <span class="status-pill status-pending">完成申报待审阅</span
             ><span>完成日期 {{ c.effective_date }}</span>
           </div>
-          <p>申报人 {{ c.actor_id }}</p>
+          <p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template></p>
           <template v-if="trusted"
             ><p>核对整条转移已实际完成后，批准并记录上述数量。</p>
             <NButton
@@ -466,7 +469,8 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
             <span class="status-pill" :class="`status-${c.status}`">{{
               stockStatuses[c.status] || fundStatuses[c.status] || c.status
             }}</span>
-            <p>申报人 {{ c.actor_id }}；完成日期 {{ c.effective_date }}</p>
+            <p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template>；完成日期 {{ c.effective_date }}</p>
+            <p v-if="c.approved_by">{{ approvalLabel(c.execution_snapshot?.mode || "manual") }}<template v-if="c.execution_snapshot?.agent_credential_id">（{{ c.execution_snapshot.agent_credential_name || c.execution_snapshot.agent_credential_id }}）</template>，审批人 {{ c.approved_by }}</p>
           </div>
         </details>
         <details class="stock-secondary">
@@ -475,6 +479,7 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
         </details>
         <details class="stock-secondary">
           <summary>操作追溯</summary>
+          <p v-for="event in detail.audit" :key="event.created_at + event.action">{{ event.actor_id }}<template v-if="event.agent_credential_id">，通过连接 {{ event.agent_credential_name || event.agent_credential_id }}</template>：{{ event.action }}（{{ new Date(event.created_at).toLocaleString("zh-CN") }}）</p>
           <pre>{{ JSON.stringify(detail.audit, null, 2) }}</pre>
         </details>
       </section>

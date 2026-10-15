@@ -54,6 +54,39 @@ def require_high(access: AgentAccess) -> None:
         raise DomainError('需要高权限连接及有效管理员身份', 403)
 
 
+def validate_actor(user: User, access: AgentAccess | None) -> None:
+    if access is not None and (access.user is not user or not user.active):
+        raise DomainError('连接与操作用户不匹配', 403)
+
+
+def auto_apply(user: User, *, access: AgentAccess | None = None,
+               submit_mode: Literal['propose', 'direct'] | None = None) -> bool:
+    validate_actor(user, access)
+    if access is None:
+        if submit_mode is not None:
+            raise DomainError('提交模式需要连接身份')
+        return user.role in ('admin', 'trusted')
+    if submit_mode == 'propose':
+        return False
+    if submit_mode == 'direct':
+        require_high(access)
+        return True
+    raise DomainError('连接提交须明确提议或直接执行')
+
+
+def require_operator(user: User, access: AgentAccess | None) -> None:
+    validate_actor(user, access)
+    if access is not None:
+        require_high(access)
+
+
+def operation_fields(access: AgentAccess | None) -> dict:
+    if access is None:
+        return {}
+    return dict(agent_credential_id=access.credential_id,
+                agent_credential_name=access.credential_name)
+
+
 def source_fields(access: AgentAccess | None) -> dict:
     if access is None:
         return {}

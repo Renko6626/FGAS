@@ -17,6 +17,7 @@ import TransfersView from "./views/TransfersView.vue";
 import SettlementsView from "./views/SettlementsView.vue";
 import MembersView from "./views/MembersView.vue";
 import UsersView from "./views/UsersView.vue";
+import AgentConnectionsView from "./views/AgentConnectionsView.vue";
 import { warehouse, type StockTransfer } from "./api/warehouse";
 import { membersApi } from "./api/members";
 import type { Sku, Member } from "./api/funds";
@@ -67,6 +68,7 @@ const pages: Record<string, { title: string }> = {
   locations: { title: "货物账户" },
   members: { title: "成员与联系人" },
   users: { title: "用户权限" },
+  agentConnections: { title: "Agent 连接" },
 };
 const groups = computed(() => [
   {
@@ -101,6 +103,7 @@ const groups = computed(() => [
     label: "基础资料",
     items: [
       { value: "members", label: "成员与联系人" },
+      ...(trusted.value ? [{ value: "agentConnections", label: "Agent 连接" }] : []),
       ...(user.value?.role === "admin"
         ? [{ value: "users", label: "用户权限" }]
         : []),
@@ -523,6 +526,11 @@ onMounted(async () => {
               :editable="trusted"
               :members="members"
               @changed="refresh"
+            />
+            <AgentConnectionsView
+              v-else-if="tab === 'agentConnections' && trusted"
+              :key="`${user.id}:${identityEpoch}`"
+              :user="user"
             />
             <UsersView
               v-else-if="tab === 'users' && user.role === 'admin'"

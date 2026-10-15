@@ -2,6 +2,7 @@
 from backend.infrastructure import store, settlement_store
 from backend.infrastructure.models import SettlementMatch
 from backend.application import funds
+from backend.application.agent_access import require_operator
 from backend.application.members import authorize_write
 from backend.kernel.accounting import DomainError, yuan_to_minor
 
@@ -38,20 +39,23 @@ def validate_matches(db,settlement,allocations):
     if sum(amount for _,amount in result)>remaining: raise DomainError('匹配总额超过付款未匹配金额')
     return result
 
-def record_matches(db,user,settlement,allocations):
+def record_matches(db,user,settlement,allocations, *, access=None):
+    require_operator(user, access)
     values=validate_matches(db,settlement,allocations)
     settlement_store.add(db,settlement.id,values)
-    store.audit(db,settlement.id,user.id,'settlement_matched','；'.join(f'{i}：{a} 分' for i,a in values))
+    store.audit(db,settlement.id,user.id,'settlement_matched','；'.join(f'{i}：{a} 分' for i,a in values), access=access)
     return dict(transfer=funds.transfer_view(db,settlement,True),matches=[dict(item_transfer_id=i,amount_minor=a,effective=True) for i,a in values])
 
-def create(db,user,data):
+def create(db,user,data, *, access=None):
     authorize_write(db,user)
-    settlement=funds.submit(db,user,data['transfer'])
-    return record_matches(db,user,settlement,data['allocations'])
+    require_operator(user, access)
+    settlement=funds.submit(db,user,data['transfer'], access=access, submit_mode='direct' if access else None)
+    return record_matches(db,user,settlement,data['allocations'], access=access)
 
-def add_matches(db,user,transfer_id,allocations):
+def add_matches(db,user,transfer_id,allocations, *, access=None):
     authorize_write(db,user)
-    return record_matches(db,user,funds.get_transfer(db,transfer_id),allocations)
+    require_operator(user, access)
+    return record_matches(db,user,funds.get_transfer(db,transfer_id),allocations, access=access)
 
 def overview(db,account_id):
     from backend.application.catalogs import catalog_account_view

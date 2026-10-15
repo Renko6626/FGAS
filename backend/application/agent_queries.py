@@ -1,0 +1,172 @@
+"""Shared low/high business reads. Query conditions never confer authorization."""
+from datetime import datetime, timezone
+from backend.application.agent_access import AgentAccess
+from backend.application import funds, warehouse, stocktakes, settlements
+from backend.infrastructure import store, stock_store, agent_store
+from backend.infrastructure.models import Transfer, StockTransfer
+from backend.kernel.accounting import DomainError
+
+
+def minor_to_yuan(value: int) -> str:
+    whole, fraction = divmod(abs(value), 100)
+    return f'{"-" if value < 0 else ""}{whole}.{fraction:02d}'
+
+
+def money(value):
+    """Add refillable amounts, including nested settlement and journal results."""
+    if isinstance(value, list):
+        return [money(item) for item in value]
+    if isinstance(value, dict):
+        result = {key: money(item) for key, item in value.items()}
+        for key, item in value.items():
+            if key.endswith('_minor') and isinstance(item, int):
+                result[key[:-6]] = minor_to_yuan(item)
+        return result
+    return value
+
+
+def _filters(filters):
+    result = {key: value for key, value in (filters or {}).items() if value is not None}
+    result.setdefault('page', 1)
+    result.setdefault('limit', 20)
+    if not isinstance(result['page'], int) or result['page'] < 1 or not isinstance(result['limit'], int) or not 1 <= result['limit'] <= 100:
+        raise DomainError('page 须大于零，limit 须为 1 至 100')
+    for key in ('created_at_from', 'created_at_to'):
+        if key in result:
+            value = result[key]
+            try:
+                parsed = datetime.fromisoformat(value.replace('Z', '+00:00')) if isinstance(value, str) else value
+                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                    raise ValueError()
+            except (ValueError, AttributeError, TypeError):
+                raise DomainError('录入时间必须是带时区的 ISO 时间')
+    return result
+
+
+def _result(data):
+    return dict(api_version='1', data=money(data))
+
+
+def _page(rows, filters, *, sliced=False, snapshot_at=None, **extra):
+    start = 0 if sliced else (filters['page'] - 1) * filters['limit']
+    selected = rows[start:start + filters['limit'] + 1]
+    return _result(dict(items=selected[:filters['limit']], page=filters['page'], has_more=len(selected) > filters['limit'], filters=filters, snapshot_at=snapshot_at or datetime.now(timezone.utc), **extra))
+
+
+def _accounts(db, filters, stock=False):
+    getter = store.stock_accounts if stock else store.accounts
+    result = []
+    for item in getter(db, filters.get('tag'), filters.get('kind'), filters.get('member_id')):
+        if filters.get('q') is not None and filters['q'].casefold() not in item.name.casefold(): continue
+        if 'active' in filters and item.active != filters['active']: continue
+        member = store.get_member(db, item.member_id) if item.member_id else None
+        result.append({key: getattr(item, key) for key in ('id','name','kind','member_id','tags','active')} | dict(member_name=member.name if member else None))
+    return sorted(result, key=lambda row: (row['name'], row['id']))
+
+
+def list_fund_accounts(db, access: AgentAccess, filters: dict) -> dict:
+    filters = _filters(filters)
+    return _page(_accounts(db, filters), filters)
+
+
+def list_stock_accounts(db, access: AgentAccess, filters: dict) -> dict:
+    filters = _filters(filters)
+    return _page(_accounts(db, filters, True), filters)
+
+
+def list_skus(db, access: AgentAccess, filters: dict) -> dict:
+    filters = _filters(filters)
+    rows = [{key: getattr(item, key) for key in ('id','name','specification','unit','active')} for item in stock_store.skus(db) if ('q' not in filters or filters['q'].casefold() in item.name.casefold()) and ('active' not in filters or filters['active'] == item.active)]
+    return _page(rows, filters)
+
+
+def list_members(db, access: AgentAccess, filters: dict) -> dict:
+    filters = _filters(filters)
+    return _page([dict(id=item.id, name=item.name) for item in store.members(db) if 'q' not in filters or filters['q'].casefold() in item.name.casefold()], filters)
+
+
+def get_fund_balances(db, access: AgentAccess, filters: dict) -> dict:
+    filters = _filters(filters)
+    rows = _accounts(db, filters)
+    if filters.get('account_id') is not None:
+        rows = [row for row in rows if row['id'] == filters['account_id']]
+    for row in rows:
+        row['balance_minor'] = funds.balance(db, store.get_account(db, row['id']))
+    # Existing summary means the public funds total, even when private rows are read.
+    summary = funds.summary(db)
+    return _page(rows, filters, total_minor=summary['total_minor'], currency='CNY')
+
+
+def _stock_view(db, item, detail=False):
+    value = warehouse.transfer_view(db, item)
+    if not detail:
+        for key in ('audit','approval_snapshot','confirmations','related_transfers','fund_references'):
+            value.pop(key, None)
+    return value
+
+
+def _transfers(db, access, filters, stock=False):
+    filters = _filters(filters)
+    filters.setdefault('submitted_by_current_connection', False)
+    rows = agent_store.transfer_page(db, StockTransfer if stock else Transfer, filters, access.credential_id)
+    return _page([_stock_view(db, row) if stock else funds.transfer_view(db, row) for row in rows], filters, sliced=True)
+
+
+def list_fund_transfers(db, access: AgentAccess, filters: dict) -> dict:
+    return _transfers(db, access, filters)
+
+
+def list_stock_transfers(db, access: AgentAccess, filters: dict) -> dict:
+    return _transfers(db, access, filters, True)
+
+
+def get_fund_transfer(db, access: AgentAccess, identifier: str) -> dict:
+    return _result(funds.transfer_view(db, funds.get_transfer(db, identifier), True))
+
+
+def get_stock_transfer(db, access: AgentAccess, identifier: str) -> dict:
+    return _result(warehouse.transfer_detail(db, identifier))
+
+
+def get_inventory(db, access: AgentAccess, filters: dict) -> dict:
+    filters = _filters(filters)
+    value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_id','member_id','custodian_id') if key in filters})
+    return _page(value['quantities'], filters, snapshot_at=value['snapshot_at'], totals=value['totals'])
+
+
+def list_stock_moves(db, access: AgentAccess, filters: dict) -> dict:
+    filters = _filters(filters)
+    rows = warehouse.list_moves(db, {key: filters[key] for key in ('transfer_id','sku_id','source_account_id','destination_account_id') if key in filters})
+    rows.sort(key=lambda row: (row['created_at'], row['id']), reverse=True)
+    return _page(rows, filters)
+
+
+def get_settlement_overview(db, access: AgentAccess, filters: dict) -> dict:
+    return _result(settlements.overview(db, filters['account_id']))
+
+
+def _stocktakes(db, filters, kind):
+    filters = _filters(filters)
+    rows = stocktakes.list_stocktakes(db, kind, filters.get('status'))
+    rows.sort(key=lambda row: (row['created_at'], row['id']), reverse=True)
+    return _page(rows, filters)
+
+
+def list_fund_stocktakes(db, access: AgentAccess, filters: dict) -> dict:
+    return _stocktakes(db, filters, 'fund')
+
+
+def list_stock_stocktakes(db, access: AgentAccess, filters: dict) -> dict:
+    return _stocktakes(db, filters, 'stock')
+
+
+def get_fund_stocktake(db, access: AgentAccess, identifier: str) -> dict:
+    return _result(stocktakes.get_stocktake(db, 'fund', identifier))
+
+
+def get_stock_stocktake(db, access: AgentAccess, identifier: str) -> dict:
+    value = stocktakes.get_stocktake(db, 'stock', identifier)
+    for row in value['transfers']:
+        for key in ('audit','approval_snapshot','confirmations','related_transfers','fund_references'):
+            row.pop(key, None)
+    return _result(value)

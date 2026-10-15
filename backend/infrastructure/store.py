@@ -57,8 +57,10 @@ def create_transfer(db, values):
 
 def add_journal(db, transfer_id, line):
     db.add(JournalLine(transfer_id=transfer_id, account_id=line.account_id, debit_minor=line.debit_minor, credit_minor=line.credit_minor))
-def audit(db, transfer_id, actor_id, action, detail=''):
-    db.add(Audit(transfer_id=transfer_id, actor_id=actor_id, action=action, detail=detail))
+def audit(db, transfer_id, actor_id, action, detail='', *, access=None):
+    db.add(Audit(transfer_id=transfer_id, actor_id=actor_id, action=action, detail=detail,
+                 agent_credential_id=access.credential_id if access else None,
+                 agent_credential_name=access.credential_name if access else None))
 def flush(db): db.flush()
 def transfers(db, status=None):
     query = select(Transfer).order_by(Transfer.created_at.desc())
@@ -69,7 +71,7 @@ def balance_delta(db, identifier):
 def journal(db, identifier):
     return [dict(account_id=l.account_id, debit_minor=l.debit_minor, credit_minor=l.credit_minor) for l in db.scalars(select(JournalLine).where(JournalLine.transfer_id == identifier))]
 def audit_events(db, identifier):
-    return [dict(actor_id=a.actor_id, action=a.action, detail=a.detail, created_at=a.created_at) for a in db.scalars(select(Audit).where(Audit.transfer_id == identifier).order_by(Audit.created_at))]
+    return [dict(actor_id=a.actor_id, action=a.action, detail=a.detail, created_at=a.created_at, agent_credential_id=a.agent_credential_id, agent_credential_name=a.agent_credential_name) for a in db.scalars(select(Audit).where(Audit.transfer_id == identifier).order_by(Audit.created_at))]
 def fund_balances(db):
     return [dict(id=a.id, name=a.name, kind=a.kind, tags=a.tags, balance_minor=balance_delta(db,a.id))
             for a in accounts(db, kind='public')]

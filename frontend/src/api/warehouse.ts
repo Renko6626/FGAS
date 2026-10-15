@@ -1,9 +1,9 @@
 import {request} from './client'
-import type {TransferInput} from './funds'
+import type {TransferInput, AgentSource, AgentAudit} from './funds'
 export interface StockLine{id:string;sku_id:string;sku_name:string;unit:string;quantity:string}
-export interface Confirmation{id:string;status:string;actor_id:string;effective_date:string;execution_snapshot:unknown}
+export interface Confirmation extends AgentSource{id:string;status:string;actor_id:string;effective_date:string;approved_by:string|null;execution_snapshot:{mode?:string;agent_credential_id?:string|null;agent_credential_name?:string|null}|null}
 export interface RelatedTransfer{id:string;status:string;lines:{sku_id:string;quantity:string}[];source_account_id:string;destination_account_id:string}
-export interface StockTransfer{id:string;source_account_id:string;destination_account_id:string;source_account_name:string;destination_account_name:string;source_kind:string;destination_kind:string;tags:string[];effective_date:string;description:string;status:string;related_transfer_id:string|null;related_transfers:RelatedTransfer[];approval_snapshot:unknown;lines:StockLine[];confirmations:Confirmation[];fund_references:{id:string;status:string;description:string;amount_minor:number}[];audit:unknown[]}
+export interface StockTransfer extends AgentSource{actor_id:string;approved_by:string|null;approval_mode:string|null;id:string;source_account_id:string;destination_account_id:string;source_account_name:string;destination_account_name:string;source_kind:string;destination_kind:string;tags:string[];effective_date:string;description:string;status:string;related_transfer_id:string|null;related_transfers:RelatedTransfer[];approval_snapshot:unknown;lines:StockLine[];confirmations:Confirmation[];fund_references:{id:string;status:string;description:string;amount_minor:number}[];audit:(AgentAudit&{snapshot:unknown})[]}
 export interface StockInput{source_account_id:string;destination_account_id:string;effective_date:string;description:string;tags:string[];source_reference:string|null;fund_transfer_ids:string[];lines:{sku_id:string;quantity:string}[];related_transfer_id?:string|null}
 export interface OperationInput{stock:StockInput;money:TransferInput}
 export interface InventoryRow{account_id:string;account_name:string;member_name:string|null;sku_id:string;sku_name:string;unit:string;quantity:string;valuation:string;in_transit_planned_quantity:string}

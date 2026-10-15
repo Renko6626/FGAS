@@ -5,6 +5,7 @@ import {
   api,
   money,
   statuses,
+  approvalLabel,
   type Transfer,
   type Account,
 } from "../api/funds";
@@ -77,11 +78,14 @@ const detail = ref<Transfer | null>(null),
 const processing = ref<"reject" | "reverse" | null>(null);
 type AuditEvent = {
   actor_id: string;
+  agent_credential_id?: string | null;
+  agent_credential_name?: string | null;
   action: string;
   detail: string;
   created_at: string;
 };
 const audit = computed(() => (detail.value?.audit || []) as AuditEvent[]);
+const approvalAgent = computed(() => audit.value.find(event => event.action === "posted" && event.agent_credential_id));
 const actionNames: Record<string, string> = {
   submitted: "提交",
   posted: "批准并过账",
@@ -230,7 +234,7 @@ async function reverse() {
               statuses[t.status] || t.status
             }}</span>
           </td>
-          <td>{{ t.actor_name }}</td>
+          <td>{{ t.actor_name }}<small v-if="t.submitted_credential_id">由 {{ t.submitted_credential_name || t.submitted_credential_id }} 提交</small></td>
           <td>
             <NButton class="plain-button" text size="small" @click="open(t)">{{
               approvals ? "审批" : "详情"
@@ -276,16 +280,10 @@ async function reverse() {
         <dt v-if="detail.tags.length">标签</dt>
         <dd v-if="detail.tags.length">{{ detail.tags.join("，") }}</dd>
         <dt>发起人</dt>
-        <dd>{{ detail.actor_name }}</dd>
+        <dd>{{ detail.actor_name }}<p v-if="detail.submitted_credential_id">由 {{ detail.submitted_credential_name || detail.submitted_credential_id }} 提交</p></dd>
         <dt>审批</dt>
         <dd>
-          {{
-            detail.approval_mode === "automatic"
-              ? "自动批准"
-              : detail.approval_mode === "manual"
-                ? "人工批准"
-                : "待处理"
-          }}<template v-if="detail.approved_by_name"
+          {{ approvalLabel(detail.approval_mode) }}<template v-if="approvalAgent">（{{ approvalAgent.agent_credential_name || approvalAgent.agent_credential_id }}）</template><template v-if="detail.approved_by_name"
             >（{{ detail.approved_by_name }}）</template
           >
         </dd>
@@ -324,17 +322,15 @@ async function reverse() {
         <ol class="audit-list">
           <li v-for="(event, index) in audit" :key="index">
             <strong>{{ actionNames[event.action] || event.action }}</strong
-            ><span>{{ event.actor_id }}</span
+            ><span>{{ event.actor_id }}<template v-if="event.agent_credential_id">，通过连接 {{ event.agent_credential_name || event.agent_credential_id }}</template></span
             ><small>{{
               new Date(event.created_at).toLocaleString("zh-CN")
             }}</small>
             <p v-if="event.detail">
               {{
-                event.detail === "automatic"
-                  ? "自动批准"
-                  : event.detail === "manual"
-                    ? "人工批准"
-                    : event.detail
+                ["automatic", "manual", "agent_direct", "agent_approval"].includes(event.detail)
+                  ? approvalLabel(event.detail)
+                  : event.detail
               }}
             </p>
           </li>
