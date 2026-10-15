@@ -11,7 +11,7 @@
 ## 2 层次与依赖
 
 ```text
-Vue / HTTP
+Vue / 人工 HTTP       Agent / MCP
     ↓
 应用服务：身份、目录、审批、结算、完成、盘点、事务编排
     ↓
@@ -26,7 +26,9 @@ Vue / HTTP
 
 | 代码 | 职责 |
 | --- | --- |
-| `entrypoints` | HTTP 输入输出、身份解析，调用应用服务 |
+| `entrypoints` | 人工 HTTP 与 MCP 协议适配、Schema 校验和身份解析，调用应用服务 |
+| `application/agent_access.py` | 独立连接凭据、真实所属用户解析与 low/high 固定授权 |
+| `application/agent_queries.py`、`agent_operations.py` | 共同业务查询及明确命名的业务操作，复用原服务 |
 | `application/funds.py` | 普通资金提交、审批、过账与冲销，无垫付标记判断 |
 | `application/settlements.py` | 私账报销/交回匹配及未结查询，不另记付款 |
 | `application/warehouse.py` | 货物审批、整笔完成、当前库存和生命周期检查 |
@@ -100,4 +102,18 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 正式使用前需确认期初日期、公账资金、私账往来及各账户 SKU 数量，通过普通期初记录建立，并保留不足的原始依据。正式 SSO、票据附件、生产部署和备份恢复仍需后续落实。附件按既有私有存储方向实施，不能随意公开；数据库与附件备份应保存对应恢复时点和版本信息，在空环境验证基本恢复，不把开发备份搬成正式账本。不在本次新增实现。
 
-第二阶段再设计取得成本、批次、估值及销售成本，后续再设计经营归属、分摊和管理分析，不根据第一阶段付款自动推库存价值。正式事实不能因分析口径变化自动重写。第一阶段不建立订单、完整报表、复杂寄售结算、备用金专用流程、CRM、人事、自动 POS 导入或 Agent/MCP 接入。外部集成未来必须经过相同服务与账本校验，不直接写数据库或绕过授权。
+第二阶段再设计取得成本、批次、估值及销售成本，后续再设计经营归属、分摊和管理分析，不根据第一阶段付款自动推库存价值。正式事实不能因分析口径变化自动重写。第一阶段不建立订单、完整报表、复杂寄售结算、备用金专用流程、CRM、人事、自动 POS 导入。Agent/MCP 接入按下节实现，外部集成必须经过相同服务与账本校验，不直接写数据库或绕过授权。
+
+## 8 Agent/MCP 接入（draft）
+
+官方 Python MCP SDK 2.3.0 提供 `/mcp` Streamable HTTP，FastAPI lifespan 启停 SDK session manager。Bearer 中间件覆盖初始化、发现和调用，并通过请求 ContextVar 传递令牌；每次工具调用在同一业务事务重新解析凭据和真实 User。人工 `/api` 只用 Cookie，连接管理也只供人工会话。应用层不依赖 entrypoints 或协议 Schema。
+
+`AgentCredential/agent_credentials` 保存 ID、所属用户、名称、low/high、启用、到期、创建时间和 SHA-256 摘要，不保存明文。可信用户仅自己的 low，管理员可自己的 low/high，只能停用他人的连接。实际授权同时检查凭据及所属用户；不改变 User.role，不新增对象白名单、grant 矩阵或只读第三档。
+
+16个读取、3个 propose 及 context 对两档相同；high 另有30个操作。应用函数仍校验 high，猜工具名不能绕过权限。所有工具有固定 input/output Schema，返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/ID排序、业务按创建时间/ID倒序，page/limit/has_more 标明分页；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。
+
+三种 propose 对管理员所属 high 也固定待审。资金 direct 过账、货物 direct 在途、完成 direct 才写 StockMove。`submit_mode` 仅服务内部参数，客户端不能指定。资金和货物主单、完成申请记录 `submitted_credential_id/name`；审计记录实际操作者 `agent_credential_id/name`，审批/执行快照保留连接。`approval_mode` 区分 `agent_direct`、`agent_approval` 及人工既有 automatic/manual，改连接名称不覆盖历史快照。原历史字段为空时仍按人工记录解释。
+
+结果使用 `api_version='1'`，写入明确 resource_type、业务 ID、status、ledger_effect_applied、approval_required；完成同时给 confirmation_id 和 stock_transfer_id。金额保留整数分并配元字符串；Patch 省略保留，仅允许清空的字段接受 null。错误 code 为 validation_error、permission_denied、not_found、state_conflict。pending 是普通成功，无自动重试、幂等回放、恢复队列或 OAuth 服务。指南保留 draft，尚未正式发布。
+
+旧库升级仅显式执行 `scripts/upgrade-agent-access.sql` 的非破坏性增量；普通启动不升级旧表。本轮日常开发库升级未执行，运行验证仅使用专用 fgas_test。具体命令、客户端版本和联调限制见阶段记录。

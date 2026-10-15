@@ -1,6 +1,6 @@
 # 给 Agent 的 FGAS 业务与操作指南
 
-guide_version：draft-2026-10-15-r5。两档令牌都能读取业务信息；low 只能提出三种待审申请，high 可以直接办理已有业务。受信任用户只能签发 low，管理员可签 low/high；用户、角色和令牌管理始终由人工办理。MCP 接口及工具尚未发布，以下契约随实现同步。
+guide_version：draft-2026-10-15-r5。两档令牌都能读取业务信息；low 只能提出三种待审申请，high 可以直接办理已有业务。受信任用户只能签发 low，管理员可签 low/high；用户、角色和令牌管理始终由人工办理。MCP 接口和工具已在开发分支实现，尚未正式发布。
 
 ## 你在操作什么
 
@@ -10,7 +10,7 @@ FGAS 是单社团、人民币的资金与货物记录系统。它保存账户间
 
 ## 先取得当前连接说明
 
-接入发布、工具可用后，先调用 `fgas_get_context`，阅读业务指南、令牌等级、当前工具清单和各操作的实际效果。具体业务对象通过目录工具分页查找。两档没有不同的账户白名单或业务文本开关。文档描述业务，当前连接说明决定本次可调用哪些操作；调用仍以服务端判断为准，不假定客户端已替你读取本指南。
+连接后先调用 `fgas_get_context`，阅读业务指南、令牌等级、当前工具清单和各操作的实际效果。具体业务对象通过目录工具分页查找。两档没有不同的账户白名单或业务文本开关。文档描述业务，当前连接说明决定本次可调用哪些操作；调用仍以服务端判断为准，不假定客户端已替你读取本指南。
 
 API 访问令牌由调用运行时持有，不放在对话、工具参数、描述或票据依据中。不能根据签发人是管理员就推断当前令牌是高权限，不能自行提高等级或扩大授权。
 
@@ -55,7 +55,7 @@ API 访问令牌由调用运行时持有，不放在对话、工具参数、描�
 
 金额按人民币元字符串提交，例如 `"120.50"`；查询同时返回 `amount_minor: 12050` 与 `amount: "120.50"`，可直接回填元字符串，避免自行换算。余额、未结、已结金额也提供对应两种字段。数量按正整数字符串和 SKU 单位提交，例如 `"12"`；业务日期按 `YYYY-MM-DD` 提交，不把今天自动当作业务发生日期。
 
-资金提议参数示例（工具名为草案，两个 ID 应替换为目录查询所得 ID，内容须来自用户确认的实际业务）：
+资金提议参数示例（使用 `fgas_propose_fund_transfer`，两个 ID 应替换为目录查询所得 ID，内容须来自用户确认的实际业务）：
 
 ```json
 {
@@ -95,3 +95,9 @@ API 访问令牌由调用运行时持有，不放在对话、工具参数、描�
 校验失败时说明具体缺失或冲突，请用户补充或核实。权限不足时说明当前连接无法完成该操作，不换入口绕过限制。待审错误申请由有权处理者拒绝；已生效记录通过获授权的冲销、更正或新转移处理，不覆盖历史、不直接修改余额。高权限也不能在没有用户指示时自行批量审批或更正其他记录。
 
 正式结果以系统状态和流水为依据，缺少数据时明确说明；不推算库存价值、利润或未被证实的实际资产。
+
+## 工具与错误约定（开发草案）
+
+当前共同读取工具为 `fgas_list_fund_accounts`、`fgas_list_stock_accounts`、`fgas_list_skus`、`fgas_list_members`、`fgas_get_fund_balances`、`fgas_list_fund_transfers`、`fgas_get_fund_transfer`、`fgas_get_inventory`、`fgas_list_stock_transfers`、`fgas_get_stock_transfer`、`fgas_list_stock_moves`、`fgas_get_settlement_overview`，以及资金/货物盘点的 list/get 工具。三种待审工具是 `fgas_propose_fund_transfer`、`fgas_propose_stock_transfer`、`fgas_propose_stock_completion`。high 的具体创建、修改、审批、冲销、结算、保管、盘点工具以 `fgas_get_context.available_tools` 及发现结果为准。
+
+工具错误返回稳定 code/message：`validation_error` 参数或结果不符合声明，`permission_denied` 权限不足，`not_found` 对象不存在，`state_conflict` 状态冲突或操作未完成。认证失败由 HTTP 层拒绝。不要把错误文本当作成功业务 ID，也不要因此自动重试写入。结果包含 `api_version='1'`；指南版本与当前连接等级在 context 中独立返回。

@@ -245,3 +245,16 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 用户验看后授权阶段性提交、推送。本阶段保存分组侧栏、工作首页、资金/货物/结算/盘点布局、默认头像路径与状态背景、货物目录归组及 SKU 缩略图。样式与静态资源直接复用 fantasyguide，来源说明随代码保存。
 
 阶段分支为 `feature/frontend-workspace`。保留本轮 `./tools/run_tests.sh` 的25项通过证据及最后 `npm run build` 的类型检查/构建通过证据；后续只更新阶段文档，未重复运行已通过检查或清理测试库。开发库可空列已按用户确认补齐，配置、数据库、运行会话与截图缓存不进入代码提交。本次授权只做阶段提交和推送，不包含主线合并或生产部署。
+
+
+### 2026-10-15：Agent 接入开发草案
+
+新增人工连接管理页面与 Cookie API、low/high 两档凭据、16个共同业务读取及明确业务操作，通过官方 `mcp==2.3.0` Streamable HTTP 暴露 `/mcp`。来源在主单、完成申请和既有审计/快照中保留，连接改名不覆盖历史名称。业务指南仍为 `draft-2026-10-15-r5`，尚未正式发布。
+
+验证在独立 worktree、专用 `fgas_test` 集中执行。最终 `./tools/run_tests.sh` 打印 **Test database: fgas_test**，退出0，**31 passed in11.30s**。保留25个既有测试并增加5个核心用例（提议参数化后6个case），覆盖凭据权限/失效、两档提议待审无流水、high直接业务阶段及来源、查询与Patch、官方SDK真实ASGI协议。首轮发现SDK manager单实例只能启动一次，原实现者修复lifespan后通过复审及最终检查；新测试的HTTP状态、提交边界和单SKU流水数预期也已按既有真实行为修正。
+
+首次 `npm --prefix frontend run build` 退出0，vue-tsc与Vite通过（6.39s），主JS511.05kB的默认体积提示保留。最终整分支审阅发现连接页面同源 `/mcp` 缺少开发代理，随后仅在Vite配置中为 `/mcp` 复用现有API代理目标与changeOrigin，修复后再次构建退出0，类型检查与Vite通过，默认体积提示保留。临时真实uvicorn与Vite验证无Authorization的 `GET http://127.0.0.1:34689/mcp` 返回401、`WWW-Authenticate: Bearer`及后端permission_denied JSON，确认同源地址进入MCP认证。该检查无token、无数据库查询或业务操作，进程均在finally停止；未重复后端及客户端检查。最终 `git diff --check` 退出0。
+
+客户端环境为 DSH CLI/官方MCP插件 **0.1.5-rc.3**、Codex CLI0.162.1；OpenCode未安装。Python SDK使用httpx2 **2.13.1**。DSH实际Cordis4.0.2/ToolRuntime挂载官方MCP插件，在临时127.0.0.1:58438、专用fgas_test上分别完成low20工具/high50工具标准发现、各读取4资金账户，以及low0.01元待审提议和high0.01元直接资金过账。low返回pending/ledger_effect_applied=false/approval_required=true，high返回posted/ledger_effect_applied=true/approval_required=false；真实PG按各提交连接核对ID **bab6de3a-3d27-4ac7-94d7-db676ee41eb1**、**bb35884d-994b-4fba-9559-7341cdcc7c4e** 和来源名称“DSH真实客户端验证”“DSH高权限客户端验证”。这是实际客户端插件协议调用，未调用模型、修改个人长期配置或创建日常真实账目；临时服务已停止，最终runner已清理这些测试记录。OpenCode配置只按官方文档核实，尚未做第二客户端发现/读取；Codex版本可用不作为联调证据。
+
+日常开发库未执行Agent增量SQL、升级或重建；脚本仅准备。未启动浏览器自动交互、未截图、未做生产发布/部署、远程域名或OAuth验收。DSH检查未包含LLM编排。实现和验证证据保存在任务8报告及临时日志，当前仍为未发布草案。

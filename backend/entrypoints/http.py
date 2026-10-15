@@ -16,8 +16,15 @@ AUTH_MODE = os.getenv('AUTH_MODE', '')
 @asynccontextmanager
 async def lifespan(app):
     if AUTH_MODE != 'development': raise RuntimeError('Only explicit AUTH_MODE=development is available in this prototype')
-    async with mcp_app.session_manager.run():
-        yield
+    global mcp_app
+    previous = mcp_app
+    current = create_mcp_app()
+    mcp_app = mcp_mount.app = current
+    try:
+        async with current.session_manager.run():
+            yield
+    finally:
+        mcp_app = mcp_mount.app = previous
 
 app = FastAPI(title='FGAS development funds prototype', lifespan=lifespan)
 @app.exception_handler(DomainError)
@@ -219,3 +226,4 @@ def end_stock_stocktake(identifier: str, user=Depends(identity), db=Depends(data
 
 # Last route: the SDK owns the exact /mcp path without a mount redirect.
 app.mount('/', mcp_app)
+mcp_mount = app.routes[-1]

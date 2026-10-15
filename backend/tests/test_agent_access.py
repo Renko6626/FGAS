@@ -1,0 +1,225 @@
+"""Core Agent behavior through real services, PostgreSQL and the official MCP client."""
+from datetime import datetime, timedelta, timezone
+
+import asyncio
+
+import httpx2
+import pytest
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+from sqlalchemy import func, select
+
+from backend.application import agent_access, agent_operations as ops, agent_queries as queries
+from backend.entrypoints.agent_schemas import AccountPatchOperation
+from backend.entrypoints.http import app
+from backend.infrastructure.database import Session
+from backend.infrastructure.models import AgentCredential, JournalLine, StockMove, Transfer, User
+from backend.kernel.accounting import DomainError
+
+
+def issue(client, level='low', owner='admin', name='测试连接'):
+    client.post('/api/auth/login', json={'user_id': owner})
+    response = client.post('/api/agent-credentials', json={'name': name, 'level': level})
+    assert response.status_code == 200
+    return response.json()
+
+
+def fund_data(source='opening', destination='fund_pool', amount='120.50', date='2026-10-15'):
+    return dict(source_account_id=source, destination_account_id=destination, amount=amount, effective_date=date)
+
+
+def stock_data(client):
+    source = client.post('/api/stock-accounts', json={'name': '商家', 'kind': 'external'}).json()['id']
+    target = client.post('/api/stock-accounts', json={'name': '仓库', 'kind': 'public'}).json()['id']
+    sku = client.post('/api/skus', json={'name': '书', 'unit': '本'}).json()['id']
+    return dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_id': sku, 'quantity': '2'}])
+
+
+def test_credential_issue_limits_and_invalidation(client):
+    client.post('/api/auth/login', json={'user_id': 'untrusted'})
+    assert client.post('/api/agent-credentials', json={'name': '禁止', 'level': 'low'}).status_code == 403
+    trusted = issue(client, owner='trusted')
+    assert client.post('/api/agent-credentials', json={'name': '禁止high', 'level': 'high'}).status_code == 403
+    credential, secret = trusted['credential'], trusted['secret']
+    listed = client.get('/api/agent-credentials').json()
+    assert len(listed) == 1 and listed[0]['id'] == credential['id']
+    assert 'secret' not in listed[0] and 'secret_hash' not in listed[0]
+    with Session() as db:
+        stored = db.get(AgentCredential, credential['id'])
+        assert stored.secret_hash == agent_access.hash_secret(secret) and stored.secret_hash != secret
+        assert agent_access.resolve(db, secret).user.role == 'trusted'
+    client.post('/api/auth/login', json={'user_id': 'admin'})
+    path = f"/api/agent-credentials/{credential['id']}"
+    assert client.patch(path, json={'name': '不能改他人'}).status_code == 403
+    assert client.patch(path, json={'active': False}).status_code == 200
+    with Session() as db, pytest.raises(DomainError) as denied:
+        agent_access.resolve(db, secret)
+    assert denied.value.status == 401
+    high = issue(client, level='high')
+    with Session.begin() as db:
+        db.get(AgentCredential, high['credential']['id']).expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    with Session() as db, pytest.raises(DomainError) as denied:
+        agent_access.resolve(db, high['secret'])
+    assert denied.value.status == 401
+    with Session.begin() as db:
+        db.get(AgentCredential, high['credential']['id']).expires_at = None
+        db.get(User, 'admin').role = 'trusted'
+    with Session() as db, pytest.raises(DomainError) as denied:
+        agent_access.resolve(db, high['secret'])
+    assert denied.value.status == 403
+    with Session.begin() as db:
+        db.get(User, 'admin').role = 'admin'
+        db.get(User, 'admin').active = False
+    with Session() as db, pytest.raises(DomainError) as denied:
+        agent_access.resolve(db, high['secret'])
+    assert denied.value.status == 403
+    # Bearer credentials never establish a human HTTP session.
+    client.post('/api/auth/logout')
+    assert client.get('/api/agent-credentials', headers={'Authorization': f'Bearer {secret}'}).status_code == 401
+
+
+@pytest.mark.parametrize('level', ['low', 'high'])
+def test_proposals_always_require_approval(client, level):
+    connection = issue(client, level)
+    payload = stock_data(client)
+    parent = client.post('/api/stock-transfers', json=payload).json()
+    with Session() as db:
+        access = agent_access.resolve(db, connection['secret'])
+        fund = ops.propose_fund_transfer(db, access, fund_data())['data']
+        stock = ops.propose_stock_transfer(db, access, payload)['data']
+        completion = ops.propose_stock_completion(db, access, parent['id'], {'effective_date': '2026-10-15'})['data']
+        for result in (fund, stock, completion):
+            assert result['status'] == 'pending' and result['approval_required'] and not result['ledger_effect_applied']
+        db.commit()  # Snapshot reads use their own transaction, as after a real MCP call.
+        detail = queries.get_stock_transfer(db, access, parent['id'])['data']
+        confirmation = next(c for c in detail['confirmations'] if c['id'] == completion['confirmation_id'])
+        assert confirmation['submitted_credential_id'] == connection['credential']['id']
+        assert detail['status'] == 'in_transit'
+        assert db.scalar(select(func.count()).select_from(JournalLine)) == 0
+        assert db.scalar(select(func.count()).select_from(StockMove)) == 0
+        assert access.user.role == 'admin'
+
+
+def test_high_direct_business_and_source(client):
+    connection = issue(client, 'high', name='原连接名称')
+    low = issue(client)
+    with Session() as db:
+        access = agent_access.resolve(db, connection['secret'])
+        source = ops.create_stock_account(db, access, {'name': 'Agent商家', 'kind': 'external'})['data']['account_id']
+        target = ops.create_stock_account(db, access, {'name': 'Agent仓库', 'kind': 'public'})['data']['account_id']
+        sku = ops.create_sku(db, access, {'name': 'Agent书', 'unit': '本'})['data']['sku_id']
+        assert queries.list_skus(db, access, {'q': 'Agent书'})['data']['items'][0]['id'] == sku
+        payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_id': sku, 'quantity': '2'}])
+        member = ops.create_member(db, access, {'name': '测试联系人'})['data']['member_id']
+        account = ops.create_fund_account(db, access, {'name': '成员私账', 'kind': 'private', 'member_id': member, 'avatar_url': 'https://example.test/a.png'})['data']['account_id']
+        assert queries.list_fund_accounts(db, access, {'q': '成员私账'})['data']['items'][0]['id'] == account
+        patch = AccountPatchOperation(identifier=account, name='新名称').model_dump(exclude_unset=True)
+        patch.pop('identifier')
+        saved = ops.update_fund_account(db, access, account, patch)['data']['object']
+        assert saved['member_id'] == member and saved['avatar_url'] == 'https://example.test/a.png'
+        saved = ops.update_fund_account(db, access, account, {'member_id': None, 'avatar_url': None})['data']['object']
+        assert saved['member_id'] is None and saved['avatar_url'] is None
+        expense = ops.create_fund_transfer(db, access, fund_data(account, 'expense', '2'))['data']
+        assert expense['status'] == 'posted' and expense['ledger_effect_applied']
+        settlement = ops.create_settlement(db, access, {'transfer': fund_data('fund_pool', account, '2'), 'allocations': [{'item_transfer_id': expense['transfer_id'], 'amount': '2'}]})['data']
+        linked = ops.create_stock_operation(db, access, {'stock': payload, 'money': fund_data()})['data']
+        stock_id = linked['stock_transfer']['stock_transfer_id']
+        assert linked['fund_transfer']['ledger_effect_applied'] and linked['stock_transfer']['status'] == 'in_transit'
+        assert db.scalar(select(func.count()).select_from(StockMove)) == 0
+        done = ops.complete_stock_transfer(db, access, stock_id, {'effective_date': '2026-10-15'})['data']
+        db.commit()
+        detail = queries.get_stock_transfer(db, access, stock_id)['data']
+        assert done['status'] == 'completed' and done['ledger_effect_applied']
+        assert next(c for c in detail['confirmations'] if c['id'] == done['confirmation_id'])['status'] == 'completed'
+        assert detail['approval_mode'] == 'agent_direct'
+        assert detail['submitted_credential_id'] == access.credential_id
+        assert all(a['agent_credential_id'] == access.credential_id for a in detail['audit'])
+        assert db.scalar(select(func.count()).select_from(StockMove)) == 1
+        reversed_result = ops.reverse_fund_transfer(db, access, expense['transfer_id'], {'reason': '登记更正'})['data']
+        for identifier in (settlement['transfer_id'], linked['fund_transfer']['transfer_id'], reversed_result['transfer_id']):
+            result = queries.get_fund_transfer(db, access, identifier)['data']
+            assert result['submitted_credential_id'] == access.credential_id
+            assert result['approval_mode'] == 'agent_direct'
+            assert all(a['agent_credential_id'] == access.credential_id for a in result['audit'])
+        db.commit()
+    client.patch(f"/api/agent-credentials/{connection['credential']['id']}", json={'name': '后来改名'})
+    with Session() as db:
+        access = agent_access.resolve(db, connection['secret'])
+        assert queries.get_stock_transfer(db, access, stock_id)['data']['submitted_credential_name'] == '原连接名称'
+        with pytest.raises(DomainError) as denied:
+            ops.create_member(db, agent_access.resolve(db, low['secret']), {'name': '禁止'})
+        assert denied.value.status == 403
+
+
+def test_queries_support_disambiguation_and_submission_lookup(client):
+    low, high = issue(client), issue(client, 'high')
+    member = client.post('/api/members', json={'name': '联系人'}).json()['id']
+    for kind in ('public', 'private'):
+        client.post('/api/accounts', json={'name': '同名', 'kind': kind, 'member_id': member})
+    payload = stock_data(client)
+    parent = client.post('/api/stock-transfers', json=payload).json()
+    start = datetime(2026, 10, 15, tzinfo=timezone.utc)
+    with Session() as db:
+        access = agent_access.resolve(db, low['secret'])
+        high_access = agent_access.resolve(db, high['secret'])
+        candidates = queries.list_fund_accounts(db, access, {'q': '同名'})['data']['items']
+        assert {row['kind'] for row in candidates} == {'public', 'private'}
+        assert all(row['member_name'] == '联系人' and row['active'] for row in candidates)
+        assert queries.list_fund_accounts(db, high_access, {'q': '同名'})['data']['items'] == candidates
+        identifiers = []
+        for index, date in enumerate(('2026-10-14', '2026-10-15', '2026-10-16')):
+            identifier = ops.propose_fund_transfer(db, access, fund_data(date=date))['data']['transfer_id']
+            db.get(Transfer, identifier).created_at = start + timedelta(hours=index)
+            identifiers.append(identifier)
+        ops.propose_fund_transfer(db, high_access, fund_data())
+        filters = {'submitted_by_current_connection': True, 'limit': 2}
+        first = queries.list_fund_transfers(db, access, filters)['data']
+        second = queries.list_fund_transfers(db, access, filters | {'page': 2})['data']
+        assert first['has_more'] and not second['has_more']
+        assert [row['id'] for row in first['items'] + second['items']] == list(reversed(identifiers))
+        dated = queries.list_fund_transfers(db, access, filters | {'effective_date_from': '2026-10-14', 'effective_date_to': '2026-10-15'})['data']
+        assert {row['id'] for row in dated['items']} == set(identifiers[:2])
+        timed = queries.list_fund_transfers(db, access, filters | {'created_at_from': start.isoformat(), 'created_at_to': (start + timedelta(hours=1)).isoformat()})['data']
+        assert [row['id'] for row in timed['items']] == identifiers[:1]
+        first_completion = ops.propose_stock_completion(db, access, parent['id'], {'effective_date': '2026-10-15'})['data']['confirmation_id']
+        ops.reject_stock_completion(db, high_access, first_completion, {'reason': '重新核对'})
+        second_completion = ops.propose_stock_completion(db, access, parent['id'], {'effective_date': '2026-10-15'})['data']['confirmation_id']
+        completions = [first_completion, second_completion]
+        found = queries.list_stock_transfers(db, access, {'submitted_by_current_connection': True, 'limit': 1})['data']
+        assert [row['id'] for row in found['items']] == [parent['id']] and not found['has_more']
+        db.commit()  # Snapshot reads use their own transaction, as after a real MCP call.
+        detail = queries.get_stock_transfer(db, access, parent['id'])['data']
+        assert {c['id'] for c in detail['confirmations']} == set(completions)
+        assert queries.minor_to_yuan(-1) == '-0.01' and queries.minor_to_yuan(12050) == '120.50'
+        assert first['items'][0]['amount_minor'] == 12050 and first['items'][0]['amount'] == '120.50'
+
+
+def test_mcp_auth_discovery_and_structured_results(client):
+    connection = issue(client)
+    for headers in ({}, {'Authorization': 'Bearer invalid'}, {'Cookie': '; '.join(f'{k}={v}' for k, v in client.cookies.items())}):
+        assert client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}, headers=headers).status_code == 401
+
+    async def exercise():
+        async with app.router.lifespan_context(app):
+            async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:8000', headers={'Authorization': f"Bearer {connection['secret']}"}) as http:
+                async with streamable_http_client('http://127.0.0.1:8000/mcp', http_client=http) as streams:
+                    async with ClientSession(streams[0], streams[1]) as session:
+                        await session.initialize()
+                        tools = (await session.list_tools()).tools
+                        names = {tool.name for tool in tools}
+                        assert {'fgas_get_context', 'fgas_list_fund_accounts', 'fgas_propose_fund_transfer'} <= names
+                        assert 'fgas_create_member' not in names
+                        assert all(tool.input_schema and tool.output_schema for tool in tools)
+                        read = await session.call_tool('fgas_list_fund_accounts', {})
+                        assert not read.is_error and read.structured_content['api_version'] == '1'
+                        assert read.structured_content['data']['items']
+                        proposed = await session.call_tool('fgas_propose_fund_transfer', fund_data())
+                        assert not proposed.is_error and proposed.structured_content['data']['status'] == 'pending'
+                        denied = await session.call_tool('fgas_create_member', {'name': '不能猜高权限工具'})
+                        assert denied.is_error
+                        # Disabling the credential affects a new call in the same SDK session.
+                        with Session.begin() as db:
+                            db.get(AgentCredential, connection['credential']['id']).active = False
+                        response = await http.post('http://127.0.0.1:8000/mcp', json={'jsonrpc': '2.0', 'id': 99, 'method': 'tools/list'})
+                        assert response.status_code == 401
+    asyncio.run(exercise())

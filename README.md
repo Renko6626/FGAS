@@ -19,12 +19,7 @@ npm run dev
 
 后端默认 `127.0.0.1:8000`，前端 `5173`，通过 `/api` 代理。当前仅支持 `AUTH_MODE=development` 的占位登录，三档角色为管理员、受信任用户、普通用户。正式 Casdoor SSO 未接入。
 
-本轮是破坏性结构更新，没有 Alembic、旧接口别名或历史账目迁移。升级已有开发库先停止应用，然后显式重建；此命令删除 FGAS 应用表中的全部开发数据，也清理退役表，不处理其他数据库。
-
-```bash
-npm run dev -- --reset-db
-npm run dev
-```
+2026-10-14 的自由账户整理曾显式重建开发表，这是已完成的历史更新，不是本轮升级步骤。Agent 接入使用增量脚本 [scripts/upgrade-agent-access.sql](scripts/upgrade-agent-access.sql)，只创建凭据表并添加可空来源字段，保留旧记录。已有数据库须先确认目标库、备份并明确授权，停止相关服务后显式执行该 SQL，并核对原业务记录保留；本轮尚未升级日常开发库。不要为 Agent 更新运行 `--reset-db`。
 
 普通启动只建缺少的表和初始化种子，不自动清库、不升级旧表。2026-10-15 新增 SKU 图片字段；此前已有数据库可显式执行 `ALTER TABLE skus ADD COLUMN IF NOT EXISTS avatar_url VARCHAR;`，仅加可空列，保留原数据；新库由 metadata 建立该列。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
 
@@ -38,11 +33,12 @@ npm run dev
 
 ## HTTP 契约
 
-所有业务入口位于 `/api`，有效开发会话可读，目录维护、匹配和人工审批要求受信任用户或管理员。
+人工业务入口位于 `/api`，有效开发会话可读，目录维护、匹配和人工审批要求受信任用户或管理员。
 
 | 路径 | 功能 |
 | --- | --- |
 | `/auth/users`、`/auth/login`、`/auth/logout`、`/auth/me` | 开发登录 |
+| `/agent-credentials`、`/agent-credentials/{id}` | 人工 Cookie 会话管理连接：列表、签发、修改；明文只在签发时返回 |
 | `/users`、`/users/{id}` | 管理员管理本系统用户 |
 | `/members`、`/members/{id}` | 联系人目录，列表/创建/修改；不自动建账 |
 | `/accounts`、`/accounts/{id}` | 资金账户列表/创建/修改 |
@@ -85,3 +81,46 @@ npm run build
 测试脚本仅允许 `fgas_test`，每次集中运行先重建该测试库的 FGAS 表；不要把日常开发库传给测试。测试使用真实数据库及 HTTP 生产路径。前端验证为 TypeScript 检查和生产构建，未经要求不做浏览器自动点击/填表。
 
 正式登录、附件、生产部署、备份恢复尚未验收，本轮不实现估值、利润、订单、清点明细或请求恢复。
+
+## Agent 接入（draft）
+
+后端通过官方 `mcp==2.3.0` Streamable HTTP 在 `http://127.0.0.1:8000/mcp` 提供业务工具。先由人工登录“Agent 连接”签发令牌，再由客户端运行时提供 `Authorization: Bearer …`。令牌不能作为 `/api` 人工登录会话；Cookie 也不能代替 MCP Bearer。明文仅显示一次，丢失请新建连接，勿放入对话、仓库或工具参数。
+
+受信任用户只能签发自己的 low，管理员可签自己的 low/high；普通用户不能签发。low/high 共用16个读取工具、`fgas_get_context` 和3个固定待审提议。high 另有30个直接业务工具，包括目录、审批、更正、结算、保管及盘点。连接及所属用户的启停、角色和过期时间每次调用重新检查。Agent 均不能管理登录用户、角色或连接。业务说明见 [Agent 指南](docs/ai/guide.md)。
+
+以下变量由启动客户端的运行时安全注入：`FGAS_MCP_URL` 为上述 URL，`FGAS_AGENT_TOKEN` 为一次性签发所得令牌。回环地址仅供与后端同机的客户端访问；另一台机器的 `127.0.0.1` 指向它自己。当前保留 SDK 默认回环 Host 校验；自定义域名、远程 HTTPS、OAuth 和部署尚未联调。
+
+DeepSeek Harness 0.1.5-rc.3 的 `cordis.yml` 插件条目如下。字段及 `!!js` 环境变量写法依据其已安装官方包 README/Config；工具名称在 Harness 中为 `mcp__fgas__fgas_*`；本轮已用实际 MCP 插件/ToolRuntime 在专用测试库验证两档发现、读取、待审提交及high直接过账，未调用模型。将条目加入现有配置，不需要改变模型或调用模型完成连接验证。
+
+```yaml
+- id: mcp-fgas
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: fgas
+    transport: streamable-http
+    url: !!js process.env.FGAS_MCP_URL
+    headers:
+      Authorization: !!js '`Bearer ${process.env.FGAS_AGENT_TOKEN}`'
+    reconnect:
+      enabled: false
+```
+
+DSH 插件来源：[官方 MCP 客户端说明](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/mcp/mcp-client)。关闭重连方便本地人工排查；客户端不得自动重发业务写操作。
+
+OpenCode 的 `opencode.json` 使用标准远程配置，依据 [官方 MCP 文档](https://opencode.ai/docs/mcp-servers/#disabling-oauth)。本机未安装 OpenCode，下面配置尚未由实际 OpenCode 联调。
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "fgas": {
+      "type": "remote",
+      "url": "{env:FGAS_MCP_URL}",
+      "oauth": false,
+      "headers": {"Authorization": "Bearer {env:FGAS_AGENT_TOKEN}"}
+    }
+  }
+}
+```
+
+成功连接后先调用 `fgas_get_context`，再通过目录查询取得真实 ID。`fgas_propose_*` 对两档始终 pending；high 直接资金过账，货物创建只进在途，另行确认完成才记库存。调用成功保存返回 ID；断线后查记录并人工核对，不自动重发或认为协议请求 ID 能去重。结果、查询分页和 Patch 规则以工具 Schema 与指南为准。当前仍为未发布草案，实际验证与未做项见阶段记录。
