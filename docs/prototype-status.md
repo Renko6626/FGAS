@@ -258,3 +258,11 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 客户端环境为 DSH CLI/官方MCP插件 **0.1.5-rc.3**、Codex CLI0.162.1；OpenCode未安装。Python SDK使用httpx2 **2.13.1**。DSH实际Cordis4.0.2/ToolRuntime挂载官方MCP插件，在临时127.0.0.1:58438、专用fgas_test上分别完成low20工具/high50工具标准发现、各读取4资金账户，以及low0.01元待审提议和high0.01元直接资金过账。low返回pending/ledger_effect_applied=false/approval_required=true，high返回posted/ledger_effect_applied=true/approval_required=false；真实PG按各提交连接核对ID **bab6de3a-3d27-4ac7-94d7-db676ee41eb1**、**bb35884d-994b-4fba-9559-7341cdcc7c4e** 和来源名称“DSH真实客户端验证”“DSH高权限客户端验证”。这是实际客户端插件协议调用，未调用模型、修改个人长期配置或创建日常真实账目；临时服务已停止，最终runner已清理这些测试记录。OpenCode配置只按官方文档核实，尚未做第二客户端发现/读取；Codex版本可用不作为联调证据。
 
 日常开发库未执行Agent增量SQL、升级或重建；脚本仅准备。未启动浏览器自动交互、未截图、未做生产发布/部署、远程域名或OAuth验收。DSH检查未包含LLM编排。实现和验证证据保存在任务8报告及临时日志，当前仍为未发布草案。
+
+### 2026-10-19：Agent 分支整合核对
+
+`feature/agent-access` 的 `7f83581` 包含 `main` 和前端阶段 `27ccb3b`，两者均为其祖先，可快进整合。核对前工作区干净。历史 DSH 脚本 `/tmp/fgas-dsh-check.py`、`/tmp/fgas-dsh-client.mjs` 与原始日志 `/tmp/fgas-task8-dsh.log` 一致：实际加载官方 MCP 插件和 ToolRuntime，low/high 分别发现20/50工具、读取账户并提交0.01元，随后按连接核对 PostgreSQL 的 pending/posted 状态及来源。该证据不包含模型自主编排。
+
+本次 `./tools/run_tests.sh` 打印 `Test database: fgas_test`，退出0，31 passed in 84.01s；`npm run build` 的 vue-tsc 和 Vite 均通过，主包511.05kB，保留默认体积提示。尝试重跑 DSH 前发现旧 npm 临时路径已失效，仅在新临时脚本改为解析当前 DSH 安装路径；脚本在首次连接专用数据库时被沙箱以 `Operation not permitted` 拒绝，未签发凭据、启动服务或提交业务。本次不声称 DSH 再次联调通过，也未修改个人 DSH 配置或日常库。
+
+整合检查发现 Dockerfile 只复制 backend，而 MCP 模块导入时读取 `docs/ai/guide.md`，导致容器启动缺文件。按镜像文件布局在临时目录复现 FileNotFoundError，补入 docs/ai 后导入成功；现有 Dockerfile 已补一行 `COPY docs/ai docs/ai`，沿用原部署方式。没有构建或启动实际 Docker 镜像，未升级日常库、合并主线或推送。
