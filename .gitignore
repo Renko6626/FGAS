@@ -1,5 +1,3 @@
-# Git metadata fallback for the managed workspace
-.fgas-git/
 .worktrees/
 .superpowers/
 .runtime/
