@@ -18,5 +18,5 @@ docker build --platform linux/amd64 -f deploy/Dockerfile.web -t "$web_repo:$vers
 docker push "$api_repo:$version"
 docker push "$web_repo:$version"
 
-printf 'Set these in Coolify:\nFGAS_API_IMAGE=%s\nFGAS_WEB_IMAGE=%s\n' \
+printf 'Published images:\nFGAS_API_IMAGE=%s\nFGAS_WEB_IMAGE=%s\n' \
     "$api_repo:$version" "$web_repo:$version"
