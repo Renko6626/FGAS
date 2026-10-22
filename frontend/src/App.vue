@@ -6,6 +6,7 @@ import DashboardView from "./views/DashboardView.vue";
 import {
   api,
   money,
+  type AuthMode,
   type User,
   type Account,
   type StockAccount,
@@ -28,6 +29,7 @@ import StockTransferEditor from "./components/StockTransferEditor.vue";
 import TransferEditor from "./components/TransferEditor.vue";
 import AccountAvatar from "./components/AccountAvatar.vue";
 const user = ref<User | null>(null),
+  mode = ref<AuthMode | null>(null),
   users = ref<User[]>([]),
   selected = ref<string | null>(null),
   accounts = ref<Account[]>([]),
@@ -51,6 +53,13 @@ const trusted = computed(
   () => user.value?.role === "trusted" || user.value?.role === "admin",
 );
 const roles = { admin: "管理员", trusted: "受信任用户", untrusted: "普通用户" };
+const ssoErrors: Record<string, string> = {
+  invalid_state: "登录状态已失效，请重新登录",
+  access_denied: "登录已取消或未获授权",
+  idp_unavailable: "身份服务暂时不可用，请稍后重试",
+  user_disabled: "账号已停用，请联系管理员",
+  login_failed: "登录失败，请重试",
+};
 const mobileNav = ref(false),
   showIdentity = ref(false),
   approvalType = ref("funds");
@@ -134,9 +143,35 @@ function readPageHash() {
   tab.value = nav.value.some((item) => item.value === value) ? value : "home";
   mobileNav.value = false;
 }
-onBeforeUnmount(() => window.removeEventListener("hashchange", readPageHash));
+onBeforeUnmount(() => {
+  window.removeEventListener("hashchange", readPageHash);
+  window.removeEventListener("fgas-session-expired", sessionExpired);
+});
 function createStock() {
   stockEditor.value?.open();
+}
+function readSsoError() {
+  const url = new URL(window.location.href);
+  const code = url.searchParams.get("sso_error");
+  if (!code) return;
+  error.value = ssoErrors[code] || ssoErrors.login_failed!;
+  url.searchParams.delete("sso_error");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+function sessionExpired() {
+  if (!user.value) return;
+  identityEpoch.value++;
+  user.value = null;
+  selected.value = null;
+  showTransfer.value = false;
+  showIdentity.value = false;
+  accounts.value = [];
+  locations.value = [];
+  transfers.value = [];
+  skus.value = [];
+  stock.value = [];
+  members.value = [];
+  error.value = "登录状态已失效，请重新登录";
 }
 
 async function refresh() {
@@ -171,9 +206,13 @@ async function refresh() {
   }
 }
 async function identities() {
-  users.value = await api.users();
+  if (mode.value === "development") users.value = await api.users();
 }
 async function login() {
+  if (mode.value === "casdoor") {
+    window.location.assign("/api/auth/casdoor/login");
+    return;
+  }
   if (!selected.value || switching.value) return;
   switching.value = true;
   busy.value = true;
@@ -242,15 +281,20 @@ function create(isOpening = false) {
   showTransfer.value = true;
 }
 onMounted(async () => {
+  window.addEventListener("fgas-session-expired", sessionExpired);
+  readSsoError();
   try {
-    await identities();
+    mode.value = (await api.authConfig()).mode;
+    if (mode.value === "development") await identities();
     try {
       user.value = await api.me();
       selected.value = user.value.id;
-    } catch {}
+    } catch {
+      user.value = null;
+    }
     readPageHash();
     window.addEventListener("hashchange", readPageHash);
-    await refresh();
+    if (user.value) await refresh();
   } catch (e) {
     error.value = (e as Error).message;
   }
@@ -302,7 +346,9 @@ onMounted(async () => {
             </button>
           </div>
         </nav>
-        <div class="sidebar-foot">开发环境<span>人民币</span></div>
+        <div class="sidebar-foot">
+          {{ mode === "casdoor" ? "正式环境" : "开发环境" }}<span>人民币</span>
+        </div>
       </aside>
       <div class="workspace-body">
         <header class="workspace-header">
@@ -534,6 +580,7 @@ onMounted(async () => {
             />
             <UsersView
               v-else-if="tab === 'users' && user.role === 'admin'"
+              :current-user-id="user.id"
               @changed="permissionChanged"
             />
           </section>
@@ -566,24 +613,37 @@ onMounted(async () => {
       <NModal
         v-model:show="showIdentity"
         preset="card"
-        title="开发账号"
+        :title="mode === 'casdoor' ? '当前账号' : '开发账号'"
         class="dialog compact-dialog"
       >
-        <label
-          >选择账号<NSelect
-            v-model:value="selected"
-            :options="
-              users
-                .filter((u) => u.active)
-                .map((u) => ({
-                  label: `${u.display_name}（${roles[u.role]}）`,
-                  value: u.id,
-                }))
-            "
-        /></label>
+        <template v-if="mode === 'development'">
+          <label
+            >选择账号<NSelect
+              v-model:value="selected"
+              :options="
+                users
+                  .filter((u) => u.active)
+                  .map((u) => ({
+                    label: `${u.display_name}（${roles[u.role]}）`,
+                    value: u.id,
+                  }))
+              "
+          /></label>
+        </template>
+        <p v-else>
+          <strong>{{ user.display_name }}</strong>
+          <small>{{ roles[user.role] }}</small>
+        </p>
+        <p v-if="mode === 'casdoor'" class="muted">
+          通过 Casdoor 登录。退出 FGAS 不会退出 Casdoor。
+        </p>
         <div class="actions">
           <NButton @click="logout">退出登录</NButton
-          ><NButton type="primary" :loading="switching" @click="login"
+          ><NButton
+            v-if="mode === 'development'"
+            type="primary"
+            :loading="switching"
+            @click="login"
             >切换账号</NButton
           >
         </div>
@@ -593,27 +653,40 @@ onMounted(async () => {
       <div class="login-card fantasy_guide_div_1">
         <h1>FGAS</h1>
         <h2>资金与库存工作台</h2>
-        <label
-          >开发账号<NSelect
-            v-model:value="selected"
-            placeholder="选择账号"
-            :options="
-              users
-                .filter((u) => u.active)
-                .map((u) => ({
-                  label: `${u.display_name}（${roles[u.role]}）`,
-                  value: u.id,
-                }))
-            " /></label
-        ><NButton
-          type="primary"
-          size="large"
-          block
-          :disabled="!selected"
-          :loading="busy || switching"
-          @click="login"
-          >进入工作台</NButton
-        >
+        <template v-if="mode === 'development'">
+          <label
+            >开发账号<NSelect
+              v-model:value="selected"
+              placeholder="选择账号"
+              :options="
+                users
+                  .filter((u) => u.active)
+                  .map((u) => ({
+                    label: `${u.display_name}（${roles[u.role]}）`,
+                    value: u.id,
+                  }))
+              " /></label
+          ><NButton
+            type="primary"
+            size="large"
+            block
+            :disabled="!selected"
+            :loading="busy || switching"
+            @click="login"
+            >进入工作台</NButton
+          >
+        </template>
+        <template v-else-if="mode === 'casdoor'">
+          <NButton
+            tag="a"
+            href="/api/auth/casdoor/login"
+            type="primary"
+            size="large"
+            block
+            >使用 Casdoor 登录</NButton
+          >
+          <p class="muted">首次登录会自动创建普通用户，角色由管理员授予。</p>
+        </template>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
     </main>

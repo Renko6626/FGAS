@@ -20,10 +20,17 @@ services:
     image: ${FGAS_API_IMAGE:-fgas-api:local}
     restart: unless-stopped
     environment:
-      AUTH_MODE: development
+      AUTH_MODE: ${AUTH_MODE:-casdoor}
       DATABASE_URL: postgresql+psycopg2://fgas:${POSTGRES_PASSWORD}@db:5432/fgas
-      INITIAL_ADMIN_ID: ${INITIAL_ADMIN_ID:-admin}
+      CASDOOR_ISSUER: ${CASDOOR_ISSUER:-}
+      CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID:-}
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:-}
+      CASDOOR_REDIRECT_URI: ${CASDOOR_REDIRECT_URI:-}
+      CASDOOR_SCOPE: ${CASDOOR_SCOPE:-openid profile email}
+      INITIAL_ADMIN_SUBJECT: ${INITIAL_ADMIN_SUBJECT:-}
       INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-管理员}
+      INITIAL_ADMIN_ID: ${INITIAL_ADMIN_ID:-admin}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     depends_on:
       db:

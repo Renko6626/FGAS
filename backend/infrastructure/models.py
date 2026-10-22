@@ -8,10 +8,16 @@ def now(): return datetime.now(timezone.utc)
 class Base(DeclarativeBase): pass
 class User(Base):
     __tablename__ = 'users'
+    __table_args__ = (Index('users_sso_subject_key', 'sso_subject', unique=True, postgresql_where=text('sso_subject IS NOT NULL')),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     display_name: Mapped[str] = mapped_column(String)
     role: Mapped[str] = mapped_column(String)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sso_subject: Mapped[str | None] = mapped_column(String, nullable=True)
+    sso_username: Mapped[str | None] = mapped_column(String, nullable=True)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 class AgentCredential(Base):
     __tablename__ = 'agent_credentials'
     __table_args__ = (CheckConstraint("level IN ('low','high')"),)
@@ -25,8 +31,11 @@ class AgentCredential(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 class LoginSession(Base):
     __tablename__ = 'login_sessions'
+    __table_args__ = (Index('login_sessions_user_id_key', 'user_id'), Index('login_sessions_expires_at_key', 'expires_at'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 class FundAccount(Base):
     __tablename__ = 'fund_accounts'
     __table_args__ = (CheckConstraint("kind IN ('public','private','external')"),)

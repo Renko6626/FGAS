@@ -17,9 +17,9 @@ cp .env.example .env
 npm run dev
 ```
 
-后端默认 `127.0.0.1:8000`，前端 `5173`，通过 `/api` 代理。当前仅支持 `AUTH_MODE=development` 的占位登录，三档角色为管理员、受信任用户、普通用户。正式 Casdoor SSO 未接入。
+后端默认 `127.0.0.1:8000`，前端 `5173`，通过 `/api` 代理。认证由 `AUTH_MODE` 切换：本地开发使用 `development` 的账号选择；正式环境使用 `casdoor`，通过既有 Casdoor OIDC 登录。Casdoor 首次登录自动建立本地用户，默认普通用户，角色由管理员在“用户权限”中维护；`INITIAL_ADMIN_SUBJECT` 只在首次建号时把匹配的 Casdoor `sub` 或用户名绑定为管理员。三档角色为管理员、受信任用户、普通用户。
 
-2026-10-14 的自由账户整理曾显式重建开发表，这是已完成的历史更新，不是本轮升级步骤。Agent 接入使用增量脚本 [scripts/upgrade-agent-access.sql](scripts/upgrade-agent-access.sql)，只创建凭据表并添加可空来源字段，保留旧记录。已有数据库须先确认目标库、备份并明确授权，停止相关服务后显式执行该 SQL，并核对原业务记录保留；本轮尚未升级日常开发库。不要为 Agent 更新运行 `--reset-db`。
+2026-10-14 的自由账户整理曾显式重建开发表，这是已完成的历史更新，不是本轮升级步骤。Agent 接入使用增量脚本 [scripts/upgrade-agent-access.sql](scripts/upgrade-agent-access.sql)，只创建凭据表并添加可空来源字段，保留旧记录。已有数据库须先确认目标库、备份并明确授权，停止相关服务后显式执行该 SQL，并核对原业务记录保留；本轮尚未升级日常开发库。不要为 Agent 更新运行 `--reset-db`。用户认证升级使用 [scripts/upgrade-user-auth.sql](scripts/upgrade-user-auth.sql)，为 `users` 和 `login_sessions` 增加 SSO、时间与到期字段；正式新库由 metadata 建表，不需要执行。
 
 普通启动只建缺少的表和初始化种子，不自动清库、不升级旧表。2026-10-15 新增 SKU 图片字段；此前已有数据库可显式执行 `ALTER TABLE skus ADD COLUMN IF NOT EXISTS avatar_url VARCHAR;`，仅加可空列，保留原数据；新库由 metadata 建立该列。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
 
@@ -34,7 +34,7 @@ npm run dev
 
 首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。原来的 [PM2 原生方式](deploy/README.native.md) 保留备用。数据库只在首次部署时显式初始化，普通更新不初始化、不执行升级 SQL。
 
-目前仍为开发登录，默认只监听服务器本机的 8080 端口。正式公网使用还需完成 Casdoor 接入；部署脚本不代表正式上线已验收。
+Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应用并填写回调地址、client id/secret 和初始管理员。默认只监听服务器本机的 8080 端口；HTTPS 站点必须设置 `COOKIE_SECURE=true`。真实 Casdoor 联调、域名和 HTTPS 验收尚未完成，部署脚本不代表正式上线已验收。
 
 ## 账户与标签
 
@@ -46,13 +46,17 @@ npm run dev
 
 ## HTTP 契约
 
-人工业务入口位于 `/api`，有效开发会话可读，目录维护、匹配和人工审批要求受信任用户或管理员。
+人工业务入口位于 `/api`，有效登录会话可读，目录维护、匹配和人工审批要求受信任用户或管理员。
 
 | 路径 | 功能 |
 | --- | --- |
-| `/auth/users`、`/auth/login`、`/auth/logout`、`/auth/me` | 开发登录 |
+| `/auth/config` | 公开返回当前登录模式 |
+| `/auth/users`、`/auth/login` | 仅 development 模式可用的开发登录 |
+| `/auth/casdoor/login`、`/auth/casdoor/callback` | 仅 casdoor 模式可用的 OIDC 登录（授权码 + PKCE） |
+| `/auth/logout`、`/auth/me` | 退出登录与当前用户 |
 | `/agent-credentials`、`/agent-credentials/{id}` | 人工 Cookie 会话管理连接：列表、签发、修改；明文只在签发时返回 |
-| `/users`、`/users/{id}` | 管理员管理本系统用户 |
+| `/users`、`/users/{id}` | 管理员查看用户、修改角色和启停；最后一名启用管理员受保护 |
+| `/users/{id}/logout` | 管理员强制撤销该用户全部网页会话 |
 | `/members`、`/members/{id}` | 联系人目录，列表/创建/修改；不自动建账 |
 | `/accounts`、`/accounts/{id}` | 资金账户列表/创建/修改 |
 | `/stock-accounts`、`/stock-accounts/{id}` | 货物账户列表/创建/修改 |
@@ -91,9 +95,9 @@ npm run dev
 npm run build
 ```
 
-测试脚本仅允许 `fgas_test`，每次集中运行先重建该测试库的 FGAS 表；不要把日常开发库传给测试。测试使用真实数据库及 HTTP 生产路径。前端验证为 TypeScript 检查和生产构建，未经要求不做浏览器自动点击/填表。
+测试脚本仅允许 `fgas_test`，每次集中运行先重建该测试库的 FGAS 表；不要把日常开发库传给测试。测试使用真实数据库及 HTTP 生产路径，Casdoor 流程通过 mock IdP 覆盖，不访问外部服务。前端验证为 TypeScript 检查和生产构建，未经要求不做浏览器自动点击/填表。
 
-正式登录、附件、生产部署、备份恢复尚未验收，本轮不实现估值、利润、订单、清点明细或请求恢复。
+真实 Casdoor 联调、附件、生产部署、备份恢复尚未验收，本轮不实现估值、利润、订单、清点明细或请求恢复。
 
 ## Agent 接入（MCP v2，开发阶段）
 

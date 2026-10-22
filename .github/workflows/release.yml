@@ -49,11 +49,20 @@ jobs:
           tar -xzf ".releases/fgas-$VERSION.tar.gz" -C "$RUNNER_TEMP/fgas/releases"
           cp deploy/env.example "$RUNNER_TEMP/fgas/.env"
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" "$RUNNER_TEMP/fgas/.env"
+          # The smoke test runs offline; give Casdoor config placeholders so startup validation passes.
+          sed -i \
+            -e 's|^CASDOOR_ISSUER=.*|CASDOOR_ISSUER=https://idp.example.test|' \
+            -e 's|^CASDOOR_CLIENT_ID=.*|CASDOOR_CLIENT_ID=ci-client|' \
+            -e 's|^CASDOOR_CLIENT_SECRET=.*|CASDOOR_CLIENT_SECRET=ci-secret|' \
+            -e 's|^CASDOOR_REDIRECT_URI=.*|CASDOOR_REDIRECT_URI=https://fgas.example.test/api/auth/casdoor/callback|' \
+            -e 's|^INITIAL_ADMIN_SUBJECT=.*|INITIAL_ADMIN_SUBJECT=ci-admin|' \
+            "$RUNNER_TEMP/fgas/.env"
           # Exercise the same complete-image loading path as an offline manual release.
           docker pull postgres:14
           docker image save -o "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/images.tar" "$PREFIX-api:$VERSION" "$PREFIX-web:$VERSION" postgres:14
           bash "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/apply-release.sh" --init-db
           curl --fail http://127.0.0.1:8080/api/health
+          curl --fail http://127.0.0.1:8080/api/auth/config | grep -q '"mode":"casdoor"'
           curl --fail http://127.0.0.1:8080/ > /dev/null
           curl --fail http://127.0.0.1:8080/agent-setup.md > /dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/mcp)" = 401

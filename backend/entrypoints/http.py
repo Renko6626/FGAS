@@ -1,10 +1,10 @@
-import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse, RedirectResponse
+from backend.infrastructure import auth_config
 from backend.infrastructure.store import transaction as database
 from backend.kernel.accounting import DomainError
-from backend.application import funds, catalogs, warehouse_catalogs, members as member_service, settlements, identity as identities
+from backend.application import funds, catalogs, warehouse_catalogs, members as member_service, settlements, identity as identities, sso
 from backend.entrypoints.schemas import *
 from backend.entrypoints.agent_schemas import CredentialCreate, CredentialPatch
 from backend.application import agent_access
@@ -12,10 +12,9 @@ from backend.entrypoints.mcp import create_mcp_app
 
 mcp_app = create_mcp_app()
 
-AUTH_MODE = os.getenv('AUTH_MODE', '')
 @asynccontextmanager
 async def lifespan(app):
-    if AUTH_MODE != 'development': raise RuntimeError('Only explicit AUTH_MODE=development is available in this prototype')
+    auth_config.validate_auth_config()
     global mcp_app
     previous = mcp_app
     current = create_mcp_app()
@@ -26,23 +25,58 @@ async def lifespan(app):
     finally:
         mcp_app = mcp_mount.app = previous
 
-app = FastAPI(title='FGAS development funds prototype', lifespan=lifespan)
+app = FastAPI(title='FGAS 资金与库存工作台', lifespan=lifespan)
 @app.exception_handler(DomainError)
 async def domain_error(request, exc): return JSONResponse(status_code=exc.status, content={'detail': str(exc)})
 def identity(request: Request, db=Depends(database)):
     return identities.resolve(db, request.cookies.get('fgas_session'))
+def require_mode(expected):
+    if auth_config.auth_mode() != expected: raise HTTPException(status_code=404, detail='Not Found')
+def set_session_cookie(response, token):
+    response.set_cookie('fgas_session', token, httponly=True, samesite='lax',
+                        secure=auth_config.cookie_secure(), max_age=int(auth_config.session_ttl().total_seconds()))
 
 @app.get('/api/health')
 def health(db=Depends(database)):
-    return identities.health(db, AUTH_MODE)
+    return identities.health(db, auth_config.auth_mode())
+@app.get('/api/auth/config')
+def auth_config_view():
+    return {'mode': auth_config.auth_mode()}
 @app.get('/api/auth/users')
 def login_users(db=Depends(database)):
+    require_mode('development')
     return identities.login_users(db)
 @app.post('/api/auth/login')
 def login(data: Login, response: Response, db=Depends(database)):
+    require_mode('development')
     user, token = identities.login(db, data.user_id)
-    response.set_cookie('fgas_session', token, httponly=True, samesite='lax', secure=os.getenv('COOKIE_SECURE', 'false') == 'true')
+    set_session_cookie(response, token)
     return user
+@app.get('/api/auth/casdoor/login')
+def casdoor_login():
+    require_mode('casdoor')
+    location, state = sso.begin()
+    response = RedirectResponse(location, status_code=303)
+    response.set_cookie(sso.STATE_COOKIE, state, max_age=sso.STATE_MAX_AGE, path='/api/auth/casdoor',
+                        httponly=True, samesite='lax', secure=auth_config.cookie_secure())
+    return response
+@app.get('/api/auth/casdoor/callback')
+def casdoor_callback(request: Request, code: str | None=None, state: str | None=None, error: str | None=None, db=Depends(database)):
+    require_mode('casdoor')
+    def finish_redirect(reason=None):
+        response = RedirectResponse(f'/?sso_error={reason}' if reason else '/', status_code=303)
+        response.delete_cookie(sso.STATE_COOKIE, path='/api/auth/casdoor')
+        return response
+    if error: return finish_redirect('access_denied')
+    try:
+        user = sso.provision(db, sso.finish(code, state, request.cookies.get(sso.STATE_COOKIE)))
+        _, token = identities.session_for(db, user)
+    except DomainError as exc:
+        reason = {400: 'invalid_state', 403: 'user_disabled', 502: 'idp_unavailable'}.get(exc.status, 'login_failed')
+        return finish_redirect(reason)
+    response = finish_redirect()
+    set_session_cookie(response, token)
+    return response
 @app.post('/api/auth/logout')
 def logout(request: Request, response: Response, db=Depends(database)):
     identities.logout(db, request.cookies.get('fgas_session'))
@@ -54,8 +88,15 @@ def me(user=Depends(identity)): return identities.user_view(user)
 def users(user=Depends(identity), db=Depends(database)):
     return identities.users(db, user)
 @app.patch('/api/users/{identifier}')
-def update_user(identifier: str, data: UserPatch, user=Depends(identity), db=Depends(database)):
-    return identities.update_user(db, user, identifier, data.model_dump(exclude_none=True))
+def update_user(identifier: str, data: UserPatch, response: Response, user=Depends(identity), db=Depends(database)):
+    item = identities.update_user(db, user, identifier, data.model_dump(exclude_none=True))
+    if item['id'] == user.id and not item['active']: response.delete_cookie('fgas_session')
+    return item
+@app.post('/api/users/{identifier}/logout')
+def force_logout(identifier: str, response: Response, user=Depends(identity), db=Depends(database)):
+    result = identities.force_logout(db, user, identifier)
+    if result['self']: response.delete_cookie('fgas_session')
+    return result
 @app.get('/api/agent-credentials')
 def agent_credentials(user=Depends(identity), db=Depends(database)):
     return agent_access.list_credentials(db, user)

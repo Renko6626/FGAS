@@ -1,6 +1,9 @@
-"""Cohesive persistence adapter for the development identity, catalogs and funds."""
+"""Cohesive persistence adapter for identity, catalogs and funds."""
+import secrets
 from contextlib import contextmanager
-from sqlalchemy import select, text, func
+from datetime import datetime, timezone
+from sqlalchemy import select, text, func, delete
+from backend.infrastructure import auth_config
 from backend.infrastructure.database import Session, engine
 from backend.infrastructure.models import Base, User, LoginSession, FundAccount, StockAccount, Transfer, JournalLine, Audit, Member
 
@@ -22,18 +25,32 @@ def users(db, active_only=False):
     query = select(User)
     if active_only: query = query.where(User.active.is_(True)).order_by(User.display_name)
     return list(db.scalars(query))
+def user_by_sso_subject(db, subject):
+    return db.scalar(select(User).where(User.sso_subject == subject))
+
 def session_user(db, token):
     session = db.get(LoginSession, token) if token else None
-    return get_user(db, session.user_id) if session else None
+    if not session or session.expires_at <= datetime.now(timezone.utc): return None
+    return get_user(db, session.user_id)
 
 def create_session(db, user_id):
-    session = LoginSession(user_id=user_id)
+    now = datetime.now(timezone.utc)
+    db.execute(delete(LoginSession).where(LoginSession.expires_at <= now))
+    session = LoginSession(id=secrets.token_urlsafe(32), user_id=user_id, expires_at=now + auth_config.session_ttl())
     db.add(session); db.flush()
     return session.id
 
 def delete_session(db, token):
     session = db.get(LoginSession, token) if token else None
     if session: db.delete(session)
+
+def delete_sessions_for_user(db, user_id):
+    result = db.execute(delete(LoginSession).where(LoginSession.user_id == user_id))
+    return result.rowcount or 0
+
+def other_active_admin_count(db, user_id):
+    return int(db.scalar(select(func.count()).select_from(User).where(
+        User.role == 'admin', User.active.is_(True), User.id != user_id)))
 
 def accounts(db, tag=None, kind=None, member_id=None):
     return catalog_items(db, FundAccount, tag, kind, member_id)

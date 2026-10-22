@@ -2,7 +2,7 @@
 
 日常更新按“拉代码 → 构建 → 重启”处理。后端用 PM2 管理，前端构建后由服务器上的静态网站服务提供，数据库使用现有 PostgreSQL。
 
-目前 FGAS 仍使用开发账号选择登录，只适合本机、内网或有外部访问限制的试用环境。正式公网使用前还需要完成 Casdoor 登录接入。这份文档整理运行和更新方式，不会自动开放网站或安装系统服务。
+登录支持 `development` 与 `casdoor` 两种模式。本机或内网试用可用开发账号选择；正式环境使用既有 Casdoor OIDC，需要先在 Casdoor 建立应用并填写回调地址、client id/secret 和初始管理员。真实 Casdoor 联调、域名和 HTTPS 尚未验收。这份文档整理运行和更新方式，不会自动开放网站或安装系统服务。
 
 ## 第一次部署
 
@@ -24,7 +24,7 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-编辑 `.env`，把 `DATABASE_URL` 换成实际连接信息。默认后端端口为 `API_PORT=8000`，只监听 `127.0.0.1`。HTTPS 网站使用 `COOKIE_SECURE=true`；本机 HTTP 试用保留 false。当前 `AUTH_MODE` 只能是 development，不能改成 production 来代替正式登录接入。
+编辑 `.env`，把 `DATABASE_URL` 换成实际连接信息。默认后端端口为 `API_PORT=8000`，只监听 `127.0.0.1`。HTTPS 网站使用 `COOKIE_SECURE=true`；本机 HTTP 试用保留 false。`AUTH_MODE` 可选 `development` 或 `casdoor`：`casdoor` 时必须填写 `CASDOOR_ISSUER`、`CASDOOR_CLIENT_ID`、`CASDOOR_CLIENT_SECRET`、与 Casdoor 应用登记完全一致的 `CASDOOR_REDIRECT_URI`，以及用于绑定第一个管理员的 `INITIAL_ADMIN_SUBJECT`（优先填 Casdoor `sub`）。不要复用其他工具的 `CASDOOR_KEY` / `CASDOOR_SECRET`。
 
 PM2 配置从项目根目录读取 `.env`，文件中的值优先于同名环境变量。文件没写的项可以从启动命令的环境变量读取；没有 DATABASE_URL 会直接报错，不会猜测数据库地址。
 
@@ -36,7 +36,7 @@ npm run db:init
 
 初始化使用与 PM2 相同的数据库配置，创建缺少的表和初始目录，不带清库参数。不要把其他系统的数据库拿来初始化，也不要在部署时使用 `--reset`、`--reset-db` 或测试脚本。
 
-如果接手的是已有 FGAS 数据库，先查看版本和更新说明。初始化不会给旧表自动增加字段；例如早期版本的 Agent 接入升级使用 [upgrade-agent-access.sql](../scripts/upgrade-agent-access.sql)，需要先核对目标库和备份，再按确认后的步骤执行。
+如果接手的是已有 FGAS 数据库，先查看版本和更新说明。初始化不会给旧表自动增加字段；例如早期版本的 Agent 接入升级使用 [upgrade-agent-access.sql](../scripts/upgrade-agent-access.sql)，本版本的网页认证升级使用 [upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)。两者都需要先核对目标库和备份，停止相关服务后再按确认后的步骤显式执行；正式新库由初始化直接建表，不需要执行。
 
 构建前端，启动后端：
 
@@ -91,6 +91,8 @@ location = /mcp {
 MCP 转发中的 Host 使用本机后端地址，与当前 SDK 的回环 Host 校验相配合。原始 Origin 仍会传入后端；如果以后要从浏览器直接调用 MCP，还需按实际域名配置 SDK 的 Origin 许可，不能靠删除 Origin 或关闭认证绕过。[Nginx 转发头说明](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header)
 
 网页打开后，检查 `/agent-setup.md` 能读到 Markdown，登录后的 API 可以访问，再按指南连接 MCP 做一次只读查询。直接打开 `/mcp` 得到401只是说明需要密钥，不是完整的 MCP 验收。
+
+Casdoor 模式下，首次登录会自动建立本地用户并默认为普通用户；只有首次建号时匹配 `INITIAL_ADMIN_SUBJECT` 的用户成为管理员，之后角色由“用户权限”页面维护。管理员可停用用户或强制下线：停用会撤销网页会话并阻止 Agent 访问，强制下线只撤销网页会话，不撤销 MCP 凭据。Casdoor 侧退出不会撤销已有 FGAS 会话。最后一名启用管理员不能被降级或停用。
 
 ## 平时更新
 

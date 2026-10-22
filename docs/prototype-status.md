@@ -1,6 +1,6 @@
 # 阶段记录：资金、成员往来与库存原型
 
-当前记录更新至 2026-10-14，对应架构 v0.4 / Part 1。以下按日期保留历史检查点；当前库存范围与验证见末尾“库存实现与集中核对”，不能把早期未实现或受阻说明当成当前状态。
+当前记录更新至 2026-10-22，对应架构 v0.4 / Part 1。以下按日期保留历史检查点；当前库存范围与验证见末尾“库存实现与集中核对”，不能把早期未实现或受阻说明当成当前状态。
 
 初始检查点日期：2026-10-12，阶段标记：`checkpoint/fund-pool-prototype-20261012`。
 
@@ -319,3 +319,14 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 实际验证：三个脚本与工作流shell步骤bash -n通过，工作流YAML解析通过；运行/构建Compose配置解析通过并核对服务、端口及卷名；真实生成并解包GHCR发布包，核对镜像引用，临时目录验证首次生成0600配置模板并停止，以及无效参数拒绝。npm run build通过，保留约511kB主JS提示。独立只读代码审阅无必修问题。
 
 Docker daemon访问被permission denied拒绝，未构建真实镜像、启动容器或验证Nginx/MCP运行；工作流中的容器检查也尚未运行。未执行远程SSH、GHCR发布、GitHubSecrets配置、数据库操作或浏览器交互。当前开发登录仍不构成正式公网认证，实际服务器验收留待具备Docker权限及部署参数后进行。
+
+
+### 2026-10-22：Casdoor 登录与用户生命周期
+
+按用户确认的方案，正式环境统一使用既有 Casdoor OIDC，角色仍由 FGAS 本地维护。新增 `AUTH_MODE=development|casdoor`：开发模式保留账号选择；casdoor 模式关闭开发登录，只提供授权码 + PKCE S256 + HMAC 签名 state 的 Casdoor 路由。发现文档懒加载并缓存 5 分钟，code 换 token 后调用 userinfo，要求非空 `sub`；不验签 ID token、不保存 token，也不读取用户现有的 Casdoor 管理凭据。
+
+首次 Casdoor 登录自动建立本地 UUID 用户，默认 `untrusted`；`INITIAL_ADMIN_SUBJECT` 只在首次建号时匹配 Casdoor `sub` 或用户名并授予 `admin`，之后登录不再改角色。`users` 新增可空且唯一的 `sso_subject`、`sso_username`、`email`、`last_login_at`、`created_at`；`login_sessions` 新增绝对到期和创建时间，默认 168 小时，运行时清理过期会话。已有开发库使用非破坏脚本 `scripts/upgrade-user-auth.sql`，正式新库由 metadata 建表。
+
+管理员用户页展示来源、Casdoor 用户名、缩短的 subject、邮箱和最后登录；可修改角色、启停、强制下线。最后一名启用管理员不可降级或停用；停用和强制下线删除目标全部网页会话，停用同时阻止 Agent。强制下线不撤销 MCP 凭据。前端按模式渲染登录页，处理 `sso_error` 和 401 会话失效事件。Compose 默认切换为 `casdoor`，环境变量示例、CI 冒烟断言和部署文档同步。
+
+验证：`./tools/run_tests.sh` 的 50 项测试全部通过，包含 `backend/tests/test_auth_casdoor.py` 对重定向/PKCE/state、首次建号、初始管理员、停用、模式门禁、会话过期、强制下线、最后管理员和停用撤销会话的 mock IdP 覆盖，不访问外部网络；`npm run build` 的 vue-tsc 与生产构建通过。未执行真实 Casdoor 应用配置或登录联调、浏览器自动交互、生产部署；未读取或修改用户 Casdoor 实例、`CASDOOR_KEY`/`CASDOOR_SECRET` 或仓库现有 `.env`。

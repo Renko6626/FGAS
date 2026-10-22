@@ -11,7 +11,9 @@
 
 目前仅支持 Linux amd64。Python 依赖在构建镜像时用现有 requirements.txt 安装，服务器不会现场执行 pip 或 uv。手动镜像包还包含 PostgreSQL，目标机无需访问镜像仓库；第一次在本机构建仍需联网下载基础镜像和依赖。
 
-当前登录仍是开发账号选择，只用于本机、受限内网试用。默认入口是服务器的 `127.0.0.1:8080`，不直接开放公网；正式公网使用前仍需完成 Casdoor。原生部署步骤保留在 [README.native.md](README.native.md)。
+登录支持两种模式：本地试用可把 `AUTH_MODE` 设为 `development` 使用账号选择；正式部署默认 `casdoor`，通过既有 Casdoor OIDC 登录。先在 Casdoor 为本系统建立应用，回调地址与 `CASDOOR_REDIRECT_URI` 完全一致，scope 默认 `openid profile email`；再在 `.env` 填写 client id/secret 和 `INITIAL_ADMIN_SUBJECT`。首次登录自动建立本地用户，默认普通用户；初始管理员只按首次登录的 Casdoor `sub` 或用户名绑定一次，之后角色由本系统管理员维护。默认入口是服务器的 `127.0.0.1:8080`，不直接开放公网；正式公网仍需域名、HTTPS 和真实 Casdoor 联调验收。原生部署步骤保留在 [README.native.md](README.native.md)。
+
+不要复用仓库或本机其他工具里的 `CASDOOR_KEY` / `CASDOOR_SECRET`；FGAS 只读取下文的 `CASDOOR_CLIENT_ID` / `CASDOOR_CLIENT_SECRET`。`CASDOOR_REDIRECT_URI` 必须与 Casdoor 应用登记值完全一致，否则登录回调会被拒绝。
 
 ## 第一次准备服务器
 
@@ -30,7 +32,15 @@ chmod 600 /opt/fgas/.env
 openssl rand -hex 24
 ```
 
-将生成的十六进制密码填到 `POSTGRES_PASSWORD=` 后，保留其他默认值即可。密码用十六进制字符，避免数据库 URL 中的特殊字符问题。不要把真实 `.env` 提交到仓库或放进发布包。如果忘了准备，首次执行发布脚本会创建模板并停下，填好后重试即可。
+将生成的十六进制密码填到 `POSTGRES_PASSWORD=` 后，补全 Casdoor 配置：
+
+- `AUTH_MODE` 保持 `casdoor`。
+- `CASDOOR_REDIRECT_URI` 填与 Casdoor 应用登记完全一致的地址，例如 `https://你的域名/api/auth/casdoor/callback`。
+- 填写 `CASDOOR_CLIENT_ID`、`CASDOOR_CLIENT_SECRET`。
+- `INITIAL_ADMIN_SUBJECT` 填第一个管理员的 Casdoor `sub`（优先）或用户名。
+- HTTPS 站点把 `COOKIE_SECURE` 改为 `true`。
+
+密码用十六进制字符，避免数据库 URL 中的特殊字符问题。不要把真实 `.env` 提交到仓库或放进发布包。如果忘了准备，首次执行发布脚本会创建模板并停下，填好后重试即可；Casdoor 必填项缺失时后端会拒绝启动，错误只指出变量名。
 
 配置保存在部署根目录，后续发布不会覆盖。数据库创建后，再改 `.env` 的密码不会修改库内密码；需要另行操作数据库，平时保持不变。
 
@@ -123,7 +133,9 @@ curl --fail http://127.0.0.1:8080/agent-setup.md
 ssh -L 8080:127.0.0.1:8080 deploy@你的服务器
 ```
 
-然后打开 `http://127.0.0.1:8080`。网页里的 Agent 指南使用同源 `/mcp`；另一台电脑连接时也需要能访问这个入口。Nginx 配置已包含 SPA 回退、API 转发、MCP Authorization 透传和关闭响应缓冲，无需另外安装服务器 Nginx。域名、HTTPS 和正式身份接入留待实际站点确定后配置；HTTPS 时在 `.env` 设置 `COOKIE_SECURE=true`。
+然后打开 `http://127.0.0.1:8080`。网页里的 Agent 指南使用同源 `/mcp`；另一台电脑连接时也需要能访问这个入口。Nginx 配置已包含 SPA 回退、API 转发、MCP Authorization 透传和关闭响应缓冲，无需另外安装服务器 Nginx。域名、HTTPS 和真实 Casdoor 联调留待实际站点确定后配置；HTTPS 时在 `.env` 设置 `COOKIE_SECURE=true`，并用同一 HTTPS 域名作为 `CASDOOR_REDIRECT_URI`。
+
+Casdoor 侧退出不会撤销 FGAS 已有网页会话。管理员可在“用户权限”中停用用户或强制下线；停用会同时撤销网页会话并阻止 Agent 继续访问，强制下线只撤销网页会话，不撤销 MCP 凭据。最后一名启用管理员不能被降级或停用。
 
 查看当前容器及日志，不需要记住发布版本：
 
@@ -142,7 +154,7 @@ docker compose --env-file /opt/fgas/.env --env-file release.env -f compose.yaml 
 
 固定项目名为 `fgas`，数据库保存在 `fgas_postgres-data` 卷，替换镜像和普通 `down` 不删除它。**不要执行 `down -v`、删除该卷，或对正式数据库运行测试脚本。** 已有其他 Compose 项目的数据卷不会自动迁移过来；接手旧环境先核对卷名、数据库和版本。
 
-健康接口只检查数据库可连接，不能证明已有库结构已升级。数据库结构变化按版本说明先备份、单独执行 SQL，普通更新不负责迁移。发布目录和镜像不会自动清理；确认不用后手动清理旧文件，数据库备份与恢复仍由维护者负责。
+健康接口只检查数据库可连接，不能证明已有库结构已升级。数据库结构变化按版本说明先备份、单独执行 SQL，普通更新不负责迁移。从开发库升级到本版本需先备份、停服务并确认目标库，再显式执行 [scripts/upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)，为 `users` 和 `login_sessions` 增加 SSO、时间与到期字段；正式新库由 metadata 建表，不需要执行。发布目录和镜像不会自动清理；确认不用后手动清理旧文件，数据库备份与恢复仍由维护者负责。
 
 ## 可选：在服务器从源码构建
 
