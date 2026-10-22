@@ -25,19 +25,16 @@ npm run dev
 
 ## 服务器部署与更新
 
-当前优先使用 Linux 原生部署：PM2 管理后端，前端构建成静态文件，数据库使用服务器上的 PostgreSQL。首次准备环境、建库和配置网站见 [部署说明](deploy/README.md)。Docker 文件保留为备选，不是部署前提。
+推荐使用 Docker Compose：Python 后端、带 Nginx 的静态前端和 PostgreSQL 一起启动，服务器只安装 Docker 与 Compose。
 
-首次安装依赖用 `npm run setup`，确认新建数据库的配置后用 `npm run db:init` 初始化一次。后续没有依赖或数据库结构变化时，日常更新只需要：
+两条发布路径共用同一套配置：
 
-```bash
-git pull --ff-only
-npm run build
-pm2 startOrRestart ecosystem.config.cjs --update-env
-```
+- 手动发布：本机构建完整镜像，打包后通过 SSH 传到服务器加载。
+- 自动发布：GitHub Actions 构建镜像并推送 GHCR，服务器拉取后更新。
 
-逐条执行，失败时先处理错误。依赖变化时在构建前再跑 `npm run setup`；数据库升级按版本说明单独处理，PM2 重启不初始化或重建数据库。`.env` 中可设置 `API_PORT`，默认8000；服务只监听本机，由网站服务转发 `/api/` 和 `/mcp`。
+首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。原来的 [PM2 原生方式](deploy/README.native.md) 保留备用。数据库只在首次部署时显式初始化，普通更新不初始化、不执行升级 SQL。
 
-目前仍为开发登录，正式公网使用还需完成 Casdoor 接入。这里提供部署流程，不代表正式上线已验收。
+目前仍为开发登录，默认只监听服务器本机的 8080 端口。正式公网使用还需完成 Casdoor 接入；部署脚本不代表正式上线已验收。
 
 ## 账户与标签
 

@@ -1,30 +1,52 @@
+name: fgas
+
 services:
   db:
-    image: postgres:14
+    image: ${FGAS_DB_IMAGE:-postgres:14}
+    restart: unless-stopped
     environment:
       POSTGRES_DB: fgas
       POSTGRES_USER: fgas
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the deployment .env}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fgas"]
+      test: ["CMD-SHELL", "pg_isready -U fgas -d fgas"]
       interval: 5s
-      retries: 10
+      timeout: 5s
+      retries: 12
+
   api:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
+    image: ${FGAS_API_IMAGE:-fgas-api:local}
+    restart: unless-stopped
     environment:
       AUTH_MODE: development
       DATABASE_URL: postgresql+psycopg2://fgas:${POSTGRES_PASSWORD}@db:5432/fgas
       INITIAL_ADMIN_ID: ${INITIAL_ADMIN_ID:-admin}
       INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-管理员}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-    ports:
-      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  web:
+    image: ${FGAS_WEB_IMAGE:-fgas-web:local}
+    restart: unless-stopped
+    ports:
+      - "${FGAS_BIND_HOST:-127.0.0.1}:${FGAS_HTTP_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
 volumes:
   postgres-data:

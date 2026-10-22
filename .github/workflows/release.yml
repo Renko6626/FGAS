@@ -1,0 +1,90 @@
+name: Build and deploy
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy to the configured server after publishing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: fgas-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - name: Choose unique image version
+        id: images
+        shell: bash
+        run: |
+          prefix="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version="sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build images
+        env:
+          PREFIX: ${{ steps.images.outputs.prefix }}
+          VERSION: ${{ steps.images.outputs.version }}
+        run: |
+          docker build --platform linux/amd64 --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -f deploy/Dockerfile -t "$PREFIX-api:$VERSION" .
+          docker build --platform linux/amd64 --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -f deploy/Dockerfile.web -t "$PREFIX-web:$VERSION" .
+          bash scripts/package-release.sh "$VERSION" --registry "$PREFIX"
+      - name: Check containers and Nginx
+        env:
+          PREFIX: ${{ steps.images.outputs.prefix }}
+          VERSION: ${{ steps.images.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/fgas/releases"
+          tar -xzf ".releases/fgas-$VERSION.tar.gz" -C "$RUNNER_TEMP/fgas/releases"
+          cp deploy/env.example "$RUNNER_TEMP/fgas/.env"
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" "$RUNNER_TEMP/fgas/.env"
+          # Exercise the same complete-image loading path as an offline manual release.
+          docker pull postgres:14
+          docker image save -o "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/images.tar" "$PREFIX-api:$VERSION" "$PREFIX-web:$VERSION" postgres:14
+          bash "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/apply-release.sh" --init-db
+          curl --fail http://127.0.0.1:8080/api/health
+          curl --fail http://127.0.0.1:8080/ > /dev/null
+          curl --fail http://127.0.0.1:8080/agent-setup.md > /dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/mcp)" = 401
+      - name: Publish to GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREFIX: ${{ steps.images.outputs.prefix }}
+          VERSION: ${{ steps.images.outputs.version }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$PREFIX-api:$VERSION"
+          docker push "$PREFIX-web:$VERSION"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: fgas-release
+          path: .releases/*.tar.gz
+          if-no-files-found: error
+      - name: Deploy over SSH
+        if: (github.event_name == 'workflow_dispatch' && inputs.deploy) || (github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true')
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          VERSION: ${{ steps.images.outputs.version }}
+        run: |
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER" && test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS" && test -n "$DEPLOY_PATH"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          printf 'Host *\n  BatchMode yes\n  StrictHostKeyChecking yes\n' > ~/.ssh/config
+          bash scripts/push-release.sh ".releases/fgas-$VERSION.tar.gz" "$DEPLOY_USER@$DEPLOY_HOST" "$DEPLOY_PATH"

@@ -308,3 +308,14 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 验证：`node --check ecosystem.config.cjs`、`node --check scripts/init-db.mjs`通过；使用本机PM2 7.0.3的真实Common.parseConfig在临时目录解析配置，核对cwd、Python执行参数、.env优先级及缺少数据库配置的错误，未启动PM2守护进程。`npm run build`通过，保留现有约511.05kB主JS体积提示；`git --git-dir=.fgas-git --work-tree=. diff --check`通过。未新增永久测试。
 
 未执行setup安装依赖或db:init，未启动/重启服务、修改真实.env、连接数据库、配置Nginx、安装开机服务或做远程部署。实际服务器启动及端到端接入待部署时验证；当前开发登录仍不能作为正式公网身份验证。
+
+
+### 2026-10-22：Compose 与两条镜像发布路径
+
+用户进一步确认以Docker Compose为主，手动发布在本机构建完整镜像并经SSH传包，自动发布由GitHub Actions构建并推送GHCR。Python依赖在镜像构建时用现有pip安装，未迁移uv；目标服务器只需要Docker、Compose和SSH。三服务为PostgreSQL14、Python3.13后端、Node22构建并由Nginx提供的前端，目标架构linux/amd64。Nginx随前端镜像包含，提供网页和Agent指南、转发API/MCP。数据库及后端不映射端口，默认网页127.0.0.1:8080。
+
+新增package-release.sh、push-release.sh、apply-release.sh。手动包含三镜像，GHCR小包引用精确版本；两者共用Compose和启动脚本，部署根目录.env与fgas_postgres-data卷持续保留。仅首次显式--init-db创建表，普通发布不初始化、不清库、不执行升级SQL；不新增自动回滚或恢复框架。GitHub工作流在v*标签或手动触发时构建，容器/Nginx检查成功后发布GHCR，填写SSH凭据并主动启用后可更新服务器，默认只发布。原生PM2说明保留为备选，README及架构说明同步。
+
+实际验证：三个脚本与工作流shell步骤bash -n通过，工作流YAML解析通过；运行/构建Compose配置解析通过并核对服务、端口及卷名；真实生成并解包GHCR发布包，核对镜像引用，临时目录验证首次生成0600配置模板并停止，以及无效参数拒绝。npm run build通过，保留约511kB主JS提示。独立只读代码审阅无必修问题。
+
+Docker daemon访问被permission denied拒绝，未构建真实镜像、启动容器或验证Nginx/MCP运行；工作流中的容器检查也尚未运行。未执行远程SSH、GHCR发布、GitHubSecrets配置、数据库操作或浏览器交互。当前开发登录仍不构成正式公网认证，实际服务器验收留待具备Docker权限及部署参数后进行。
