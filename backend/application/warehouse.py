@@ -197,11 +197,10 @@ def list_moves(db, filters=None):
     with store.read_snapshot(db) as snapshot:
         timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
         result = []
-        for move in stock_store.moves(snapshot):
+        for move in stock_store.moves(snapshot, filters):
             confirmation = snapshot.get(StockConfirmation,move.confirmation_id)
-            if any(value and (confirmation.transfer_id if key == 'transfer_id' else getattr(move,key)) != value for key,value in (filters or {}).items()): continue
             sku = stock_store.get_sku(snapshot,move.sku_id)
-            result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_account_id','destination_account_id','effective_date','created_at')} | dict(quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
+            result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_account_id','destination_account_id','effective_date','created_at')} | dict(posted_at=move.created_at,quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
         return result
 
 

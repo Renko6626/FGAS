@@ -58,7 +58,9 @@ class StockAccount(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 class Transfer(Base):
     __tablename__ = 'transfers'
-    __table_args__ = (CheckConstraint('amount_minor > 0'),)
+    __table_args__ = (CheckConstraint('amount_minor > 0'),
+                      Index('transfers_posted_at_key', 'posted_at'),
+                      Index('transfers_effective_date_key', 'effective_date'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     source_account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'))
     destination_account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'))
@@ -75,11 +77,14 @@ class Transfer(Base):
     reversal_of: Mapped[str | None] = mapped_column(ForeignKey('transfers.id'), nullable=True)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     submitted_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
     submitted_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)
 class JournalLine(Base):
     __tablename__ = 'journal_lines'
-    __table_args__ = (CheckConstraint('(debit_minor > 0 AND credit_minor = 0) OR (credit_minor > 0 AND debit_minor = 0)'),)
+    __table_args__ = (CheckConstraint('(debit_minor > 0 AND credit_minor = 0) OR (credit_minor > 0 AND debit_minor = 0)'),
+                      Index('journal_lines_account_id_key', 'account_id'),
+                      Index('journal_lines_transfer_id_key', 'transfer_id'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'))
     account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'))
@@ -201,7 +206,8 @@ class StockConfirmation(Base):
 
 class StockMove(Base):
     __tablename__ = 'stock_moves'
-    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id'), UniqueConstraint('transfer_line_id'), CheckConstraint('quantity > 0 AND quantity <= 9007199254740991'))
+    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id'), UniqueConstraint('transfer_line_id'), CheckConstraint('quantity > 0 AND quantity <= 9007199254740991'),
+                      Index('stock_moves_created_at_key', 'created_at'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     confirmation_id: Mapped[str] = mapped_column(ForeignKey('stock_confirmations.id'))
     transfer_line_id: Mapped[str] = mapped_column(ForeignKey('stock_transfer_lines.id'))

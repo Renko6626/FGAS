@@ -83,14 +83,23 @@ def transfers(db, status=None):
     query = select(Transfer).order_by(Transfer.created_at.desc())
     if status: query = query.where(Transfer.status == status)
     return list(db.scalars(query))
-def balance_delta(db, identifier):
-    return int(db.scalar(select(func.coalesce(func.sum(JournalLine.debit_minor - JournalLine.credit_minor), 0)).where(JournalLine.account_id == identifier)))
+def balance_delta(db, identifier, as_of=None, basis='posted'):
+    statement = select(func.coalesce(func.sum(JournalLine.debit_minor - JournalLine.credit_minor), 0)).where(JournalLine.account_id == identifier)
+    if as_of is not None:
+        statement = statement.join(Transfer, Transfer.id == JournalLine.transfer_id)
+        if basis == 'posted':
+            statement = statement.where(Transfer.posted_at.is_not(None), Transfer.posted_at <= as_of)
+        elif basis == 'effective_date':
+            statement = statement.where(Transfer.effective_date <= as_of.date())
+        else:
+            raise ValueError('未知的 as-of 基准')
+    return int(db.scalar(statement))
 def journal(db, identifier):
     return [dict(account_id=l.account_id, debit_minor=l.debit_minor, credit_minor=l.credit_minor) for l in db.scalars(select(JournalLine).where(JournalLine.transfer_id == identifier))]
 def audit_events(db, identifier):
     return [dict(actor_id=a.actor_id, action=a.action, detail=a.detail, created_at=a.created_at, agent_credential_id=a.agent_credential_id, agent_credential_name=a.agent_credential_name) for a in db.scalars(select(Audit).where(Audit.transfer_id == identifier).order_by(Audit.created_at))]
-def fund_balances(db):
-    return [dict(id=a.id, name=a.name, kind=a.kind, tags=a.tags, balance_minor=balance_delta(db,a.id))
+def fund_balances(db, as_of=None, basis='posted'):
+    return [dict(id=a.id, name=a.name, kind=a.kind, tags=a.tags, balance_minor=balance_delta(db, a.id, as_of=as_of, basis=basis))
             for a in accounts(db, kind='public')]
 
 def create_schema():

@@ -1,6 +1,7 @@
 from typing import Literal
 from backend.application.agent_access import AgentAccess, auto_apply, require_operator, source_fields
 from backend.infrastructure import store
+from backend.infrastructure.models import now
 from backend.kernel.accounting import DomainError, balanced_transfer
 from backend.modules.funds.plans import transfer_plan
 
@@ -35,6 +36,7 @@ def post(db, item, user, mode, *, access=None):
     item.approved_by = user.id
     item.approval_mode = mode
     item.version += 1
+    item.posted_at = now()
     store.audit(db, item.id, user.id, 'posted', mode, access=access)
     store.flush(db)
 
@@ -76,14 +78,14 @@ def decide(db, user, identifier, version, rejection=None, *, access=None):
         store.audit(db, item.id, user.id, 'rejected', rejection, access=access)
     return item
 
-def balance(db, account):
-    return store.balance_delta(db, account.id)
+def balance(db, account, *, as_of=None, basis='posted'):
+    return store.balance_delta(db, account.id, as_of=as_of, basis=basis)
 
 def account_view(db, account):
     return {key:getattr(account,key) for key in ('id','name','kind','member_id','avatar_url','tags','active')} | dict(balance_minor=balance(db,account))
 
 def transfer_view(db, item, detail=False):
-    value = {key: getattr(item, key) for key in ('id', 'source_account_id', 'destination_account_id', 'amount_minor', 'effective_date', 'description', 'tags', 'counterparty', 'actor_id', 'approved_by', 'approval_mode', 'status', 'version', 'reversal_of', 'reason', 'created_at', 'submitted_credential_id', 'submitted_credential_name')}
+    value = {key: getattr(item, key) for key in ('id', 'source_account_id', 'destination_account_id', 'amount_minor', 'effective_date', 'description', 'tags', 'counterparty', 'actor_id', 'approved_by', 'approval_mode', 'status', 'version', 'reversal_of', 'reason', 'created_at', 'posted_at', 'submitted_credential_id', 'submitted_credential_name')}
     for side in ('source', 'destination'):
         value[side + '_account_name'] = store.get_account(db, getattr(item, side + '_account_id')).name
     value['actor_name'] = store.get_user(db, item.actor_id).display_name
@@ -109,6 +111,6 @@ def reverse(db, user, identifier, reason, *, access=None):
     payload = dict(source_account_id=original.destination_account_id, destination_account_id=original.source_account_id, amount=f'{original.amount_minor // 100}.{original.amount_minor % 100:02d}', effective_date=original.effective_date.isoformat(), description=f'冲销：{original.description}', counterparty=original.counterparty, tags=original.tags)
     return transfer_view(db, submit(db, user, payload, original.id, reason, access=access, submit_mode='direct' if access else None), True)
 
-def summary(db):
-    values = store.fund_balances(db)
+def summary(db, *, as_of=None, basis='posted'):
+    values = store.fund_balances(db, as_of=as_of, basis=basis)
     return {'accounts': values, 'total_minor': sum(r['balance_minor'] for r in values), 'currency': 'CNY'}

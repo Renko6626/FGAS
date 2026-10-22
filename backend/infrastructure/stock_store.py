@@ -1,4 +1,5 @@
 """Inventory persistence; writes share the existing transaction and advisory lock."""
+from datetime import date, datetime
 from sqlalchemy import select
 from backend.infrastructure.models import Base, Sku, StockAccountCustody
 from backend.infrastructure import store
@@ -56,7 +57,28 @@ def available(db, account_id, sku_id):
     # PostgreSQL SUM(bigint) returns exact numeric (Decimal); counts are integers.
     return int(incoming) - int(outgoing)
 
-def moves(db): return list(db.scalars(select(StockMove).order_by(StockMove.created_at, StockMove.id)))
+def _as_date(value): return date.fromisoformat(value) if isinstance(value, str) else value
+def _as_datetime(value): return datetime.fromisoformat(value.replace('Z', '+00:00')) if isinstance(value, str) else value
+
+def moves(db, filters=None):
+    filters = filters or {}
+    query = select(StockMove)
+    for name in ('sku_id', 'source_account_id', 'destination_account_id'):
+        if filters.get(name) is not None:
+            query = query.where(getattr(StockMove, name) == filters[name])
+    if filters.get('transfer_id') is not None:
+        query = query.where(StockMove.confirmation_id.in_(
+            select(StockConfirmation.id).where(StockConfirmation.transfer_id == filters['transfer_id'])))
+    if filters.get('effective_date_from') is not None:
+        query = query.where(StockMove.effective_date >= _as_date(filters['effective_date_from']))
+    if filters.get('effective_date_to') is not None:
+        query = query.where(StockMove.effective_date <= _as_date(filters['effective_date_to']))
+    for name, column in (('created_at', StockMove.created_at), ('posted_at', StockMove.created_at)):
+        if filters.get(name + '_from') is not None:
+            query = query.where(column >= _as_datetime(filters[name + '_from']))
+        if filters.get(name + '_to') is not None:
+            query = query.where(column < _as_datetime(filters[name + '_to']))
+    return list(db.scalars(query.order_by(StockMove.created_at, StockMove.id)))
 
 def related_transfers(db, transfer_id):
     return list(db.scalars(select(StockTransfer).where(StockTransfer.related_transfer_id == transfer_id).order_by(StockTransfer.created_at, StockTransfer.id)))

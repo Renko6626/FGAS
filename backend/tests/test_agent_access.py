@@ -1,5 +1,5 @@
 """Core Agent behavior through real services, PostgreSQL and the official MCP client."""
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import asyncio
 
@@ -15,7 +15,7 @@ from backend.entrypoints.agent_schemas import AccountPatchOperation
 from backend.entrypoints import agent_catalog as catalog
 from backend.entrypoints.http import app
 from backend.infrastructure.database import Session
-from backend.infrastructure.models import AgentCredential, JournalLine, StockMove, Transfer, User
+from backend.infrastructure.models import AgentCredential, JournalLine, StockMove, StockTransfer, Transfer, User
 from backend.kernel.accounting import DomainError
 
 
@@ -198,6 +198,7 @@ def test_queries_support_disambiguation_and_submission_lookup(client):
 
 def test_mcp_auth_discovery_and_structured_results(client):
     connection = issue(client)
+    stock_data(client)
     for headers in ({}, {'Authorization': 'Bearer invalid'}, {'Cookie': '; '.join(f'{k}={v}' for k, v in client.cookies.items())}):
         assert client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}, headers=headers).status_code == 401
 
@@ -216,6 +217,11 @@ def test_mcp_auth_discovery_and_structured_results(client):
                         read = await session.call_tool('fgas_query', {'resource': 'fund_accounts'})
                         assert not read.is_error and read.structured_content['api_version'] == '2'
                         assert read.structured_content['data']['items']
+                        windowed = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'filters': {'all_time': True}})
+                        assert not windowed.is_error
+                        as_of = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {'as_of': '2026-10-01T00:00:00+08:00'}})
+                        assert not as_of.is_error and as_of.structured_content['data']['basis'] == 'posted'
+                        assert all(row['in_transit_planned_quantity'] is None for row in as_of.structured_content['data']['items'])
                         proposed = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': fund_data()})
                         assert not proposed.is_error and proposed.structured_content['data']['status'] == 'pending'
                         detail = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'identifier': proposed.structured_content['data']['transfer_id']})
@@ -329,3 +335,165 @@ def test_help_describes_non_null_patch_and_combined_result():
         'fund_transfer': {'resource_type': 'fund_transfer', 'transfer_id': 'fund-id', 'status': 'posted', 'ledger_effect_applied': True, 'approval_required': False},
         'stock_transfer': {'resource_type': 'stock_transfer', 'stock_transfer_id': 'stock-id', 'status': 'in_transit', 'ledger_effect_applied': False, 'approval_required': False},
     }})
+
+
+def test_event_lists_default_window_and_all_time(client):
+    low = issue(client)
+    old = datetime.now(timezone.utc) - timedelta(days=40)
+    old_stock_payload = stock_data(client)
+    recent_stock_payload = stock_data(client)
+    with Session() as db:
+        access = agent_access.resolve(db, low['secret'])
+        old_fund = ops.propose_fund_transfer(db, access, fund_data())['data']['transfer_id']
+        recent_fund = ops.propose_fund_transfer(db, access, fund_data())['data']['transfer_id']
+        db.get(Transfer, old_fund).created_at = old
+        old_stock = ops.propose_stock_transfer(db, access, old_stock_payload)['data']['stock_transfer_id']
+        recent_stock = ops.propose_stock_transfer(db, access, recent_stock_payload)['data']['stock_transfer_id']
+        db.get(StockTransfer, old_stock).created_at = old
+        db.commit()
+        default_fund = {row['id'] for row in queries.list_fund_transfers(db, access, {})['data']['items']}
+        assert recent_fund in default_fund and old_fund not in default_fund
+        all_fund = {row['id'] for row in queries.list_fund_transfers(db, access, {'all_time': True})['data']['items']}
+        assert {old_fund, recent_fund} <= all_fund
+        explicit_fund = {row['id'] for row in queries.list_fund_transfers(db, access, {'created_at_from': (old - timedelta(days=1)).isoformat()})['data']['items']}
+        assert {old_fund, recent_fund} <= explicit_fund
+        default_stock = {row['id'] for row in queries.list_stock_transfers(db, access, {})['data']['items']}
+        assert recent_stock in default_stock and old_stock not in default_stock
+        all_stock = {row['id'] for row in queries.list_stock_transfers(db, access, {'all_time': True})['data']['items']}
+        assert {old_stock, recent_stock} <= all_stock
+
+
+def test_event_window_bypass_and_detail_exemption(client):
+    low = issue(client)
+    old = datetime.now(timezone.utc) - timedelta(days=40)
+    with Session() as db:
+        access = agent_access.resolve(db, low['secret'])
+        identifier = ops.propose_fund_transfer(db, access, fund_data(date='2026-09-01'))['data']['transfer_id']
+        db.get(Transfer, identifier).created_at = old
+        db.commit()
+        assert identifier not in {row['id'] for row in queries.list_fund_transfers(db, access, {})['data']['items']}
+        bypassed = queries.list_fund_transfers(db, access, {'effective_date_from': '2026-09-01', 'effective_date_to': '2026-09-01'})['data']['items']
+        assert [row['id'] for row in bypassed] == [identifier]
+        assert queries.get_fund_transfer(db, access, identifier)['data']['id'] == identifier
+
+
+def test_fund_balance_as_of_and_reversal(client):
+    high = issue(client, 'high')
+    as_of = datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
+    with Session() as db:
+        access = agent_access.resolve(db, high['secret'])
+        posted = ops.create_fund_transfer(db, access, fund_data('opening', 'fund_pool', '120.50', '2026-10-15'))['data']['transfer_id']
+        assert db.get(Transfer, posted).posted_at is not None
+        db.get(Transfer, posted).posted_at = as_of
+        pending = ops.propose_fund_transfer(db, access, fund_data('opening', 'fund_pool', '5', '2026-10-15'))['data']['transfer_id']
+        db.commit()
+
+        def balance(when, basis='posted'):
+            data = queries.get_fund_balances(db, access, {'as_of': when.isoformat(), 'basis': basis})['data']
+            row = next(item for item in data['items'] if item['id'] == 'fund_pool')
+            return row['balance_minor'], data['total_minor']
+
+        assert balance(as_of - timedelta(seconds=1)) == (0, 0)
+        assert balance(as_of + timedelta(seconds=1)) == (12050, 12050)
+        assert db.get(Transfer, pending).posted_at is None
+
+        reversal = ops.reverse_fund_transfer(db, access, posted, {'reason': '更正'})['data']['transfer_id']
+        db.get(Transfer, reversal).posted_at = as_of + timedelta(hours=1)
+        db.commit()
+        assert db.get(Transfer, posted).status == 'reversed'
+        assert db.scalar(select(func.count()).select_from(JournalLine).where(JournalLine.transfer_id == posted)) == 2
+        assert balance(as_of + timedelta(minutes=30)) == (12050, 12050)
+        assert balance(as_of + timedelta(hours=2)) == (0, 0)
+
+        backdated = ops.create_fund_transfer(db, access, fund_data('opening', 'fund_pool', '50', '2026-09-01'))['data']['transfer_id']
+        db.get(Transfer, backdated).posted_at = as_of + timedelta(hours=3)
+        db.commit()
+        assert balance(as_of + timedelta(minutes=30), 'posted') == (12050, 12050)
+        assert balance(as_of + timedelta(minutes=30), 'effective_date') == (5000, 5000)
+
+
+def test_inventory_as_of_onhand_and_null_in_transit(client):
+    high = issue(client, 'high')
+    payload = stock_data(client)
+    target = payload['destination_account_id']
+    as_of = datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
+    with Session() as db:
+        access = agent_access.resolve(db, high['secret'])
+        stock = ops.create_stock_transfer(db, access, payload)['data']['stock_transfer_id']
+        db.commit()
+        current = queries.get_inventory(db, access, {'account_id': target})['data']['items'][0]
+        assert current['quantity'] == '0' and current['in_transit_planned_quantity'] == '2'
+        historical = queries.get_inventory(db, access, {'account_id': target, 'as_of': as_of.isoformat()})['data']['items'][0]
+        assert historical['quantity'] == '0' and historical['in_transit_planned_quantity'] is None
+
+        ops.complete_stock_transfer(db, access, stock, {'effective_date': '2026-10-15'})
+        move = db.scalar(select(StockMove).order_by(StockMove.created_at.desc()))
+        move.created_at = as_of
+        db.commit()
+        before = queries.get_inventory(db, access, {'account_id': target, 'as_of': (as_of - timedelta(seconds=1)).isoformat()})['data']
+        assert before['items'][0]['quantity'] == '0' and before['items'][0]['in_transit_planned_quantity'] is None
+        after = queries.get_inventory(db, access, {'account_id': target, 'as_of': (as_of + timedelta(seconds=1)).isoformat()})['data']
+        assert after['items'][0]['quantity'] == '2' and after['items'][0]['in_transit_planned_quantity'] is None
+        assert after['totals'] == [{'sku_id': payload['lines'][0]['sku_id'], 'quantity': '2', 'valuation': '未估值'}]
+        current_after = queries.get_inventory(db, access, {'account_id': target})['data']['items'][0]
+        assert current_after['quantity'] == '2' and current_after['in_transit_planned_quantity'] == '0'
+
+
+def test_stock_move_filters_sql(client):
+    high = issue(client, 'high')
+    first_payload = stock_data(client)
+    second_payload = stock_data(client)
+    old = datetime.now(timezone.utc) - timedelta(days=40)
+    with Session() as db:
+        access = agent_access.resolve(db, high['secret'])
+        first = ops.create_stock_transfer(db, access, first_payload)['data']['stock_transfer_id']
+        ops.complete_stock_transfer(db, access, first, {'effective_date': '2026-10-01'})
+        second = ops.create_stock_transfer(db, access, second_payload)['data']['stock_transfer_id']
+        ops.complete_stock_transfer(db, access, second, {'effective_date': '2026-10-15'})
+        moves = list(db.scalars(select(StockMove)))
+        old_move = next(move for move in moves if move.effective_date == date(2026, 10, 1))
+        old_move.created_at = old
+        db.commit()
+        default = {row['id'] for row in queries.list_stock_moves(db, access, {})['data']['items']}
+        assert default == {move.id for move in moves if move.id != old_move.id}
+        all_rows = {row['id'] for row in queries.list_stock_moves(db, access, {'all_time': True})['data']['items']}
+        assert all_rows == {move.id for move in moves}
+        by_effective = queries.list_stock_moves(db, access, {'effective_date_from': '2026-10-01', 'effective_date_to': '2026-10-01'})['data']['items']
+        assert [row['id'] for row in by_effective] == [old_move.id]
+        by_created = queries.list_stock_moves(db, access, {
+            'created_at_from': (old - timedelta(days=1)).isoformat(),
+            'created_at_to': (old + timedelta(days=1)).isoformat(),
+        })['data']['items']
+        assert [row['id'] for row in by_created] == [old_move.id]
+        by_posted = queries.list_stock_moves(db, access, {
+            'posted_at_from': (old - timedelta(days=1)).isoformat(),
+            'posted_at_to': (old + timedelta(days=1)).isoformat(),
+        })['data']['items']
+        assert [row['id'] for row in by_posted] == [old_move.id]
+
+
+def test_help_schemas_for_windows_and_as_of():
+    _, values = catalog.prepare_call('fgas_query', {'resource': 'fund_transfers', 'filters': {'all_time': True}})
+    assert values['all_time'] is True
+    _, values = catalog.prepare_call('fgas_query', {
+        'resource': 'fund_balances',
+        'filters': {'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'effective_date'},
+    })
+    assert values['basis'] == 'effective_date'
+    with pytest.raises(catalog.InputProblem) as invalid:
+        catalog.prepare_call('fgas_query', {
+            'resource': 'stock_transfers',
+            'filters': {'posted_at_from': '2026-10-01T00:00:00+08:00'},
+        })
+    assert 'filters.posted_at_from' in {item['field'] for item in invalid.value.fields}
+    with pytest.raises(catalog.InputProblem):
+        catalog.prepare_call('fgas_query', {'resource': 'fund_balances', 'filters': {'as_of': '2026-10-01T00:00:00'}})
+    with pytest.raises(catalog.InputProblem):
+        catalog.prepare_call('fgas_query', {
+            'resource': 'fund_balances',
+            'filters': {'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'created_at'},
+        })
+    schema = catalog.help_data('low', topic='query', resource='fund_balances')['list']['input_schema']
+    assert 'as_of' in str(schema) and 'basis' in str(schema)
+    move_schema = catalog.help_data('low', topic='query', resource='stock_moves')['list']['input_schema']
+    assert 'posted_at_from' in str(move_schema) and 'all_time' in str(move_schema)

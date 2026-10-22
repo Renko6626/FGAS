@@ -36,7 +36,10 @@ def transfer_page(db, model, filters, credential_id):
         # JSON tags use the same exact membership semantics as the human queries.
         from sqlalchemy import text
         statement = statement.where(text("EXISTS (SELECT 1 FROM json_array_elements_text(" + model.__tablename__ + ".tags) tag(value) WHERE tag.value = :agent_tag)")).params(agent_tag=filters['tag'])
-    for key, column, inclusive in [('effective_date', model.effective_date, True), ('created_at', model.created_at, False)]:
+    time_columns = [('effective_date', model.effective_date, True), ('created_at', model.created_at, False)]
+    if hasattr(model, 'posted_at'):
+        time_columns.append(('posted_at', model.posted_at, False))
+    for key, column, inclusive in time_columns:
         for endpoint in ('from', 'to'):
             value = filters.get(key + '_' + endpoint)
             if value is None:

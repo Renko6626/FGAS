@@ -41,23 +41,34 @@ class AccountFilters(SkuFilters):
     tag: str | None = None
 
 
+class WindowFilters(PageFilters):
+    created_at_from: AwareDatetime | None = None
+    created_at_to: AwareDatetime | None = None
+    all_time: bool = False
+
+
 class BalanceFilters(AccountFilters):
     account_id: str | None = None
+    as_of: AwareDatetime | None = None
+    basis: Literal['posted', 'effective_date'] = 'posted'
 
 
-class FundTransferFilters(PageFilters):
+class TransferFilters(WindowFilters):
     status: str | None = None
     tag: str | None = None
     source_account_id: str | None = None
     destination_account_id: str | None = None
     effective_date_from: date | None = None
     effective_date_to: date | None = None
-    created_at_from: AwareDatetime | None = None
-    created_at_to: AwareDatetime | None = None
     submitted_by_current_connection: bool = False
 
 
-class StockTransferFilters(FundTransferFilters):
+class FundTransferFilters(TransferFilters):
+    posted_at_from: AwareDatetime | None = None
+    posted_at_to: AwareDatetime | None = None
+
+
+class StockTransferFilters(TransferFilters):
     sku_id: str | None = None
 
 
@@ -66,13 +77,19 @@ class InventoryFilters(PageFilters):
     sku_id: str | None = None
     member_id: str | None = None
     custodian_id: str | None = None
+    as_of: AwareDatetime | None = None
+    basis: Literal['posted', 'effective_date'] = 'posted'
 
 
-class StockMoveFilters(PageFilters):
+class StockMoveFilters(WindowFilters):
     transfer_id: str | None = None
     sku_id: str | None = None
     source_account_id: str | None = None
     destination_account_id: str | None = None
+    effective_date_from: date | None = None
+    effective_date_to: date | None = None
+    posted_at_from: AwareDatetime | None = None
+    posted_at_to: AwareDatetime | None = None
 
 
 class StocktakeFilters(PageFilters):
@@ -141,6 +158,7 @@ class FundTransferRow(TransferRow):
     approved_by_name: str | None
     version: int
     reversal_of: str | None
+    posted_at: datetime | None
 
 
 class JournalRow(BaseModel):
@@ -247,7 +265,7 @@ class InventoryRow(InventoryTotal):
     member_name: str | None
     sku_name: str
     unit: str
-    in_transit_planned_quantity: str
+    in_transit_planned_quantity: str | None
 
 
 class StockMoveRow(BaseModel):
@@ -259,6 +277,7 @@ class StockMoveRow(BaseModel):
     destination_account_id: str
     effective_date: date
     created_at: datetime
+    posted_at: datetime
     quantity: str
     sku_name: str
     unit: str
@@ -302,10 +321,14 @@ class BalanceData(PageData[BalanceRow, BalanceFilters]):
     total_minor: int
     total: str
     currency: Literal['CNY']
+    as_of: datetime | None = None
+    basis: Literal['posted', 'effective_date'] | None = None
 
 
 class InventoryData(PageData[InventoryRow, InventoryFilters]):
     totals: list[InventoryTotal]
+    as_of: datetime | None = None
+    basis: Literal['posted', 'effective_date'] | None = None
 
 
 class StocktakeDetail(BaseModel, Generic[T]):

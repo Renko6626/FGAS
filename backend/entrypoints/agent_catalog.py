@@ -38,11 +38,11 @@ QUERIES = {
     'stock_accounts': contract(queries.list_stock_accounts, '查货物账户；账户联系人不等于保管人。', {'q': '仓库', 'active': True}),
     'skus': contract(queries.list_skus, '查货物名称、规格和整数计量单位。', {'q': '书', 'active': True}),
     'members': contract(queries.list_members, '查成员与联系人业务目录，不是登录用户。', {'q': '小王'}),
-    'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计。', {'kind': 'public'}),
-    'inventory': contract(queries.get_inventory, '查正式库存和在途计划量，不提供价值或利润。', {'account_id': 'stock-account-id'}),
-    'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；支持 identifier 查详情。', {'status': 'pending'}),
-    'stock_transfers': contract(queries.list_stock_transfers, '按条件查货物转移；完成申请在父单详情中。', {'status': 'in_transit'}),
-    'stock_moves': contract(queries.list_stock_moves, '查已经发生的正式数量流水。', {'transfer_id': 'stock-transfer-id'}),
+    'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计；支持 as_of/basis 查截止时点。', {'kind': 'public', 'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'posted'}),
+    'inventory': contract(queries.get_inventory, '查正式库存和在途计划量，不提供价值或利润；支持 as_of/basis 查历史 on-hand，历史在途不可用。', {'account_id': 'stock-account-id', 'as_of': '2026-10-01T00:00:00+08:00'}),
+    'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；默认最近30天，全量传 all_time=true；支持 identifier 查详情。', {'status': 'pending'}),
+    'stock_transfers': contract(queries.list_stock_transfers, '按条件查货物转移；默认最近30天，全量传 all_time=true；完成申请在父单详情中。', {'status': 'in_transit'}),
+    'stock_moves': contract(queries.list_stock_moves, '查已经发生的正式数量流水；默认最近30天，全量传 all_time=true。', {'created_at_from': '2026-10-01T00:00:00+08:00'}),
     'settlement_overview': contract(queries.get_settlement_overview, '查一个私账的逐笔收支未结、付款及匹配；不从净余额推断。', {'account_id': 'private-account-id'}),
     'fund_stocktakes': contract(queries.list_fund_stocktakes, '查资金盘点；支持 identifier 查专属端点关联记录。', {'status': 'in_progress'}),
     'stock_stocktakes': contract(queries.list_stock_stocktakes, '查货物盘点；结束不表示账目已自动调整。', {'status': 'in_progress'}),
@@ -123,7 +123,7 @@ class HelpInput(Input):
 QueryInput = create_model('QueryInput', __base__=Input,
     resource=(Literal[tuple(QUERIES)], Field(description='要查询的业务对象；参数不确定时用 fgas_help(topic=query, resource=...)。')),
     identifier=(str | None, Field(default=None, min_length=1, description='仅转移/盘点支持详情；详情不能附非空 filters。')),
-    filters=(dict[str, Any], Field(default_factory=dict, description='该对象实际支持的过滤字段；按需查 help，不支持的字段会被拒绝。')))
+    filters=(dict[str, Any], Field(default_factory=dict, description='该对象实际支持的过滤字段；事件列表默认最近30天，全量传 all_time=true；余额/库存支持 as_of/basis；按需查 help，不支持的字段会被拒绝。')))
 ProposeInput = create_model('ProposeInput', __base__=Input,
     resource=(Literal[tuple(PROPOSALS)], ...),
     data=(dict[str, Any], Field(description='该申请的精确业务参数，参见 fgas_help(topic=propose, resource=...)。')))
@@ -135,7 +135,7 @@ PUBLIC_INPUTS = {'fgas_help': HelpInput, 'fgas_query': QueryInput,
                  'fgas_propose': ProposeInput, 'fgas_execute': ExecuteInput}
 TOOL_DESCRIPTIONS = {
     'fgas_help': '了解 FGAS 核心模型、当前权限和用法；按 topic/resource/action 获取精确参数与示例。已知参数可直接办理，不必反复读取。',
-    'fgas_query': '读取账户、货物、联系人、余额、库存、资金/货物记录、结算和盘点；不修改数据。按 resource 选对象，identifier 查详情，filters 查列表。',
+    'fgas_query': '读取账户、货物、联系人、余额、库存、资金/货物记录、结算和盘点；不修改数据。按 resource 选对象，identifier 查详情，filters 查列表。事件列表默认最近30天，全量传 all_time=true；余额/库存支持 as_of/basis 查截止时点。',
     'fgas_propose': '提交资金转移、货物转移或整笔完成申请；始终待审，不改变正式余额或库存，高权限调用也不直接执行。',
     'fgas_execute': '高权限直接办理目录、资金、货物、审批、更正、结算、保管和盘点。按 resource/action 选择，data 传业务参数；各动作生效规则见 help。',
 }
