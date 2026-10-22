@@ -32,9 +32,13 @@ npm run dev
 - 手动发布：本机构建完整镜像，打包后通过 SSH 传到服务器加载。
 - 自动发布：GitHub Actions 构建镜像并推送 GHCR，服务器拉取后更新。
 
-首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。原来的 [PM2 原生方式](deploy/README.native.md) 保留备用。首次部署和普通更新都会先备份数据库、再通过 Compose 一次性 `migrate` 服务执行 Alembic；迁移失败时 API 不启动。
+首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。不依赖 Docker 时，可用 [systemd 原生方式](deploy/README.native.md)（含 PM2 备选）。首次部署和普通更新都会先备份数据库、再通过 Compose 一次性 `migrate` 服务执行 Alembic；迁移失败时 API 不启动。
 
 Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应用并填写回调地址、client id/secret 和初始管理员。默认只监听服务器本机的 8080 端口；HTTPS 站点必须设置 `COOKIE_SECURE=true`。真实 Casdoor 联调、域名和 HTTPS 验收尚未完成，部署脚本不代表正式上线已验收。
+
+也可以在腾讯云等支持 systemd 的 Linux 主机上从 GitHub 拉取源码部署：systemd 管理 Uvicorn 后端，Nginx 提供 `frontend/dist` 并转发 `/api`、`/mcp`，数据保存在 PostgreSQL。主机需准备 Python 3.13、Node.js 22+、PostgreSQL 和 Nginx；公网使用需配置域名、HTTPS 和 Casdoor 回调地址。日常更新按“拉代码 → 按需安装依赖 → 构建前端 → 备份并执行 Alembic 迁移 → 重启服务”处理。
+
+仓库提供 [fgas.service](deploy/fgas.service) 和一次性的 [fgas-migrate.service](deploy/fgas-migrate.service)，按实际发行版、部署目录和运行用户调整后启用。环境准备、Nginx 转发和手动更新步骤见 [原生部署说明](deploy/README.native.md)。
 
 ## 账户与标签
 

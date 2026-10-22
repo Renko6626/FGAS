@@ -1,0 +1,27 @@
+# 一次性迁移：sudo systemctl start fgas-migrate
+# 按实际部署调整 User/Group、WorkingDirectory 和 EnvironmentFile。
+[Unit]
+Description=FGAS database migration (alembic upgrade head)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fgas
+Group=fgas
+WorkingDirectory=/srv/fgas
+EnvironmentFile=/srv/fgas/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/srv/fgas/.venv/bin/python -m alembic -c alembic.ini upgrade head
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=

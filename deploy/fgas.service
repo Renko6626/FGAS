@@ -1,0 +1,32 @@
+# 按实际部署调整 User/Group、WorkingDirectory、EnvironmentFile 和 --port。
+[Unit]
+Description=FGAS API (uvicorn)
+After=network-online.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=fgas
+Group=fgas
+WorkingDirectory=/srv/fgas
+EnvironmentFile=/srv/fgas/.env
+Environment=PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+ExecStart=/srv/fgas/.venv/bin/python -m uvicorn backend.entrypoints.http:app --host 127.0.0.1 --port 10622
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
