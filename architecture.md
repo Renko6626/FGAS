@@ -104,16 +104,20 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 第二阶段再设计取得成本、批次、估值及销售成本，后续再设计经营归属、分摊和管理分析，不根据第一阶段付款自动推库存价值。正式事实不能因分析口径变化自动重写。第一阶段不建立订单、完整报表、复杂寄售结算、备用金专用流程、CRM、人事、自动 POS 导入。Agent/MCP 接入按下节实现，外部集成必须经过相同服务与账本校验，不直接写数据库或绕过授权。
 
-## 8 Agent/MCP 接入（draft）
+## 8 Agent/MCP 接入（v2，开发阶段）
 
 官方 Python MCP SDK 2.3.0 提供 `/mcp` Streamable HTTP，FastAPI lifespan 启停 SDK session manager。Bearer 中间件覆盖初始化、发现和调用，并通过请求 ContextVar 传递令牌；每次工具调用在同一业务事务重新解析凭据和真实 User。人工 `/api` 只用 Cookie，连接管理也只供人工会话。应用层不依赖 entrypoints 或协议 Schema。
 
 `AgentCredential/agent_credentials` 保存 ID、所属用户、名称、low/high、启用、到期、创建时间和 SHA-256 摘要，不保存明文。可信用户仅自己的 low，管理员可自己的 low/high，只能停用他人的连接。实际授权同时检查凭据及所属用户；不改变 User.role，不新增对象白名单、grant 矩阵或只读第三档。
 
-16个读取、3个 propose 及 context 对两档相同；high 另有30个操作。应用函数仍校验 high，猜工具名不能绕过权限。所有工具有固定 input/output Schema，返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/ID排序、业务按创建时间/ID倒序，page/limit/has_more 标明分页；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。
+low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具。所有原有业务能力通过固定 resource/action 组合保留，列表与详情共用 query。MCP 适配层的 agent_catalog 契约表共用于帮助、精确参数校验与固定函数分派，应用层不反向依赖它。公开 Schema 只声明小型外壳，具体操作参数按需由 help 返回，服务端仍按选中的输入/输出模型校验。propose 对两档始终待审，execute 及其应用函数均校验 high。返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/ID排序、业务按创建时间/ID倒序，page/limit/has_more 标明分页；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。
 
 三种 propose 对管理员所属 high 也固定待审。资金 direct 过账、货物 direct 在途、完成 direct 才写 StockMove。`submit_mode` 仅服务内部参数，客户端不能指定。资金和货物主单、完成申请记录 `submitted_credential_id/name`；审计记录实际操作者 `agent_credential_id/name`，审批/执行快照保留连接。`approval_mode` 区分 `agent_direct`、`agent_approval` 及人工既有 automatic/manual，改连接名称不覆盖历史快照。原历史字段为空时仍按人工记录解释。
 
-结果使用 `api_version='1'`，写入明确 resource_type、业务 ID、status、ledger_effect_applied、approval_required；完成同时给 confirmation_id 和 stock_transfer_id。金额保留整数分并配元字符串；Patch 省略保留，仅允许清空的字段接受 null。错误 code 为 validation_error、permission_denied、not_found、state_conflict。pending 是普通成功，无自动重试、幂等回放、恢复队列或 OAuth 服务。指南保留 draft，尚未正式发布。
+结果使用 `api_version='2'`，写入明确 resource_type、业务 ID、status、ledger_effect_applied、approval_required；完成同时给 confirmation_id 和 stock_transfer_id。金额保留整数分并配元字符串；Patch 省略保留，仅允许清空的字段接受 null。输入错误返回 validation_error、字段位置及可调用的帮助参数；业务错误保留 permission_denied、not_found、state_conflict，服务端错误为 internal_error。pending 是普通成功，无自动重试、幂等回放、恢复队列或 OAuth 服务。
+
+核心模型说明 docs/ai/overview.md 随初始化 instructions 提供，并用于 help 默认响应；完整业务指南按需读取。首层解释账户、Transfer、流水与余额/库存的关系，私账方向、资金/货物独立生效、结算匹配及薄盘点，避免模型单凭工具名称推断业务。
+
+v2 直接替换旧公开工具名；旧名只返回 tool_migrated，不调用旧动作。客户端重连/重新发现，固定旧名脚本需更新；地址、凭据与业务数据不变。仍未正式发布。
 
 旧库升级仅显式执行 `scripts/upgrade-agent-access.sql` 的非破坏性增量；普通启动不升级旧表。本轮日常开发库升级未执行，运行验证仅使用专用 fgas_test。具体命令、客户端版本和联调限制见阶段记录。

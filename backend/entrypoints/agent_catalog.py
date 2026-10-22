@@ -1,0 +1,259 @@
+"""Fixed MCP contracts shared by discovery, on-demand help and input validation."""
+from dataclasses import dataclass
+from typing import Any, Callable, Literal
+
+from pydantic import BaseModel, Field, ValidationError, create_model
+
+from backend.application import agent_operations as ops, agent_queries as queries
+from backend.entrypoints import agent_schemas as schemas
+from backend.entrypoints.schemas import Input
+from backend.kernel.accounting import DomainError
+
+
+@dataclass(frozen=True)
+class Contract:
+    handler: Callable
+    summary: str
+    example: dict
+    input_model: type[BaseModel]
+    output_model: type[BaseModel]
+
+
+def contract(handler, summary, example):
+    name = handler.__name__
+    inputs = schemas.QUERY_INPUT_SCHEMAS | schemas.OPERATION_INPUT_SCHEMAS
+    outputs = schemas.QUERY_OUTPUT_SCHEMAS | schemas.OPERATION_OUTPUT_SCHEMAS
+    return Contract(handler, summary, example, inputs[name], outputs[name])
+
+
+FUND = dict(source_account_id='source-account-id', destination_account_id='destination-account-id',
+            amount='120.50', effective_date='2026-10-22', description='用户说明的实际用途')
+STOCK = dict(source_account_id='source-account-id', destination_account_id='destination-account-id',
+             effective_date='2026-10-22', lines=[dict(sku_id='sku-id', quantity='2')])
+COMPLETION = dict(identifier='stock-transfer-id', effective_date='2026-10-22')
+ALLOCATION = [dict(item_transfer_id='expense-or-receipt-id', amount='120.50')]
+
+QUERIES = {
+    'fund_accounts': contract(queries.list_fund_accounts, '查资金账户及其公私分类、联系人和标签。', {'q': '公账', 'active': True}),
+    'stock_accounts': contract(queries.list_stock_accounts, '查货物账户；账户联系人不等于保管人。', {'q': '仓库', 'active': True}),
+    'skus': contract(queries.list_skus, '查货物名称、规格和整数计量单位。', {'q': '书', 'active': True}),
+    'members': contract(queries.list_members, '查成员与联系人业务目录，不是登录用户。', {'q': '小王'}),
+    'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计。', {'kind': 'public'}),
+    'inventory': contract(queries.get_inventory, '查正式库存和在途计划量，不提供价值或利润。', {'account_id': 'stock-account-id'}),
+    'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；支持 identifier 查详情。', {'status': 'pending'}),
+    'stock_transfers': contract(queries.list_stock_transfers, '按条件查货物转移；完成申请在父单详情中。', {'status': 'in_transit'}),
+    'stock_moves': contract(queries.list_stock_moves, '查已经发生的正式数量流水。', {'transfer_id': 'stock-transfer-id'}),
+    'settlement_overview': contract(queries.get_settlement_overview, '查一个私账的逐笔收支未结、付款及匹配；不从净余额推断。', {'account_id': 'private-account-id'}),
+    'fund_stocktakes': contract(queries.list_fund_stocktakes, '查资金盘点；支持 identifier 查专属端点关联记录。', {'status': 'in_progress'}),
+    'stock_stocktakes': contract(queries.list_stock_stocktakes, '查货物盘点；结束不表示账目已自动调整。', {'status': 'in_progress'}),
+}
+DETAILS = {
+    'fund_transfers': contract(queries.get_fund_transfer, '返回资金单、正式分录、审批及审计。', {'identifier': 'fund-transfer-id'}),
+    'stock_transfers': contract(queries.get_stock_transfer, '返回货物单及 confirmations；按申请 ID 分辨各申请状态。', {'identifier': 'stock-transfer-id'}),
+    'fund_stocktakes': contract(queries.get_fund_stocktake, '返回资金盘点及关联转移，包含更正和各状态。', {'identifier': 'fund-stocktake-id'}),
+    'stock_stocktakes': contract(queries.get_stock_stocktake, '返回货物盘点及关联转移，包含更正和各状态。', {'identifier': 'stock-stocktake-id'}),
+}
+PROPOSALS = {
+    'fund_transfer': contract(ops.propose_fund_transfer, '提交资金待审申请，不产生资金分录；high 调用也待审。', FUND),
+    'stock_transfer': contract(ops.propose_stock_transfer, '提交货物待审申请，不改变库存；批准后仍须确认完成。', STOCK),
+    'stock_completion': contract(ops.propose_stock_completion, '为在途父单申请整笔完成；identifier 是货物单 ID，申请仍待审。', COMPLETION),
+}
+EXECUTIONS = {
+    'fund_account': {
+        'create': contract(ops.create_fund_account, '创建资金账户，不改变余额；kind 创建后固定。', {'name': '小王私账', 'kind': 'private'}),
+        'update': contract(ops.update_fund_account, '修改指定字段；省略保留原值，允许清空的字段才可传 null。', {'identifier': 'account-id', 'name': '新的账户名称'}),
+    },
+    'stock_account': {
+        'create': contract(ops.create_stock_account, '创建货物账户，不改变库存。', {'name': '主仓库', 'kind': 'public'}),
+        'update': contract(ops.update_stock_account, '修改货物账户资料；不修改库存或保管关系。', {'identifier': 'stock-account-id', 'name': '新的仓库名称'}),
+        'set_custody': contract(ops.set_stock_custody, '设置实际保管人；member_id=null 结束保管，不转移库存。', {'identifier': 'stock-account-id', 'member_id': 'member-id'}),
+    },
+    'sku': {
+        'create': contract(ops.create_sku, '创建货物规格与整数计量单位，不增加库存。', {'name': '纪念册', 'unit': '本'}),
+        'update': contract(ops.update_sku, '修改货物资料；已使用 SKU 的单位不可变更。', {'identifier': 'sku-id', 'name': '新的货物名称'}),
+    },
+    'member': {
+        'create': contract(ops.create_member, '创建业务联系人，不创建登录用户或自动开账。', {'name': '小王'}),
+        'update': contract(ops.update_member, '修改联系人资料，不转移账户债务或授予权限。', {'identifier': 'member-id', 'note': '用户提供的联系说明'}),
+    },
+    'fund_transfer': {
+        'create': contract(ops.create_fund_transfer, '直接登记并过账，产生资金分录；不发起实际银行付款。', FUND),
+        'approve': contract(ops.approve_fund_transfer, '批准待审资金单并过账；expected_version 从详情读取。', {'identifier': 'fund-transfer-id', 'expected_version': 1}),
+        'reject': contract(ops.reject_fund_transfer, '拒绝待审资金单，保留原因；不产生分录。', {'identifier': 'fund-transfer-id', 'expected_version': 1, 'reason': '用户说明的拒绝原因'}),
+        'reverse': contract(ops.reverse_fund_transfer, '以反向资金记录更正已过账单，保留原单；不自动退款或退货。', {'identifier': 'fund-transfer-id', 'reason': '用户说明的更正原因'}),
+    },
+    'stock_transfer': {
+        'create': contract(ops.create_stock_transfer, '直接登记在途货物单，库存不变；收到货后另行 complete。', STOCK),
+        'approve': contract(ops.approve_stock_transfer, '批准待审货物单进入在途，库存不变。', {'identifier': 'stock-transfer-id'}),
+        'reject': contract(ops.reject_stock_transfer, '拒绝待审货物单，保留原因。', {'identifier': 'stock-transfer-id', 'reason': '用户说明的拒绝原因'}),
+        'cancel': contract(ops.cancel_stock_transfer, '取消可取消的货物单，不自动退款；已完成货物须新增更正转移。', {'identifier': 'stock-transfer-id', 'reason': '用户说明的取消原因'}),
+        'complete': contract(ops.complete_stock_transfer, '确认在途货物整笔完成并产生数量流水；identifier 是父货物单 ID。', COMPLETION),
+        'link_fund': contract(ops.add_stock_fund_reference, '引用已有资金单，不新建付款或改变库存。', {'identifier': 'stock-transfer-id', 'fund_transfer_id': 'fund-transfer-id'}),
+    },
+    'stock_completion': {
+        'approve': contract(ops.approve_stock_completion, '批准完成申请并产生数量流水；identifier 是完成申请 ID。', {'identifier': 'confirmation-id'}),
+        'reject': contract(ops.reject_stock_completion, '拒绝完成申请；identifier 是完成申请 ID，父单可能仍在途。', {'identifier': 'confirmation-id', 'reason': '用户说明的拒绝原因'}),
+    },
+    'settlement': {
+        'create': contract(ops.create_settlement, '新记一笔结算付款并匹配原收支；已有付款应使用 match。', {'transfer': FUND, 'allocations': ALLOCATION}),
+        'match': contract(ops.add_settlement_matches, '给已有结算付款追加匹配，不再次记钱；identifier 是付款单 ID。', {'identifier': 'settlement-transfer-id', 'allocations': ALLOCATION}),
+    },
+    'stock_operation': {
+        'create': contract(ops.create_stock_operation, '同一事务新建付款和货物单：付款过账，货物在途；已有付款用引用。', {'stock': STOCK, 'money': FUND}),
+    },
+    'fund_stocktake': {
+        'create': contract(ops.create_fund_stocktake, '创建资金盘点和专属盈亏账户；不调整余额。', {'name': '月末资金盘点'}),
+        'update': contract(ops.update_fund_stocktake, '修改盘点说明，账目调整使用普通资金转移。', {'identifier': 'fund-stocktake-id', 'description': '用户提供的核对结果'}),
+        'end': contract(ops.end_fund_stocktake, '结束资金盘点的整理状态，不自动结清差异。', {'identifier': 'fund-stocktake-id'}),
+    },
+    'stock_stocktake': {
+        'create': contract(ops.create_stock_stocktake, '创建货物盘点和专属盈亏账户；不调整库存。', {'name': '月末库存盘点'}),
+        'update': contract(ops.update_stock_stocktake, '修改盘点说明，实点差异使用普通货物转移。', {'identifier': 'stock-stocktake-id', 'description': '用户提供的实点结果'}),
+        'end': contract(ops.end_stock_stocktake, '结束货物盘点的整理状态，不自动调整库存。', {'identifier': 'stock-stocktake-id'}),
+    },
+}
+
+
+class HelpInput(Input):
+    topic: Literal['overview', 'guide', 'query', 'propose', 'execute'] = 'overview'
+    resource: str | None = Field(default=None, min_length=1)
+    action: str | None = Field(default=None, min_length=1)
+
+
+QueryInput = create_model('QueryInput', __base__=Input,
+    resource=(Literal[tuple(QUERIES)], Field(description='要查询的业务对象；参数不确定时用 fgas_help(topic=query, resource=...)。')),
+    identifier=(str | None, Field(default=None, min_length=1, description='仅转移/盘点支持详情；详情不能附非空 filters。')),
+    filters=(dict[str, Any], Field(default_factory=dict, description='该对象实际支持的过滤字段；按需查 help，不支持的字段会被拒绝。')))
+ProposeInput = create_model('ProposeInput', __base__=Input,
+    resource=(Literal[tuple(PROPOSALS)], ...),
+    data=(dict[str, Any], Field(description='该申请的精确业务参数，参见 fgas_help(topic=propose, resource=...)。')))
+ExecuteInput = create_model('ExecuteInput', __base__=Input,
+    resource=(Literal[tuple(EXECUTIONS)], ...),
+    action=(Literal[tuple(sorted({action for actions in EXECUTIONS.values() for action in actions}))], ...),
+    data=(dict[str, Any], Field(description='按对象/动作校验的参数；仅变更指定字段，需要 ID 时使用 data.identifier。')))
+PUBLIC_INPUTS = {'fgas_help': HelpInput, 'fgas_query': QueryInput,
+                 'fgas_propose': ProposeInput, 'fgas_execute': ExecuteInput}
+TOOL_DESCRIPTIONS = {
+    'fgas_help': '了解 FGAS 核心模型、当前权限和用法；按 topic/resource/action 获取精确参数与示例。已知参数可直接办理，不必反复读取。',
+    'fgas_query': '读取账户、货物、联系人、余额、库存、资金/货物记录、结算和盘点；不修改数据。按 resource 选对象，identifier 查详情，filters 查列表。',
+    'fgas_propose': '提交资金转移、货物转移或整笔完成申请；始终待审，不改变正式余额或库存，高权限调用也不直接执行。',
+    'fgas_execute': '高权限直接办理目录、资金、货物、审批、更正、结算、保管和盘点。按 resource/action 选择，data 传业务参数；各动作生效规则见 help。',
+}
+
+
+def help_call(topic, resource=None, action=None):
+    arguments = dict(topic=topic)
+    if resource is not None:
+        arguments['resource'] = resource
+    if action is not None:
+        arguments['action'] = action
+    return dict(tool='fgas_help', arguments=arguments)
+
+
+class InputProblem(DomainError):
+    def __init__(self, fields, help_request):
+        self.fields, self.help_request = fields, help_request
+        super().__init__('参数有误：' + '；'.join(f"{field['field']}：{field['message']}" for field in fields))
+
+
+def invalid(field, message, hint):
+    raise InputProblem([dict(field=field, message=message)], hint)
+
+
+def validate(model, values, hint, prefix=''):
+    try:
+        return model.model_validate(values)
+    except ValidationError as exc:
+        messages = {'missing': '必须填写', 'extra_forbidden': '此操作不支持该字段'}
+        fields = [dict(field='.'.join(filter(None, [prefix, *map(str, error['loc'])])) or 'arguments',
+                       message=messages.get(error['type'], error['msg']))
+                  for error in exc.errors(include_url=False, include_context=False, include_input=False)]
+        raise InputProblem(fields, hint) from exc
+
+
+def select_write(topic, resource, action=None):
+    table = PROPOSALS if topic == 'propose' else EXECUTIONS
+    if resource not in table:
+        invalid('resource', '请选择该入口支持的对象', help_call(topic))
+    if topic == 'propose':
+        if action is not None:
+            invalid('action', '提议不接收 action', help_call(topic, resource))
+        return table[resource]
+    if action not in table[resource]:
+        invalid('action', '该对象支持：' + ', '.join(table[resource]), help_call(topic, resource))
+    return table[resource][action]
+
+
+def prepare_call(tool, arguments):
+    """Validate the full call before invoking an application service."""
+    topic = tool.removeprefix('fgas_')
+    request = validate(PUBLIC_INPUTS[tool], arguments, help_call(topic))
+    resource = request.resource
+    if tool == 'fgas_query':
+        hint = help_call('query', resource)
+        if request.identifier is not None:
+            if resource not in DETAILS:
+                invalid('identifier', '该对象不支持按 ID 查询详情，请使用 filters', hint)
+            if request.filters:
+                invalid('filters', '详情查询不能同时提供过滤条件', hint)
+            selected, values, prefix = DETAILS[resource], {'identifier': request.identifier}, ''
+        else:
+            selected, values, prefix = QUERIES[resource], request.filters, 'filters'
+    else:
+        action = getattr(request, 'action', None)
+        hint = help_call(topic, resource, action)
+        selected, values, prefix = select_write(topic, resource, action), request.data, 'data'
+    parsed = validate(selected.input_model, values, hint, prefix)
+    return selected, parsed.model_dump(mode='json', exclude_unset=selected.handler.__name__.startswith('update_'))
+
+
+def describe(topic, resource, selected, action=None, detail=False):
+    """Generate an exact, executable call schema only for the requested operation."""
+    fields = {'resource': (Literal[resource], ...)}
+    if topic == 'query':
+        if detail:
+            fields['identifier'] = (str, Field(min_length=1))
+            example = dict(resource=resource, **selected.example)
+        else:
+            required = any(field.is_required() for field in selected.input_model.model_fields.values())
+            fields['filters'] = (selected.input_model, ... if required else Field(default_factory=selected.input_model))
+            example = dict(resource=resource, filters=selected.example)
+    else:
+        if action is not None:
+            fields['action'] = (Literal[action], ...)
+        fields['data'] = (selected.input_model, ...)
+        example = dict(resource=resource, data=selected.example)
+        if action is not None:
+            example['action'] = action
+    model = create_model('OperationInput', __base__=Input, **fields)
+    return dict(summary=selected.summary, input_schema=model.model_json_schema(), example=example,
+                output_schema=selected.output_model.model_json_schema())
+
+
+def help_data(level, *, topic, resource=None, action=None):
+    """On-demand contracts, independent of any client discovery implementation."""
+    if topic == 'execute' and level != 'high':
+        raise DomainError('当前连接只能查询或提交待审申请，没有直接办理权限', 403)
+    if topic not in ('query', 'propose', 'execute'):
+        invalid('topic', '请选择 query、propose 或 execute 查看契约', help_call('overview'))
+    if topic != 'execute' and action is not None:
+        invalid('action', '仅 execute 帮助接收 action', help_call(topic, resource))
+    if resource is None:
+        if action is not None:
+            invalid('resource', '指定动作时也须指定对象', help_call(topic))
+        if topic == 'execute':
+            return dict(resources=[dict(resource=name, actions={action: item.summary for action, item in actions.items()}) for name, actions in EXECUTIONS.items()])
+        table = QUERIES if topic == 'query' else PROPOSALS
+        return dict(resources=[dict(resource=name, summary=item.summary) for name, item in table.items()])
+    if topic == 'query':
+        if resource not in QUERIES:
+            invalid('resource', '未知查询对象', help_call(topic))
+        result = dict(resource=resource, list=describe(topic, resource, QUERIES[resource]))
+        if resource in DETAILS:
+            result['detail'] = describe(topic, resource, DETAILS[resource], detail=True)
+        return result
+    if topic == 'execute' and action is None:
+        if resource not in EXECUTIONS:
+            invalid('resource', '未知执行对象', help_call(topic))
+        return dict(resource=resource, actions={name: item.summary for name, item in EXECUTIONS[resource].items()})
+    return describe(topic, resource, select_write(topic, resource, action), action)

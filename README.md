@@ -82,15 +82,15 @@ npm run build
 
 正式登录、附件、生产部署、备份恢复尚未验收，本轮不实现估值、利润、订单、清点明细或请求恢复。
 
-## Agent 接入（draft）
+## Agent 接入（MCP v2，开发阶段）
 
 后端通过官方 `mcp==2.3.0` Streamable HTTP 在 `http://127.0.0.1:8000/mcp` 提供业务工具。先由人工登录“Agent 连接”签发令牌，再由客户端运行时提供 `Authorization: Bearer …`。令牌不能作为 `/api` 人工登录会话；Cookie 也不能代替 MCP Bearer。明文仅显示一次，丢失请新建连接，勿放入对话、仓库或工具参数。
 
-受信任用户只能签发自己的 low，管理员可签自己的 low/high；普通用户不能签发。low/high 共用16个读取工具、`fgas_get_context` 和3个固定待审提议。high 另有30个直接业务工具，包括目录、审批、更正、结算、保管及盘点。连接及所属用户的启停、角色和过期时间每次调用重新检查。Agent 均不能管理登录用户、角色或连接。业务说明见 [Agent 指南](docs/ai/guide.md)。
+受信任用户只能签发自己的 low，管理员可签自己的 low/high；普通用户不能签发。MCP v2 的 low 只暴露 `fgas_help`、`fgas_query`、`fgas_propose`，high 增加 `fgas_execute`。通过对象、动作及参数覆盖原有业务能力，具体参数按需查 help。连接及所属用户的启停、角色和过期时间每次调用重新检查；Agent 不能管理登录用户、角色或连接。初始化说明先讲清账户、Transfer、正式流水、结算和盘点的关系，见 [核心模型](docs/ai/overview.md) 与 [完整指南](docs/ai/guide.md)。
 
 以下变量由启动客户端的运行时安全注入：`FGAS_MCP_URL` 为上述 URL，`FGAS_AGENT_TOKEN` 为一次性签发所得令牌。回环地址仅供与后端同机的客户端访问；另一台机器的 `127.0.0.1` 指向它自己。当前保留 SDK 默认回环 Host 校验；自定义域名、远程 HTTPS、OAuth 和部署尚未联调。
 
-DeepSeek Harness 0.1.5-rc.3 的 `cordis.yml` 插件条目如下。字段及 `!!js` 环境变量写法依据其已安装官方包 README/Config；工具名称在 Harness 中为 `mcp__fgas__fgas_*`；本轮已用实际 MCP 插件/ToolRuntime 在专用测试库验证两档发现、读取、待审提交及high直接过账，未调用模型。将条目加入现有配置，不需要改变模型或调用模型完成连接验证。
+DeepSeek Harness 0.1.5-rc.3 的 `cordis.yml` 插件条目如下。字段及 `!!js` 环境变量写法依据其已安装官方包 README/Config；工具名称在 Harness 中为 `mcp__fgas__fgas_*`；2026-10-15 曾用实际 MCP 插件/ToolRuntime 在专用测试库验证 v1 的两档发现、读取、待审提交及 high 直接过账，未调用模型；该历史结果不代表 v2 已完成外部客户端联调。将条目加入现有配置，不需要改变模型或调用模型完成连接验证。
 
 ```yaml
 - id: mcp-fgas
@@ -123,4 +123,6 @@ OpenCode 的 `opencode.json` 使用标准远程配置，依据 [官方 MCP 文�
 }
 ```
 
-成功连接后先调用 `fgas_get_context`，再通过目录查询取得真实 ID。`fgas_propose_*` 对两档始终 pending；high 直接资金过账，货物创建只进在途，另行确认完成才记库存。调用成功保存返回 ID；断线后查记录并人工核对，不自动重发或认为协议请求 ID 能去重。结果、查询分页和 Patch 规则以工具 Schema 与指南为准。当前仍为未发布草案，实际验证与未做项见阶段记录。
+成功连接后阅读初始化的核心模型说明，用 `fgas_help()` 查看当前权限与索引，再按需查某一对象/动作的精确参数；已知参数可直接调用。`fgas_propose` 对两档始终 pending；`fgas_execute` 仅 high 使用，资金直接过账，货物创建只进在途，另行完成才记库存。调用成功保存返回 ID；断线后查记录并人工核对，不自动重发。结果、查询分页和 Patch 规则以帮助契约与指南为准。
+
+从 v1 升级：原50个工具名已移除执行能力，只返回迁移提示。MCP 地址和凭据沿用，客户端需重新发现工具，硬编码旧名称的脚本需改为四入口；返回 `api_version=2`。没有数据库变更。当前仍未正式发布，实际验证与未做项见阶段记录。

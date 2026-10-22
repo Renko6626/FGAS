@@ -5,7 +5,7 @@ from backend.application.agent_queries import money
 
 
 def _result(data):
-    return dict(api_version='1', data=money(data))
+    return dict(api_version='2', data=money(data))
 
 
 def _resource(resource_type, identifier_key, value, *, applied=False, pending=False):

@@ -1,5 +1,6 @@
 # FGAS Agent 接入实施计划
 
+> 历史方案：公开工具契约已由 [2026-10-22 四入口方案](../specs/2026-10-22-agent-tools-simplification-design.md) 替代；本文保留当时设计与实施记录。
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 用户的工作约定优先：不机械新增测试、不逐步全量检查、不逐任务提交或反复完整复审。
 
 **Goal:** 让外部 MCP 客户端读取 FGAS 业务信息，使用低权限连接提交待审申请，使用高权限连接办理现有业务，并由人工管理连接。

@@ -5,12 +5,14 @@ import asyncio
 
 import httpx2
 import pytest
+from jsonschema import Draft202012Validator
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from sqlalchemy import func, select
 
 from backend.application import agent_access, agent_operations as ops, agent_queries as queries
 from backend.entrypoints.agent_schemas import AccountPatchOperation
+from backend.entrypoints import agent_catalog as catalog
 from backend.entrypoints.http import app
 from backend.infrastructure.database import Session
 from backend.infrastructure.models import AgentCredential, JournalLine, StockMove, Transfer, User
@@ -207,19 +209,123 @@ def test_mcp_auth_discovery_and_structured_results(client):
                         await session.initialize()
                         tools = (await session.list_tools()).tools
                         names = {tool.name for tool in tools}
-                        assert {'fgas_get_context', 'fgas_list_fund_accounts', 'fgas_propose_fund_transfer'} <= names
-                        assert 'fgas_create_member' not in names
+                        assert names == {'fgas_help', 'fgas_query', 'fgas_propose'}
                         assert all(tool.input_schema and tool.output_schema for tool in tools)
-                        read = await session.call_tool('fgas_list_fund_accounts', {})
-                        assert not read.is_error and read.structured_content['api_version'] == '1'
+                        overview = await session.call_tool('fgas_help', {})
+                        assert overview.structured_content['data']['level'] == 'low'
+                        read = await session.call_tool('fgas_query', {'resource': 'fund_accounts'})
+                        assert not read.is_error and read.structured_content['api_version'] == '2'
                         assert read.structured_content['data']['items']
-                        proposed = await session.call_tool('fgas_propose_fund_transfer', fund_data())
+                        proposed = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': fund_data()})
                         assert not proposed.is_error and proposed.structured_content['data']['status'] == 'pending'
-                        denied = await session.call_tool('fgas_create_member', {'name': '不能猜高权限工具'})
-                        assert denied.is_error
+                        detail = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'identifier': proposed.structured_content['data']['transfer_id']})
+                        assert detail.structured_content['data']['status'] == 'pending'
+                        denied = await session.call_tool('fgas_execute', {'resource': 'member', 'action': 'create', 'data': {'name': '不能猜高权限工具'}})
+                        assert denied.is_error and denied.structured_content['code'] == 'permission_denied'
+                        old = await session.call_tool('fgas_propose_fund_transfer', fund_data())
+                        assert old.is_error and old.structured_content['code'] == 'tool_migrated'
+                        invalid = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': {}})
+                        assert invalid.is_error
+                        assert 'data.amount' in {field['field'] for field in invalid.structured_content['fields']}
+                        assert invalid.structured_content['help']['arguments']['resource'] == 'fund_transfer'
                         # Disabling the credential affects a new call in the same SDK session.
                         with Session.begin() as db:
                             db.get(AgentCredential, connection['credential']['id']).active = False
                         response = await http.post('http://127.0.0.1:8000/mcp', json={'jsonrpc': '2.0', 'id': 99, 'method': 'tools/list'})
                         assert response.status_code == 401
     asyncio.run(exercise())
+
+
+
+def test_compact_help_contract_and_patch_inputs():
+    help_data = catalog.help_data('high', topic='execute', resource='fund_account', action='update')
+    _, values = catalog.prepare_call('fgas_execute', help_data['example'])
+    assert values == {'identifier': 'account-id', 'name': '新的账户名称'}
+    _, cleared = catalog.prepare_call('fgas_execute', {
+        'resource': 'fund_account', 'action': 'update',
+        'data': {'identifier': 'account-id', 'avatar_url': None},
+    })
+    assert cleared == {'identifier': 'account-id', 'avatar_url': None}
+    _, created = catalog.prepare_call('fgas_execute', {
+        'resource': 'member', 'action': 'create', 'data': {'name': '联系人'},
+    })
+    assert created == {'name': '联系人', 'note': ''}
+    index = catalog.help_data('low', topic='query')
+    assert all('input_schema' not in entry for entry in index['resources'])
+    with pytest.raises(DomainError) as denied:
+        catalog.help_data('low', topic='execute', resource='member', action='create')
+    assert denied.value.status == 403
+
+
+@pytest.mark.parametrize('arguments, field', [
+    ({'resource': 'fund_transfers', 'identifier': 'id', 'filters': {'status': 'pending'}}, 'filters'),
+    ({'resource': 'members', 'identifier': 'id'}, 'identifier'),
+    ({'resource': 'fund_transfers', 'filters': {'amount': '100'}}, 'filters.amount'),
+])
+def test_compact_query_rejects_ignored_parameters(arguments, field):
+    with pytest.raises(catalog.InputProblem) as error:
+        catalog.prepare_call('fgas_query', arguments)
+    assert field in {item['field'] for item in error.value.fields}
+
+
+def test_mcp_high_execution_uses_real_business_services(client):
+    connection = issue(client, 'high')
+    payload = stock_data(client)
+
+    async def exercise():
+        async with app.router.lifespan_context(app):
+            async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:8000', headers={'Authorization': f"Bearer {connection['secret']}"}) as http:
+                async with streamable_http_client('http://127.0.0.1:8000/mcp', http_client=http) as streams:
+                    async with ClientSession(streams[0], streams[1]) as session:
+                        assert (await session.initialize()).instructions
+                        assert {tool.name for tool in (await session.list_tools()).tools} == {'fgas_help', 'fgas_query', 'fgas_propose', 'fgas_execute'}
+
+                        async def execute(resource, action, data):
+                            result = await session.call_tool('fgas_execute', dict(resource=resource, action=action, data=data))
+                            assert not result.is_error, result.structured_content
+                            return result.structured_content['data']
+
+                        account = await execute('fund_account', 'create', {'name': 'MCP私账', 'kind': 'private', 'avatar_url': 'https://example.test/avatar.png'})
+                        account_id = account['account_id']
+                        renamed = await execute('fund_account', 'update', {'identifier': account_id, 'name': '改名私账'})
+                        assert renamed['object']['avatar_url'] == 'https://example.test/avatar.png'
+                        cleared = await execute('fund_account', 'update', {'identifier': account_id, 'avatar_url': None})
+                        assert cleared['object']['avatar_url'] is None
+                        expense = await execute('fund_transfer', 'create', fund_data(account_id, 'expense', '2'))
+                        assert expense['status'] == 'posted' and expense['ledger_effect_applied']
+                        payment = await execute('fund_transfer', 'create', fund_data('fund_pool', account_id, '2'))
+                        matched = await execute('settlement', 'match', {'identifier': payment['transfer_id'], 'allocations': [{'item_transfer_id': expense['transfer_id'], 'amount': '2'}]})
+                        assert not matched['ledger_effect_applied'] and matched['matches'][0]['amount'] == '2.00'
+                        proposal = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': fund_data()})
+                        assert proposal.structured_content['data']['status'] == 'pending'
+                        stock = await execute('stock_transfer', 'create', payload)
+                        assert stock['status'] == 'in_transit' and not stock['ledger_effect_applied']
+                        completion = await execute('stock_transfer', 'complete', {'identifier': stock['stock_transfer_id'], 'effective_date': '2026-10-15'})
+                        assert completion['status'] == 'completed' and completion['ledger_effect_applied']
+                        detail = await session.call_tool('fgas_query', {'resource': 'stock_transfers', 'identifier': stock['stock_transfer_id']})
+                        assert detail.structured_content['data']['submitted_credential_id'] == connection['credential']['id']
+                        invalid = await session.call_tool('fgas_execute', {'resource': 'member', 'action': 'approve', 'data': {}})
+                        assert invalid.is_error
+        with Session() as db:
+            assert db.scalar(select(func.count()).select_from(JournalLine)) == 4
+            assert db.scalar(select(func.count()).select_from(StockMove)) == 1
+    asyncio.run(exercise())
+
+
+
+def test_help_describes_non_null_patch_and_combined_result():
+    help_data = catalog.help_data('high', topic='execute', resource='fund_account', action='update')
+    example = help_data['example']
+    invalid = example | {'data': {'identifier': 'account-id', 'name': None}}
+    assert not Draft202012Validator(help_data['input_schema']).is_valid(invalid)
+    with pytest.raises(catalog.InputProblem) as error:
+        catalog.prepare_call('fgas_execute', invalid)
+    assert error.value.fields[0]['field'] == 'data.name'
+    cleared = example | {'data': {'identifier': 'account-id', 'avatar_url': None}}
+    Draft202012Validator(help_data['input_schema']).validate(cleared)
+    combined = catalog.help_data('high', topic='execute', resource='stock_operation', action='create')
+    Draft202012Validator(combined['output_schema']).validate({'api_version': '2', 'data': {
+        'resource_type': 'stock_operation',
+        'fund_transfer': {'resource_type': 'fund_transfer', 'transfer_id': 'fund-id', 'status': 'posted', 'ledger_effect_applied': True, 'approval_required': False},
+        'stock_transfer': {'resource_type': 'stock_transfer', 'stock_transfer_id': 'stock-id', 'status': 'in_transit', 'ledger_effect_applied': False, 'approval_required': False},
+    }})

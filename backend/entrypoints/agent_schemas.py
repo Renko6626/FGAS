@@ -294,7 +294,7 @@ class PageData(BaseModel, Generic[T, F]):
 
 
 class QueryResult(BaseModel, Generic[T]):
-    api_version: Literal['1'] = '1'
+    api_version: Literal['2'] = '2'
     data: T
 
 
@@ -388,35 +388,37 @@ QUERY_INPUT_SCHEMAS = {
 }
 
 # Writes reuse business inputs. Only fields that support clearing accept explicit null.
-from pydantic import model_validator
+from pydantic import ConfigDict, field_validator
 from backend.entrypoints import schemas as business
 
 
+def non_null_patch_schema(schema, names):
+    """Omission preserves a field; only explicitly clearable fields advertise null."""
+    for name in names:
+        field = schema['properties'][name]
+        field.update(next(option for option in field.pop('anyOf') if option.get('type') != 'null'))
+        field.pop('default', None)
+
+
+def require_patch_value(value):
+    if value is None:
+        raise ValueError('不能为 null；不修改此字段时请省略')
+    return value
+
+
 class AgentAccountPatch(business.AccountPatch):
-    @model_validator(mode='before')
-    @classmethod
-    def reject_null(cls, value):
-        if isinstance(value, dict) and any(key in value and value[key] is None for key in ('name', 'tags', 'active')):
-            raise ValueError('名称、标签和启用状态不能为 null')
-        return value
+    model_config = ConfigDict(json_schema_extra=lambda schema: non_null_patch_schema(schema, ('name', 'tags', 'active')))
+    reject_null = field_validator('name', 'tags', 'active', mode='before')(require_patch_value)
 
 
 class AgentSkuPatch(business.SkuPatch):
-    @model_validator(mode='before')
-    @classmethod
-    def reject_null(cls, value):
-        if isinstance(value, dict) and any(key in value and value[key] is None for key in ('name', 'specification', 'unit', 'active')):
-            raise ValueError('名称、规格、单位和启用状态不能为 null')
-        return value
+    model_config = ConfigDict(json_schema_extra=lambda schema: non_null_patch_schema(schema, ('name', 'specification', 'unit', 'active')))
+    reject_null = field_validator('name', 'specification', 'unit', 'active', mode='before')(require_patch_value)
 
 
 class AgentMemberPatch(business.MemberPatch):
-    @model_validator(mode='before')
-    @classmethod
-    def reject_null(cls, value):
-        if isinstance(value, dict) and any(key in value and value[key] is None for key in ('name', 'note')):
-            raise ValueError('名称和备注不能为 null')
-        return value
+    model_config = ConfigDict(json_schema_extra=lambda schema: non_null_patch_schema(schema, ('name', 'note')))
+    reject_null = field_validator('name', 'note', mode='before')(require_patch_value)
 
 
 class AccountPatchOperation(AgentAccountPatch, IdentifierInput): pass
@@ -609,29 +611,3 @@ OPERATION_OUTPUT_SCHEMAS = {
     'update_stock_stocktake': QueryResult[StockStocktakeWriteData],
     'end_stock_stocktake': QueryResult[StockStocktakeWriteData],
 }
-
-
-class ContextInput(Input):
-    pass
-
-
-class ContextSemantics(BaseModel):
-    currency: Literal['CNY']
-    amount_input: str
-    business_date: str
-    created_at: str
-    pagination: str
-    proposals: str
-    stock: str
-    patch: str
-    human_management: str
-    uncertain_result: str
-
-
-class ContextOutput(BaseModel):
-    api_version: Literal['1']
-    guide_version: str
-    guide: str
-    level: Literal['low', 'high']
-    available_tools: list[str]
-    semantics: ContextSemantics

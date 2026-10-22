@@ -1,8 +1,8 @@
-"""Official Streamable HTTP adapter; business authority is resolved per request/call."""
+"""Compact Streamable HTTP adapter; business authority is resolved per call."""
 from contextlib import contextmanager
 from contextvars import ContextVar
-import inspect
 import json
+import logging
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
@@ -10,46 +10,47 @@ from mcp.types import Tool, ToolAnnotations, CallToolResult, TextContent
 from pydantic import ValidationError
 from starlette.responses import JSONResponse
 
-from backend.application import agent_access, agent_queries, agent_operations
-from backend.entrypoints.agent_schemas import (
-    QUERY_INPUT_SCHEMAS, QUERY_OUTPUT_SCHEMAS,
-    OPERATION_INPUT_SCHEMAS, OPERATION_OUTPUT_SCHEMAS, ContextInput, ContextOutput,
-)
+from backend.application import agent_access
+from backend.entrypoints import agent_catalog as catalog
+from backend.entrypoints.agent_schemas import QueryResult
 from backend.infrastructure import store
 from backend.kernel.accounting import DomainError
 
 _bearer: ContextVar[str | None] = ContextVar('fgas_mcp_bearer', default=None)
-GUIDE = (Path(__file__).resolve().parents[2] / 'docs/ai/guide.md').read_text()
-GUIDE_VERSION = 'draft-2026-10-15-r5'
-INPUTS = {**QUERY_INPUT_SCHEMAS, **OPERATION_INPUT_SCHEMAS, 'get_context': ContextInput}
-OUTPUTS = {**QUERY_OUTPUT_SCHEMAS, **OPERATION_OUTPUT_SCHEMAS, 'get_context': ContextOutput}
-COMMON = frozenset(QUERY_INPUT_SCHEMAS) | {
-    'propose_fund_transfer', 'propose_stock_transfer', 'propose_stock_completion', 'get_context'}
+_DOCS = Path(__file__).resolve().parents[2] / 'docs/ai'
+GUIDE = (_DOCS / 'guide.md').read_text()
+OVERVIEW = (_DOCS / 'overview.md').read_text()
+GUIDE_VERSION = '2026-10-22-v2'
+RESULT_SCHEMA = QueryResult[dict].model_json_schema()
+logger = logging.getLogger(__name__)
+LEGACY_TOOLS = {'fgas_get_context'} | {
+    'fgas_' + name for name in catalog.schemas.QUERY_INPUT_SCHEMAS | catalog.schemas.OPERATION_INPUT_SCHEMAS
+}
 
 
 @contextmanager
 def business_session():
-    # Reuse the HTTP transaction generator, including commit and rollback behavior.
     with contextmanager(store.transaction)() as db:
         yield db
 
 
 def available_tools(access):
-    return ['fgas_' + name for name in INPUTS if access.level == 'high' or name in COMMON]
+    return [name for name in catalog.PUBLIC_INPUTS if name != 'fgas_execute' or access.level == 'high']
 
 
-def get_context(access: agent_access.AgentAccess) -> dict:
-    return dict(api_version='1', guide_version=GUIDE_VERSION, guide=GUIDE,
-                level=access.level, available_tools=available_tools(access),
-                semantics=dict(currency='CNY', amount_input='yuan decimal string',
-                               business_date='YYYY-MM-DD; inclusive date filters',
-                               created_at='timezone-aware ISO; start inclusive, end exclusive',
-                               pagination='page/limit/has_more; one page is not all records',
-                               proposals='always pending; no ledger effect until approved',
-                               stock='in_transit is planned movement; completion changes inventory',
-                               patch='omitted fields unchanged; explicit null only when allowed',
-                               human_management='users, roles and credentials are human managed',
-                               uncertain_result='query records before manual retry; writes are not deduplicated'))
+def get_help(access, arguments):
+    request = catalog.validate(catalog.HelpInput, arguments, catalog.help_call('overview'))
+    if request.topic not in ('overview', 'guide'):
+        return catalog.help_data(access.level, **request.model_dump())
+    if request.resource is not None or request.action is not None:
+        catalog.invalid('topic', 'overview/guide 不接收 resource 或 action；请选 query/propose/execute', catalog.help_call('overview'))
+    if request.topic == 'guide':
+        return dict(guide_version=GUIDE_VERSION, guide=GUIDE)
+    capabilities = dict(query=list(catalog.QUERIES), propose=list(catalog.PROPOSALS))
+    if access.level == 'high':
+        capabilities['execute'] = {resource: list(actions) for resource, actions in catalog.EXECUTIONS.items()}
+    return dict(guide_version=GUIDE_VERSION, level=access.level, model=OVERVIEW,
+                available_tools=available_tools(access), capabilities=capabilities)
 
 
 def _result(data, *, error=False):
@@ -60,48 +61,53 @@ def _result(data, *, error=False):
 class FGASMCPServer(MCPServer):
     async def list_tools(self):
         with business_session() as db:
-            access = agent_access.resolve(db, _bearer.get())
-            names = available_tools(access)
-        return [Tool(name=name, description=(
-            '读取当前连接与业务操作指南' if name == 'fgas_get_context' else
-            name.removeprefix('fgas_').replace('_', ' ')),
-            input_schema=INPUTS[name[5:]].model_json_schema(),
-            output_schema=OUTPUTS[name[5:]].model_json_schema(),
-            annotations=ToolAnnotations(read_only_hint=name[5:] in QUERY_INPUT_SCHEMAS or name == 'fgas_get_context'))
-            for name in names]
+            names = available_tools(agent_access.resolve(db, _bearer.get()))
+        return [Tool(name=name, description=catalog.TOOL_DESCRIPTIONS[name],
+                     input_schema=catalog.PUBLIC_INPUTS[name].model_json_schema(),
+                     output_schema=RESULT_SCHEMA,
+                     annotations=ToolAnnotations(read_only_hint=name in ('fgas_help', 'fgas_query')))
+                for name in names]
 
     async def call_tool(self, name, arguments, context=None):
         try:
             with business_session() as db:
                 access = agent_access.resolve(db, _bearer.get())
-                key = name.removeprefix('fgas_')
-                if not name.startswith('fgas_') or key not in INPUTS:
-                    raise DomainError('工具不存在', 404)
-                # Application operations also guard high authority themselves.
-                if key not in COMMON:
+                if name in LEGACY_TOOLS:
+                    return _result(dict(api_version='2', code='tool_migrated',
+                        message='此工具已被 MCP v2 四入口替代。请重新发现工具并调用 fgas_help；旧工具未执行任何业务。',
+                        help=catalog.help_call('overview')), error=True)
+                if name not in catalog.PUBLIC_INPUTS:
+                    raise DomainError('工具不存在，请调用 fgas_help 查看用法', 404)
+                if name == 'fgas_execute':
                     agent_access.require_high(access)
-                values = INPUTS[key].model_validate(arguments).model_dump(
-                    mode='json', exclude_unset=key.startswith('update_'))
-                if key == 'get_context':
-                    data = get_context(access)
+                if name == 'fgas_help':
+                    data = dict(api_version='2', data=get_help(access, arguments))
                 else:
-                    module = agent_queries if key in QUERY_INPUT_SCHEMAS else agent_operations
-                    fn = getattr(module, key)
-                    if 'identifier' in inspect.signature(fn).parameters:
+                    selected, values = catalog.prepare_call(name, arguments)
+                    fn = selected.handler
+                    if 'identifier' in selected.input_model.model_fields:
                         identifier = values.pop('identifier')
-                        data = fn(db, access, identifier, values) if module is agent_operations else fn(db, access, identifier)
+                        data = fn(db, access, identifier) if name == 'fgas_query' else fn(db, access, identifier, values)
                     else:
                         data = fn(db, access, values)
-                data = OUTPUTS[key].model_validate(data).model_dump(mode='json')
+                    # Validate before leaving the transaction: malformed results roll back writes.
+                    data = selected.output_model.model_validate(data).model_dump(mode='json')
             return _result(data)
+        except catalog.InputProblem as exc:
+            return _result(dict(api_version='2', code='validation_error', message=str(exc),
+                                fields=exc.fields, help=exc.help_request), error=True)
         except ValidationError:
-            return _result(dict(code='validation_error', message='参数或结果不符合工具声明，请核对字段及格式'), error=True)
+            logger.exception('FGAS operation returned an invalid result')
+            return _result(dict(api_version='2', code='internal_error',
+                message='服务端返回结果不符合契约，本次事务已回滚；请联系管理员核对。'), error=True)
         except DomainError as exc:
             code = {401: 'permission_denied', 403: 'permission_denied', 404: 'not_found',
                     409: 'state_conflict'}.get(exc.status, 'validation_error')
-            return _result(dict(code=code, message=str(exc)), error=True)
+            return _result(dict(api_version='2', code=code, message=str(exc)), error=True)
         except Exception:
-            return _result(dict(code='state_conflict', message='操作未能完成，请查询记录并联系管理员核对'), error=True)
+            logger.exception('FGAS operation failed')
+            return _result(dict(api_version='2', code='internal_error',
+                message='操作未能完成，请查询记录并联系管理员核对；不要自动重发写入。'), error=True)
 
 
 class BearerAuth:
@@ -129,7 +135,8 @@ class BearerAuth:
             _bearer.reset(token)
 
 
+
 def create_mcp_app():
-    server = FGASMCPServer('FGAS', version='1', instructions='先调用 fgas_get_context 阅读业务指南。')
+    server = FGASMCPServer('FGAS', version='2', instructions=OVERVIEW)
     transport = server.streamable_http_app(streamable_http_path='/mcp', stateless_http=True, json_response=True)
     return BearerAuth(transport, server)

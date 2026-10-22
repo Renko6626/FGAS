@@ -266,3 +266,23 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 本次 `./tools/run_tests.sh` 打印 `Test database: fgas_test`，退出0，31 passed in 84.01s；`npm run build` 的 vue-tsc 和 Vite 均通过，主包511.05kB，保留默认体积提示。尝试重跑 DSH 前发现旧 npm 临时路径已失效，仅在新临时脚本改为解析当前 DSH 安装路径；脚本在首次连接专用数据库时被沙箱以 `Operation not permitted` 拒绝，未签发凭据、启动服务或提交业务。本次不声称 DSH 再次联调通过，也未修改个人 DSH 配置或日常库。
 
 整合检查发现 Dockerfile 只复制 backend，而 MCP 模块导入时读取 `docs/ai/guide.md`，导致容器启动缺文件。按镜像文件布局在临时目录复现 FileNotFoundError，补入 docs/ai 后导入成功；现有 Dockerfile 已补一行 `COPY docs/ai docs/ai`，沿用原部署方式。没有构建或启动实际 Docker 镜像，未升级日常库、合并主线或推送。
+
+
+### 2026-10-22：MCP v2 四入口与核心模型指南
+
+用户确认将逐动作的20/50工具改为low3/high4入口：`fgas_help`、`fgas_query`、`fgas_propose`，high增加`fgas_execute`。固定resource/action契约覆盖16查询、3提议和30高权限动作，列表/详情共用query；help只按需返回所选参数及输出Schema。旧50个工具名只返回tool_migrated，不执行旧动作；/mcp和凭据沿用，客户端须重新发现，固定旧名脚本须迁移。API版本2，无新增数据库或依赖。
+
+新增`docs/ai/overview.md`作为MCP初始化instructions及help默认核心说明，先解释账户→Transfer→正式流水→余额/库存，私账方向、资金和货物独立生效、结算匹配与薄盘点，再介绍四入口。完整guide保留实际业务口径和调用例子，按需读取。README、architecture及历史方案标记已同步。未改前端或用户temp/内容。
+
+同一compact JSON字符口径下，low输入/输出Schema由10,425/52,248降到1,465/684；high由24,287/89,744降到2,101/912。首层模型说明1,583字符。这里只量Schema声明体积，不包含名称/描述，不声称实际token、延迟或模型成功率改善已验收。
+
+无数据库验证：
+
+- `PYTHONPATH=$PWD/.worktrees/agent-access/.venv/lib/python3.13/site-packages .venv/bin/python -m pytest backend/tests/test_agent_access.py -k 'compact or help_describes' -q`：5 passed, 7 deselected。覆盖参数化契约、帮助示例、列表/详情冲突、Patch省略/null以及准确的输出结构。
+- 一次性检查全部49项具体操作的帮助示例、JSON Schema与真实参数准备均通过，映射完整且无重复；所选输出Schema合法，所有目录Patch不可清空字段的声明与运行校验一致。
+- `python -m compileall -q backend`、`git --git-dir=.fgas-git --work-tree=. diff --check`通过。测试收集亦通过，不能视为数据库业务测试通过。
+- 独立只读审阅发现两处帮助契约问题：旧Patch Schema仍声明禁止的null输入、通用结果说明不适合钱货联建等结构。已修正Schema并将错误定位至字段，帮助按所选操作返回准确输出Schema；新增一个简短用例复现失败后通过。
+
+完整验收限制：当前.venv缺少mcp，安装现有requirements因沙箱代理连接被拒绝而失败。使用项目旧工作区中同版本mcp2.3.0、httpx2 2.13.1及pytest8.4.2，通过本次命令PYTHONPATH复用，未改长期环境。`PYTHONPATH=... ./tools/run_tests.sh`在首次连接专用fgas_test Unix socket时被`Operation not permitted`拒绝，没有执行重建或测试。pg_ctl在沙箱内无法看到宿主进程，启动尝试因已有postmaster.pid被拒绝；未移除锁文件、停止服务或修改日常库。
+
+因此不声称资金/货物数据库回归、SDK真实ASGI业务协议或外部客户端v2联调已通过。已有及新增数据库测试保留，待允许访问测试库的环境运行。未做浏览器自动交互、前端构建、生产部署、数据库迁移或远程发布。

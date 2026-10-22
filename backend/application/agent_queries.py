@@ -44,7 +44,7 @@ def _filters(filters):
 
 
 def _result(data):
-    return dict(api_version='1', data=money(data))
+    return dict(api_version='2', data=money(data))
 
 
 def _page(rows, filters, *, sliced=False, snapshot_at=None, **extra):
