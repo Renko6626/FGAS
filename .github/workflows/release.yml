@@ -61,6 +61,7 @@ jobs:
           docker pull postgres:14
           docker image save -o "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/images.tar" "$PREFIX-api:$VERSION" "$PREFIX-web:$VERSION" postgres:14
           bash "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/apply-release.sh" --init-db
+          docker compose --project-name fgas --env-file "$RUNNER_TEMP/fgas/.env" --env-file "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/release.env" -f "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/compose.yaml" run --rm --no-deps migrate alembic -c alembic.ini check
           curl --fail http://127.0.0.1:8080/api/health
           curl --fail http://127.0.0.1:8080/api/auth/config | grep -q '"mode":"casdoor"'
           curl --fail http://127.0.0.1:8080/ > /dev/null

@@ -2,9 +2,12 @@
 import secrets
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from sqlalchemy import select, text, func, delete
+from pathlib import Path
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import select, text, func, delete, inspect
 from backend.infrastructure import auth_config
-from backend.infrastructure.database import Session, engine
+from backend.infrastructure.database import DATABASE_URL, Session, engine
 from backend.infrastructure.models import Base, User, LoginSession, FundAccount, StockAccount, Transfer, JournalLine, Audit, Member
 
 def transaction():
@@ -102,23 +105,34 @@ def fund_balances(db, as_of=None, basis='posted'):
     return [dict(id=a.id, name=a.name, kind=a.kind, tags=a.tags, balance_minor=balance_delta(db, a.id, as_of=as_of, basis=basis))
             for a in accounts(db, kind='public')]
 
-def create_schema():
-    Base.metadata.create_all(engine)
+RETIRED_TABLES = {'alembic_version','ledger_accounts','stock_locations','stock_location_profiles','location_custodies',
+                  'member_claims','repayments','repayment_allocations','stock_operations',
+                  'stock_differences','stock_difference_adjustments'}
+
+def alembic_config():
+    config = Config(str(Path(__file__).resolve().parents[2] / 'alembic.ini'))
+    config.attributes['db_url'] = DATABASE_URL
+    return config
+
+def upgrade_schema():
+    with engine.connect() as db:
+        existing = set(inspect(db).get_table_names())
+    known = existing & (set(Base.metadata.tables) | RETIRED_TABLES)
+    if known and 'alembic_version' not in existing:
+        raise RuntimeError('Unversioned FGAS database; back up and adopt or rebuild it before starting')
+    command.upgrade(alembic_config(), 'head')
 
 def reset_schema():
     # Explicit development reset includes retired models, never unrelated tables.
-    from sqlalchemy import MetaData, inspect
-    retired = {'alembic_version','ledger_accounts','stock_locations','stock_location_profiles','location_custodies',
-               'member_claims','repayments','repayment_allocations','stock_operations',
-               'stock_differences','stock_difference_adjustments'}
+    from sqlalchemy import MetaData
     with engine.begin() as db:
-        names = set(inspect(db).get_table_names()) & (set(Base.metadata.tables) | retired)
-        reflected = MetaData()
-        reflected.reflect(db, only=list(names))
-        unrelated = set(reflected.tables) - names
-        if unrelated: raise RuntimeError('Reset encountered non-FGAS dependencies; refusing to drop them')
-        reflected.drop_all(db)
-        Base.metadata.create_all(db)
+        names = set(inspect(db).get_table_names()) & (set(Base.metadata.tables) | RETIRED_TABLES)
+        if names:
+            reflected = MetaData()
+            reflected.reflect(db, only=list(names))
+            unrelated = set(reflected.tables) - names
+            if unrelated: raise RuntimeError('Reset encountered non-FGAS dependencies; refusing to drop them')
+            reflected.drop_all(db)
 
 def seed_development(admin_id, admin_name):
     with Session.begin() as db:

@@ -16,6 +16,16 @@ services:
       timeout: 5s
       retries: 12
 
+  migrate:
+    image: ${FGAS_API_IMAGE:-fgas-api:local}
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fgas:${POSTGRES_PASSWORD}@db:5432/fgas
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
+
   api:
     image: ${FGAS_API_IMAGE:-fgas-api:local}
     restart: unless-stopped
@@ -35,6 +45,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
       interval: 5s

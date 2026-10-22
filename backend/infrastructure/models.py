@@ -1,11 +1,19 @@
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import String, Integer, BigInteger, Boolean, Date, DateTime, ForeignKey, JSON, UniqueConstraint, CheckConstraint, Index, text
+from sqlalchemy import String, Integer, BigInteger, Boolean, Date, DateTime, ForeignKey, JSON, MetaData, UniqueConstraint, CheckConstraint, Index, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 def new_id(): return str(uuid4())
 def now(): return datetime.now(timezone.utc)
-class Base(DeclarativeBase): pass
+NAMING_CONVENTION = {
+    'ix': 'ix_%(table_name)s_%(column_0_N_name)s',
+    'uq': 'uq_%(table_name)s_%(column_0_N_name)s',
+    'ck': 'ck_%(table_name)s_%(constraint_name)s',
+    'fk': 'fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s',
+    'pk': 'pk_%(table_name)s',
+}
+class Base(DeclarativeBase):
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 class User(Base):
     __tablename__ = 'users'
     __table_args__ = (Index('users_sso_subject_key', 'sso_subject', unique=True, postgresql_where=text('sso_subject IS NOT NULL')),)
@@ -20,7 +28,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 class AgentCredential(Base):
     __tablename__ = 'agent_credentials'
-    __table_args__ = (CheckConstraint("level IN ('low','high')"),)
+    __table_args__ = (CheckConstraint("level IN ('low','high')", name='level_valid'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     owner_user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     name: Mapped[str] = mapped_column(String)
@@ -38,7 +46,7 @@ class LoginSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 class FundAccount(Base):
     __tablename__ = 'fund_accounts'
-    __table_args__ = (CheckConstraint("kind IN ('public','private','external')"),)
+    __table_args__ = (CheckConstraint("kind IN ('public','private','external')", name='kind_valid'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
@@ -48,7 +56,7 @@ class FundAccount(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 class StockAccount(Base):
     __tablename__ = 'stock_accounts'
-    __table_args__ = (CheckConstraint("kind IN ('public','private','external')"),)
+    __table_args__ = (CheckConstraint("kind IN ('public','private','external')", name='kind_valid'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
@@ -58,7 +66,7 @@ class StockAccount(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 class Transfer(Base):
     __tablename__ = 'transfers'
-    __table_args__ = (CheckConstraint('amount_minor > 0'),
+    __table_args__ = (CheckConstraint('amount_minor > 0', name='amount_positive'),
                       Index('transfers_posted_at_key', 'posted_at'),
                       Index('transfers_effective_date_key', 'effective_date'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
@@ -82,7 +90,7 @@ class Transfer(Base):
     submitted_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)
 class JournalLine(Base):
     __tablename__ = 'journal_lines'
-    __table_args__ = (CheckConstraint('(debit_minor > 0 AND credit_minor = 0) OR (credit_minor > 0 AND debit_minor = 0)'),
+    __table_args__ = (CheckConstraint('(debit_minor > 0 AND credit_minor = 0) OR (credit_minor > 0 AND debit_minor = 0)', name='debit_credit_exclusive'),
                       Index('journal_lines_account_id_key', 'account_id'),
                       Index('journal_lines_transfer_id_key', 'transfer_id'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
@@ -110,7 +118,7 @@ class Member(Base):
 
 class SettlementMatch(Base):
     __tablename__ = 'settlement_matches'
-    __table_args__ = (CheckConstraint('amount_minor > 0'), CheckConstraint('settlement_transfer_id <> item_transfer_id'))
+    __table_args__ = (CheckConstraint('amount_minor > 0', name='amount_positive'), CheckConstraint('settlement_transfer_id <> item_transfer_id', name='distinct_transfers'))
     settlement_transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
     item_transfer_id: Mapped[str] = mapped_column(ForeignKey('transfers.id'), primary_key=True)
     amount_minor: Mapped[int] = mapped_column(BigInteger)
@@ -127,7 +135,7 @@ class Sku(Base):
 class StockAccountCustody(Base):
     __tablename__ = 'stock_account_custodies'
     __table_args__ = (
-        CheckConstraint('valid_to IS NULL OR valid_to >= valid_from'),
+        CheckConstraint('valid_to IS NULL OR valid_to >= valid_from', name='valid_window'),
         Index('one_current_stock_account_custody', 'account_id', unique=True, postgresql_where=text('valid_to IS NULL')),
     )
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
@@ -140,7 +148,7 @@ class StockAccountCustody(Base):
 
 class StockTransfer(Base):
     __tablename__ = 'stock_transfers'
-    __table_args__ = (CheckConstraint("status IN ('pending','in_transit','completed','rejected','cancelled')"),)
+    __table_args__ = (CheckConstraint("status IN ('pending','in_transit','completed','rejected','cancelled')", name='status_valid'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     source_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
     destination_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
@@ -162,7 +170,7 @@ class StockTransfer(Base):
 
 class StockTransferLine(Base):
     __tablename__ = 'stock_transfer_lines'
-    __table_args__ = (UniqueConstraint('transfer_id', 'sku_id'), CheckConstraint('quantity > 0 AND quantity <= 9007199254740991'))
+    __table_args__ = (UniqueConstraint('transfer_id', 'sku_id'), CheckConstraint('quantity > 0 AND quantity <= 9007199254740991', name='quantity_valid'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
     sku_id: Mapped[str] = mapped_column(ForeignKey('skus.id'))
@@ -188,7 +196,7 @@ class StockAudit(Base):
 class StockConfirmation(Base):
     __tablename__ = 'stock_confirmations'
     __table_args__ = (
-        CheckConstraint("status IN ('pending','completed','rejected','invalidated')"),
+        CheckConstraint("status IN ('pending','completed','rejected','invalidated')", name='status_valid'),
         Index('one_pending_stock_confirmation', 'transfer_id', unique=True, postgresql_where=text("status = 'pending'")),
         Index('one_completed_stock_confirmation', 'transfer_id', unique=True, postgresql_where=text("status = 'completed'")),
     )
@@ -206,7 +214,7 @@ class StockConfirmation(Base):
 
 class StockMove(Base):
     __tablename__ = 'stock_moves'
-    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id'), UniqueConstraint('transfer_line_id'), CheckConstraint('quantity > 0 AND quantity <= 9007199254740991'),
+    __table_args__ = (UniqueConstraint('confirmation_id','transfer_line_id'), UniqueConstraint('transfer_line_id'), CheckConstraint('quantity > 0 AND quantity <= 9007199254740991', name='quantity_valid'),
                       Index('stock_moves_created_at_key', 'created_at'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     confirmation_id: Mapped[str] = mapped_column(ForeignKey('stock_confirmations.id'))
@@ -221,7 +229,7 @@ class StockMove(Base):
 
 class FundStocktake(Base):
     __tablename__ = 'fund_stocktakes'
-    __table_args__ = (CheckConstraint("status IN ('in_progress','ended')"), CheckConstraint('gain_account_id <> loss_account_id'), CheckConstraint("length(trim(name)) > 0"))
+    __table_args__ = (CheckConstraint("status IN ('in_progress','ended')", name='status_valid'), CheckConstraint('gain_account_id <> loss_account_id', name='distinct_accounts'), CheckConstraint("length(trim(name)) > 0", name='name_not_blank'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String, default='')
@@ -234,7 +242,7 @@ class FundStocktake(Base):
 
 class StockStocktake(Base):
     __tablename__ = 'stock_stocktakes'
-    __table_args__ = (CheckConstraint("status IN ('in_progress','ended')"), CheckConstraint('gain_account_id <> loss_account_id'), CheckConstraint("length(trim(name)) > 0"))
+    __table_args__ = (CheckConstraint("status IN ('in_progress','ended')", name='status_valid'), CheckConstraint('gain_account_id <> loss_account_id', name='distinct_accounts'), CheckConstraint("length(trim(name)) > 0", name='name_not_blank'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String, default='')

@@ -20,10 +20,29 @@ if [[ -f "$release_dir/images.tar" ]]; then
 else
     "${compose[@]}" pull
 fi
+
+# Start the database first so a backup and migration always see a healthy DB.
+"${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 120 db
+backup_dir="$deploy_root/backups"
+install -d -m 700 "$backup_dir"
+table_count=$("${compose[@]}" exec -T db psql -U fgas -d fgas -tAc \
+    "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
+table_count="${table_count//[[:space:]]/}"
+if [[ "$table_count" -gt 0 ]]; then
+    backup="$backup_dir/fgas-$(date -u +%Y%m%dT%H%M%SZ)-pre-migrate.dump"
+    (umask 077; "${compose[@]}" exec -T db pg_dump -U fgas -d fgas -Fc --no-owner > "$backup")
+    [[ -s "$backup" ]] || { echo "Database backup is empty; aborting release." >&2; exit 1; }
+    find "$backup_dir" -maxdepth 1 -type f -name 'fgas-*-pre-migrate.dump' -mtime +30 -delete
+fi
+
+# Run the one-shot service explicitly: an exited one-shot container is not
+# guaranteed to rerun on `up`.
+"${compose[@]}" run --rm --no-deps --pull never migrate
+
 if $init_db; then
-    "${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 120 db
     "${compose[@]}" run --rm --no-deps --pull never api python -m backend.application.initialize
 fi
+
 "${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 120
 "${compose[@]}" ps
 echo "Running release: $release_dir"
