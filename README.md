@@ -17,7 +17,7 @@ cp .env.example .env
 npm run dev
 ```
 
-后端默认 `127.0.0.1:8000`，前端 `5173`，通过 `/api` 代理。认证由 `AUTH_MODE` 切换：本地开发使用 `development` 的账号选择；正式环境使用 `casdoor`，通过既有 Casdoor OIDC 登录。Casdoor 首次登录自动建立本地用户，默认普通用户，角色由管理员在“用户权限”中维护；`INITIAL_ADMIN_SUBJECT` 只在首次建号时把匹配的 Casdoor `sub` 或用户名绑定为管理员。三档角色为管理员、受信任用户、普通用户。
+后端默认 `127.0.0.1:10622`，前端 `5173`，通过 `/api` 代理。认证由 `AUTH_MODE` 切换：本地开发使用 `development` 的账号选择；正式环境使用 `casdoor`，通过既有 Casdoor OIDC 登录。Casdoor 首次登录自动建立本地用户，默认普通用户，角色由管理员在“用户权限”中维护；`INITIAL_ADMIN_SUBJECT` 只在首次建号时把匹配的 Casdoor `sub` 或用户名绑定为管理员。三档角色为管理员、受信任用户、普通用户。
 
 数据库 schema 由 Alembic 管理，当前基线是 `0001_baseline_schema`。`npm run db:init` 会执行 `alembic upgrade head` 并写入开发种子；`npm run dev` 启动前也会 upgrade。已有 FGAS 表但没有 `alembic_version` 的旧库会被明确拒绝，必须先备份并收养或重建，不能回到 `create_all`。修改模型后生成新的 revision，不要手写升级 SQL；完整流程见 [数据库迁移](docs/migrations.md)。
 
@@ -103,7 +103,7 @@ npm run build
 
 网页页脚提供无需登录的 `/agent-setup.md` 接入指南，链接直接写在原始 HTML 中。可以将该站点文档地址交给外部 Agent，让它自行识别客户端、配置 MCP 并做只读验证；缺少连接密钥时再由用户在网页签发。文档源文件为 [agent-setup.md](frontend/public/agent-setup.md)。
 
-后端通过官方 `mcp==2.3.0` Streamable HTTP 在 `http://127.0.0.1:8000/mcp` 提供业务工具。先由人工登录“Agent 连接”签发令牌，再由客户端运行时提供 `Authorization: Bearer …`。令牌不能作为 `/api` 人工登录会话；Cookie 也不能代替 MCP Bearer。明文仅显示一次，丢失请新建连接，勿放入对话、仓库或工具参数。
+后端通过官方 `mcp==2.3.0` Streamable HTTP 在 `http://127.0.0.1:10622/mcp` 提供业务工具。先由人工登录“Agent 连接”签发令牌，再由客户端运行时提供 `Authorization: Bearer …`。令牌不能作为 `/api` 人工登录会话；Cookie 也不能代替 MCP Bearer。明文仅显示一次，丢失请新建连接，勿放入对话、仓库或工具参数。
 
 受信任用户只能签发自己的 low，管理员可签自己的 low/high；普通用户不能签发。MCP v2 的 low 只暴露 `fgas_help`、`fgas_query`、`fgas_propose`，high 增加 `fgas_execute`。通过对象、动作及参数覆盖原有业务能力，具体参数按需查 help。连接及所属用户的启停、角色和过期时间每次调用重新检查；Agent 不能管理登录用户、角色或连接。初始化说明先讲清账户、Transfer、正式流水、结算和盘点的关系，见 [核心模型](docs/ai/overview.md) 与 [完整指南](docs/ai/guide.md)。
 

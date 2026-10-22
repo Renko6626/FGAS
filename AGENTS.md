@@ -22,7 +22,7 @@
 
 ```bash
 npm run setup      # 建 .venv、装后端依赖、前端 ci
-npm run dev        # 本地开发（后端 127.0.0.1:8000，前端 5173，/api 代理）
+npm run dev        # 本地开发（后端 127.0.0.1:10622，前端 5173，/api 代理）
 npm run build      # 前端类型检查 + 生产构建
 npm run db:init    # Alembic upgrade + 开发种子
 .venv/bin/python -m alembic -c alembic.ini upgrade head   # 升级 schema

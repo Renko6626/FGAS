@@ -204,8 +204,8 @@ def test_mcp_auth_discovery_and_structured_results(client):
 
     async def exercise():
         async with app.router.lifespan_context(app):
-            async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:8000', headers={'Authorization': f"Bearer {connection['secret']}"}) as http:
-                async with streamable_http_client('http://127.0.0.1:8000/mcp', http_client=http) as streams:
+            async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:10622', headers={'Authorization': f"Bearer {connection['secret']}"}) as http:
+                async with streamable_http_client('http://127.0.0.1:10622/mcp', http_client=http) as streams:
                     async with ClientSession(streams[0], streams[1]) as session:
                         await session.initialize()
                         tools = (await session.list_tools()).tools
@@ -237,7 +237,7 @@ def test_mcp_auth_discovery_and_structured_results(client):
                         # Disabling the credential affects a new call in the same SDK session.
                         with Session.begin() as db:
                             db.get(AgentCredential, connection['credential']['id']).active = False
-                        response = await http.post('http://127.0.0.1:8000/mcp', json={'jsonrpc': '2.0', 'id': 99, 'method': 'tools/list'})
+                        response = await http.post('http://127.0.0.1:10622/mcp', json={'jsonrpc': '2.0', 'id': 99, 'method': 'tools/list'})
                         assert response.status_code == 401
     asyncio.run(exercise())
 
@@ -280,8 +280,8 @@ def test_mcp_high_execution_uses_real_business_services(client):
 
     async def exercise():
         async with app.router.lifespan_context(app):
-            async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:8000', headers={'Authorization': f"Bearer {connection['secret']}"}) as http:
-                async with streamable_http_client('http://127.0.0.1:8000/mcp', http_client=http) as streams:
+            async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:10622', headers={'Authorization': f"Bearer {connection['secret']}"}) as http:
+                async with streamable_http_client('http://127.0.0.1:10622/mcp', http_client=http) as streams:
                     async with ClientSession(streams[0], streams[1]) as session:
                         assert (await session.initialize()).instructions
                         assert {tool.name for tool in (await session.list_tools()).tools} == {'fgas_help', 'fgas_query', 'fgas_propose', 'fgas_execute'}

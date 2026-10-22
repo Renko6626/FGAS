@@ -2,12 +2,13 @@
 
 推荐使用 Docker Compose。服务器只需 Docker Engine、Compose 插件和 SSH，不需要安装 Python、Node、uv、PM2，也不用手工维护虚拟环境。前端镜像已经包含 Nginx，网页、API 和 MCP 共用一个入口。
 
-有两种交付方式，启动和配置完全相同：
+可通过以下方式交付；Coolify 使用独立的 Compose 和变量模板：
 
 | 方式 | 在哪里构建 | 怎么送到服务器 |
 | --- | --- | --- |
 | 手动发布 | 本机 | SSH 传完整镜像包，服务器加载后启动 |
 | GitHub 自动发布 | GitHub Actions | 镜像放 GHCR，服务器拉取后启动 |
+| Coolify | 本机 | 镜像放 ACR，Coolify 读取 Git 中的 Compose 并拉取镜像 |
 
 目前仅支持 Linux amd64。Python 依赖在构建镜像时用现有 requirements.txt 安装，服务器不会现场执行 pip 或 uv。手动镜像包还包含 PostgreSQL，目标机无需访问镜像仓库；第一次在本机构建仍需联网下载基础镜像和依赖。
 
@@ -15,7 +16,43 @@
 
 不要复用仓库或本机其他工具里的 `CASDOOR_KEY` / `CASDOOR_SECRET`；FGAS 只读取下文的 `CASDOOR_CLIENT_ID` / `CASDOOR_CLIENT_SECRET`。`CASDOOR_REDIRECT_URI` 必须与 Casdoor 应用登记值完全一致，否则登录回调会被拒绝。
 
-## 第一次准备服务器
+## Coolify：ACR 镜像部署
+
+使用 [compose.coolify.yaml](compose.coolify.yaml) 和 [coolify.env.example](coolify.env.example)。本节独立于后面的 SSH 发布流程，不使用 `/opt/fgas`、固定 Compose 项目名或 `apply-release.sh`。
+
+1. 本机登录 ACR，选择一个新的版本号，构建并上传前后端镜像：
+
+   ```bash
+   docker login crpi-bug4nt14ryr5n8sw.cn-beijing.personal.cr.aliyuncs.com
+   bash scripts/push-acr.sh coolify-20261022-1
+   ```
+
+   脚本成功后输出 `FGAS_API_IMAGE` 和 `FGAS_WEB_IMAGE`。每次发布使用新版本号，两份镜像应来自同一版本源码。
+
+2. 在部署服务器上，以 Coolify 实际使用的 SSH 用户登录同一个 ACR。当前服务器使用 root。准备备份目录：
+
+   ```bash
+   docker login crpi-bug4nt14ryr5n8sw.cn-beijing.personal.cr.aliyuncs.com
+   install -d -m 700 /data/fgas-backups
+   ```
+
+3. 在 Coolify 创建项目和 production 环境，通过 GitHub App 选择本仓库的部署分支，构建方式选择 Docker Compose。Base Directory 为 `/`，Docker Compose Location 为 `/deploy/compose.coolify.yaml`。保存并加载 Compose，首次保持 Auto Deploy 关闭、Raw Compose Deployment 关闭。
+
+4. 在 Environment Variables 中填写变量模板的内容。两个镜像变量使用步骤 1 的完整地址；`POSTGRES_PASSWORD` 使用 `openssl rand -hex 24` 生成的十六进制密码；Casdoor Client ID、Client Secret 和初始管理员 subject 使用 FGAS 应用的实际值。正式站点保持 `AUTH_MODE=casdoor` 和 `COOKIE_SECURE=true`。真实凭据仅存入 Coolify，不提交到 Git。
+
+5. 为 `web` 服务添加 HTTPS 域名，内部端口为 `80`，路径留空。例如 `https://fgas.secret-sealing.club:80`，其对应回调为 `https://fgas.secret-sealing.club/api/auth/casdoor/callback`，必须先登记到 Casdoor 应用。`api` 和 `db` 不配置公网域名或宿主端口。Coolify 生成代理路由和证书，现有宿主 Nginx 无需修改。
+
+6. 点击 Deploy，检查 `db` 健康、`backup` 和 `migrate` 退出码为 0、`api` 和 `web` 健康。新库由 Alembic 建表，Casdoor 首次登录建立用户，不导入开发示例账号和账户。之后手动登录确认管理员身份。
+
+Compose 默认使用 PostgreSQL 17，数据库保存在 Coolify 为该资源管理的数据卷。不要直接挂载其他主版本的数据卷，也不要删除资源的数据卷。Docker Hub 无法拉取时，可把相同主版本的 PostgreSQL 镜像同步到 ACR，再设置 `FGAS_DB_IMAGE`。
+
+发布新版本时，先构建上传，再同时更新两个镜像变量并部署。后端镜像地址变化会重建 `backup` 和 `migrate` 一次性任务：已有数据库先备份到 `/data/fgas-backups`，保留约 30 天，再迁移；全新空库跳过初始备份。迁移失败会阻止新 API 启动，同机备份不代表异机备份或恢复已验收。
+
+Git 来源用于读取 Compose；这份文件只有 `image`，不会在 VPS 构建源码。现有 GitHub Actions 工作流仍使用 GHCR 和可选 SSH 发布，未接通 ACR/Coolify 自动发布，使用 Coolify 时保持旧 SSH 自动部署关闭。
+
+参考：[Coolify Compose](https://coolify.io/docs/applications/builds/docker-compose)、[域名与容器端口](https://coolify.io/docs/core/networking/domains)。
+
+## SSH 发布：第一次准备服务器
 
 下面统一使用 `/opt/fgas`。部署用户需要能创建这个目录、通过 SSH 登录，并运行 `docker` 和 `docker compose`。建议使用 Compose v2.24 或更新版本；先确认：
 

@@ -18,7 +18,7 @@ module.exports = {
     script: join(root, '.venv/bin/python'),
     interpreter: 'none',
     args: ['-m', 'uvicorn', 'backend.entrypoints.http:app',
-      '--host', '127.0.0.1', '--port', setting('API_PORT', '8000')],
+      '--host', '127.0.0.1', '--port', setting('API_PORT', '10622')],
     exec_mode: 'fork',
     instances: 1,
     watch: false,

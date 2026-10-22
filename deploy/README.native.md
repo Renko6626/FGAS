@@ -24,7 +24,7 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-编辑 `.env`，把 `DATABASE_URL` 换成实际连接信息。默认后端端口为 `API_PORT=8000`，只监听 `127.0.0.1`。HTTPS 网站使用 `COOKIE_SECURE=true`；本机 HTTP 试用保留 false。`AUTH_MODE` 可选 `development` 或 `casdoor`：`casdoor` 时必须填写 `CASDOOR_ISSUER`、`CASDOOR_CLIENT_ID`、`CASDOOR_CLIENT_SECRET`、与 Casdoor 应用登记完全一致的 `CASDOOR_REDIRECT_URI`，以及用于绑定第一个管理员的 `INITIAL_ADMIN_SUBJECT`（优先填 Casdoor `sub`）。不要复用其他工具的 `CASDOOR_KEY` / `CASDOOR_SECRET`。
+编辑 `.env`，把 `DATABASE_URL` 换成实际连接信息。默认后端端口为 `API_PORT=10622`，只监听 `127.0.0.1`。HTTPS 网站使用 `COOKIE_SECURE=true`；本机 HTTP 试用保留 false。`AUTH_MODE` 可选 `development` 或 `casdoor`：`casdoor` 时必须填写 `CASDOOR_ISSUER`、`CASDOOR_CLIENT_ID`、`CASDOOR_CLIENT_SECRET`、与 Casdoor 应用登记完全一致的 `CASDOOR_REDIRECT_URI`，以及用于绑定第一个管理员的 `INITIAL_ADMIN_SUBJECT`（优先填 Casdoor `sub`）。不要复用其他工具的 `CASDOOR_KEY` / `CASDOOR_SECRET`。
 
 PM2 配置从项目根目录读取 `.env`，文件中的值优先于同名环境变量。文件没写的项可以从启动命令的环境变量读取；没有 DATABASE_URL 会直接报错，不会猜测数据库地址。
 
@@ -44,7 +44,7 @@ npm run db:init
 npm run build
 pm2 start ecosystem.config.cjs
 pm2 status fgas
-curl --fail http://127.0.0.1:8000/api/health
+curl --fail http://127.0.0.1:10622/api/health
 ```
 
 健康接口应返回 status=ok。检查失败时先看 `pm2 logs fgas --lines 100`，修好后再继续；PM2 显示 online 本身不能证明数据库可用。
@@ -56,7 +56,7 @@ curl --fail http://127.0.0.1:8000/api/health
 | 请求 | 处理方式 |
 | --- | --- |
 | `/`、`/assets/*`、`/agent-setup.md` | 读取 `frontend/dist` 中的文件 |
-| `/api/*` | 转发到 `http://127.0.0.1:8000`，保留路径 |
+| `/api/*` | 转发到 `http://127.0.0.1:10622`，保留路径 |
 | `/mcp` | 转发到同一个后端，保留路径及 Authorization 请求头 |
 
 无需在服务器上长期运行 Vite 开发服务器。构建后的网页使用同源 `/api`，Agent 接入指南也按同源 `/mcp` 定位服务。
@@ -72,14 +72,14 @@ location / {
 }
 
 location /api/ {
-    proxy_pass http://127.0.0.1:8000;
+    proxy_pass http://127.0.0.1:10622;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 
 location = /mcp {
-    proxy_pass http://127.0.0.1:8000;
+    proxy_pass http://127.0.0.1:10622;
     proxy_http_version 1.1;
     proxy_set_header Host $proxy_host;
     proxy_set_header Authorization $http_authorization;
@@ -116,7 +116,7 @@ npm run setup
 
 ```bash
 pm2 status fgas
-curl --fail http://127.0.0.1:8000/api/health
+curl --fail http://127.0.0.1:10622/api/health
 ```
 
 只改前端时，构建后网站就会读取新文件；重启后端是统一流程的一部分。只改 `.env` 时，使用上述带配置文件的 startOrRestart 命令重新加载，不要只执行 `pm2 restart fgas` 期望它重读文件。

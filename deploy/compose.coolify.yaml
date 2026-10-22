@@ -1,0 +1,105 @@
+# Coolify-only stack. Images come from ACR; Coolify injects proxy labels and
+# attaches the web service to its network. Do not add host ports or proxy labels.
+services:
+  db:
+    image: ${FGAS_DB_IMAGE:-postgres:17}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fgas
+      POSTGRES_USER: fgas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Coolify}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fgas -d fgas"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backup:
+    image: ${FGAS_DB_IMAGE:-postgres:17}
+    restart: "no"
+    exclude_from_hc: true
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Coolify}
+      # The API tag changes on every release, so Compose recreates this one-shot
+      # service and the pre-migration backup actually runs.
+      FGAS_RELEASE: ${FGAS_API_IMAGE:?Set FGAS_API_IMAGE in Coolify}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: /data/fgas-backups
+        target: /backups
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        count=$$(psql -h db -U fgas -d fgas -tAc "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
+        count=$$(printf '%s' "$$count" | tr -d '[:space:]')
+        if [ "$$count" -gt 0 ]; then
+          stamp=$$(date -u +%Y%m%dT%H%M%SZ)
+          pg_dump -h db -U fgas -d fgas -Fc --no-owner > "/backups/fgas-$$stamp-pre-migrate.dump"
+          test -s "/backups/fgas-$$stamp-pre-migrate.dump"
+          find /backups -maxdepth 1 -type f -name 'fgas-*-pre-migrate.dump' -mtime +30 -delete
+        else
+          echo "Fresh database; skipping initial backup."
+        fi
+
+  migrate:
+    image: ${FGAS_API_IMAGE:?Set FGAS_API_IMAGE in Coolify}
+    restart: "no"
+    exclude_from_hc: true
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fgas:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Coolify}@db:5432/fgas
+    depends_on:
+      db:
+        condition: service_healthy
+      backup:
+        condition: service_completed_successfully
+    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
+
+  api:
+    image: ${FGAS_API_IMAGE:?Set FGAS_API_IMAGE in Coolify}
+    restart: unless-stopped
+    environment:
+      AUTH_MODE: ${AUTH_MODE:-casdoor}
+      DATABASE_URL: postgresql+psycopg2://fgas:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Coolify}@db:5432/fgas
+      CASDOOR_ISSUER: ${CASDOOR_ISSUER:?Set CASDOOR_ISSUER in Coolify}
+      CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID:?Set CASDOOR_CLIENT_ID in Coolify}
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:?Set CASDOOR_CLIENT_SECRET in Coolify}
+      CASDOOR_REDIRECT_URI: ${CASDOOR_REDIRECT_URI:?Set CASDOOR_REDIRECT_URI in Coolify}
+      CASDOOR_SCOPE: ${CASDOOR_SCOPE:-openid profile email}
+      INITIAL_ADMIN_SUBJECT: ${INITIAL_ADMIN_SUBJECT:?Set INITIAL_ADMIN_SUBJECT in Coolify}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-管理员}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:10622/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  web:
+    image: ${FGAS_WEB_IMAGE:?Set FGAS_WEB_IMAGE in Coolify}
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  postgres-data:
