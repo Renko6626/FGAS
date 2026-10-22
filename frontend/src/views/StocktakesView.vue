@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from "vue";
+import { computed, onBeforeUnmount, ref, watch, onMounted } from "vue";
 import { NButton, NInput, NModal } from "naive-ui";
 import type {
   Account,
@@ -17,6 +17,7 @@ import {
   type StocktakeDetail,
 } from "../api/stocktakes";
 import AccountLabel from "../components/AccountLabel.vue";
+import PaginationBar from "../components/PaginationBar.vue";
 import TransfersView from "./TransfersView.vue";
 import StockTransfersView from "./StockTransfersView.vue";
 import TransferEditor from "../components/TransferEditor.vue";
@@ -26,7 +27,6 @@ const props = defineProps<{
   accounts: Account[];
   locations: StockAccount[];
   skus: Sku[];
-  funds: Transfer[];
   members: Member[];
   trusted: boolean;
 }>();
@@ -37,7 +37,11 @@ const kind = ref<StocktakeKind>("fund"),
 const busy = ref(false),
   error = ref(""),
   search = ref(""),
+  page = ref(1),
+  limit = ref(20),
+  total = ref(0),
   statusFilter = ref("all");
+let filterTimer: number | undefined;
 const showCreate = ref(false),
   showDescription = ref(false),
   name = ref(""),
@@ -46,29 +50,28 @@ const showCreate = ref(false),
 const showFund = ref(false),
   initial = ref<Partial<TransferInput>>({}),
   stockEditor = ref<InstanceType<typeof StockTransferEditor> | null>(null);
-const rows = computed(() =>
-  items.value.filter(
-    (item) =>
-      (statusFilter.value === "all" || item.status === statusFilter.value) &&
-      (!search.value.trim() ||
-        [item.name, item.description].some((value) =>
-          value
-            .toLocaleLowerCase()
-            .includes(search.value.trim().toLocaleLowerCase()),
-        )),
-  ),
-);
 const endpointAccounts = computed(() =>
   kind.value === "fund" ? props.accounts : props.locations,
 );
+const hasFilters = computed(() => !!search.value.trim() || statusFilter.value !== "all");
 function avatar(id: string) {
   return endpointAccounts.value.find((a) => a.id === id)?.avatar_url;
+}
+async function loadList() {
+  const result = await stocktakesApi.list(kind.value, {
+    q: search.value.trim() || undefined,
+    status: statusFilter.value === "all" ? undefined : statusFilter.value,
+    page: page.value,
+    limit: limit.value,
+  });
+  items.value = result.items;
+  total.value = result.total;
 }
 async function load() {
   busy.value = true;
   error.value = "";
   try {
-    items.value = await stocktakesApi.list(kind.value);
+    await loadList();
     if (detail.value) {
       detail.value = await stocktakesApi.detail(
         kind.value,
@@ -134,7 +137,7 @@ async function run(action: "create" | "description" | "end") {
       detail.value = await stocktakesApi.detail(kind.value, identifier);
       editDescription.value = detail.value.stocktake.description;
     }
-    items.value = await stocktakesApi.list(kind.value);
+    await loadList();
     emit("changed");
   } catch (e) {
     error.value = (e as Error).message;
@@ -171,8 +174,27 @@ watch(kind, () => {
   showDescription.value = false;
   search.value = "";
   statusFilter.value = "all";
-  load();
+  const wasFirst = page.value === 1;
+  page.value = 1;
+  if (wasFirst) load();
 });
+watch([search, statusFilter], () => {
+  const wasFirst = page.value === 1;
+  page.value = 1;
+  if (wasFirst) {
+    window.clearTimeout(filterTimer);
+    filterTimer = window.setTimeout(load, 250);
+  }
+});
+watch(page, () => {
+  if (!detail.value) load();
+});
+watch(limit, () => {
+  window.clearTimeout(filterTimer);
+  if (page.value === 1) load();
+  else page.value = 1;
+});
+onBeforeUnmount(() => window.clearTimeout(filterTimer));
 onMounted(load);
 </script>
 
@@ -224,7 +246,7 @@ onMounted(load);
       </div>
     </div>
     <p v-if="error && !showCreate" class="error" role="alert">{{ error }}</p>
-    <div v-if="rows.length" class="table-wrap">
+    <div v-if="items.length" class="table-wrap">
       <table>
         <thead>
           <tr>
@@ -235,7 +257,7 @@ onMounted(load);
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in rows" :key="item.id">
+          <tr v-for="item in items" :key="item.id">
             <td>{{ item.name }}</td>
             <td>
               <span class="status-pill" :class="`status-${item.status}`">{{
@@ -261,7 +283,7 @@ onMounted(load);
         {{
           busy
             ? "正在读取盘点"
-            : items.length
+            : hasFilters
               ? "没有符合条件的盘点"
               : "暂无盘点"
         }}
@@ -270,6 +292,14 @@ onMounted(load);
         >新建盘点</NButton
       >
     </div>
+    <PaginationBar
+      v-if="total > limit"
+      :page="page"
+      :limit="limit"
+      :total="total"
+      @update:page="page = $event"
+      @update:limit="limit = $event"
+    />
   </template>
   <section v-else class="stocktake-detail">
     <div class="toolbar">
@@ -326,7 +356,6 @@ onMounted(load);
       :key="detail.stocktake.id"
       :items="detail.transfers as StockTransfer[]"
       :locations="locations"
-      :funds="funds"
       :trusted="trusted"
       :skus="skus"
       :accounts="accounts"
@@ -428,7 +457,6 @@ onMounted(load);
     :locations="locations"
     :skus="skus"
     :accounts="accounts"
-    :funds="funds"
     @saved="changed"
   />
 </template>

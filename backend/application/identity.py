@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from backend import version
 from backend.infrastructure import store
 from backend.kernel.accounting import DomainError
 
@@ -54,4 +55,6 @@ def force_logout(db, actor, identifier):
 
 def health(db, auth_mode):
     store.healthy(db)
-    return {'status': 'ok', 'auth_mode': auth_mode, 'currency': 'CNY'}
+    return {'status': 'ok', 'auth_mode': auth_mode, 'currency': 'CNY',
+            'version': version.VERSION, 'git_sha': version.git_sha(),
+            'schema_revision': store.schema_revision(db)}

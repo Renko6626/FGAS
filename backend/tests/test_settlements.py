@@ -27,7 +27,7 @@ def test_expenses_partial_and_multiple_settlements(client):
     current=overview(client,account)
     assert current['account']['balance_minor']==0
     assert all(i['outstanding_minor']==0 for i in current['expenses'])
-    assert len(client.get('/api/transfers').json())==5
+    assert len(client.get('/api/transfers').json()['items'])==5
     assert client.get('/api/funds/summary').json()['total_minor']==-50000
 
 def test_receipts_and_existing_payment_matching(client):
@@ -42,23 +42,23 @@ def test_receipts_and_existing_payment_matching(client):
     assert pay(client,account,'fund_pool','100',[(items[1]['id'],'100')]).status_code==201
     assert overview(client,account)['account']['balance_minor']==0
     assert client.get('/api/funds/summary').json()['total_minor']==50000
-    assert len(client.get('/api/transfers').json())==4
+    assert len(client.get('/api/transfers').json()['items'])==4
 
 def test_invalid_matches_rollback_payment_and_permission(client):
     account=private(client);other=private(client,'另一账户')
     item=transfer(client,account,'expense','100').json()
-    before=client.get('/api/transfers').json()
+    before=client.get('/api/transfers').json()['items']
     assert pay(client,'fund_pool',account,'101',[(item['id'],'101')]).status_code==400
     assert pay(client,'fund_pool',other,'100',[(item['id'],'100')]).status_code==400
     assert pay(client,'fund_pool',account,'50',[(item['id'],'100')]).status_code==400
-    assert client.get('/api/transfers').json()==before
+    assert client.get('/api/transfers').json()['items']==before
     client.post('/api/auth/login',json={'user_id':'untrusted'})
     pending=transfer(client,account,'expense','20').json()
     assert pending['status']=='pending'
     assert pay(client,'fund_pool',account,'20',[(item['id'],'20')]).status_code==403
     client.post('/api/auth/login',json={'user_id':'trusted'})
     assert pay(client,'fund_pool',account,'20',[(pending['id'],'20')]).status_code==409
-    assert len(client.get('/api/transfers').json())==2
+    assert len(client.get('/api/transfers').json()['items'])==2
 
 def test_payment_and_item_reversal_invalidate_matches(client):
     account=private(client)

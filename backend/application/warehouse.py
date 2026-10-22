@@ -60,7 +60,7 @@ def transfer_view(db, item):
     value['fund_references'] = []
     for reference in stock_store.fund_references(db, item.id):
         fund = store.get_transfer(db, reference.fund_transfer_id)
-        value['fund_references'].append(dict(id=fund.id,status=fund.status,description=fund.description,amount_minor=fund.amount_minor,reversal_of=fund.reversal_of))
+        value['fund_references'].append(dict(id=fund.id,status=fund.status,description=fund.description,amount_minor=fund.amount_minor,reversal_of=fund.reversal_of,source_account_id=fund.source_account_id,destination_account_id=fund.destination_account_id))
     value['related_transfers']=[dict(id=a.id,status=a.status,source_account_id=a.source_account_id,destination_account_id=a.destination_account_id,
         lines=[dict(sku_id=l.sku_id,quantity=quantity_string(l.quantity)) for l in stock_store.lines(db,a.id)]) for a in stock_store.related_transfers(db,item.id)]
     value['snapshot_at'] = now()
@@ -129,10 +129,19 @@ def transfer_detail(db, identifier):
     with store.read_snapshot(db) as snapshot:
         timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
         return transfer_view(snapshot,get_transfer(snapshot,identifier)) | dict(snapshot_at=timestamp)
-def list_transfers(db, status=None, filters=None):
+def list_transfers(db, status=None, filters=None, page=1, limit=20):
+    filters = filters or {}
     with store.read_snapshot(db) as snapshot:
         timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
-        return [transfer_view(snapshot,item) | dict(snapshot_at=timestamp) for item in stock_store.transfers(snapshot,status,filters)]
+        items, total = stock_store.transfer_page(
+            snapshot, status=status, tag=filters.get('tag'), q=filters.get('q'),
+            date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+            attention=bool(filters.get('attention')),
+            source_account_id=filters.get('source_account_id'),
+            destination_account_id=filters.get('destination_account_id'),
+            sku_id=filters.get('sku_id'), page=page, limit=limit)
+        return dict(items=[transfer_view(snapshot, item) | dict(snapshot_at=timestamp) for item in items],
+                    total=total, page=page, limit=limit, snapshot_at=timestamp)
 
 
 def confirmation_view(item):
@@ -188,9 +197,9 @@ def decide_completion(db, user, identifier, data, rejection=False, *, access=Non
     return transfer_view(db, item)
 
 
-def inventory(db, filters=None):
+def inventory(db, filters=None, page=1, limit=20):
     from backend.application.stock_queries import inventory as query_inventory
-    return query_inventory(db,filters)
+    return query_inventory(db,filters,page=page,limit=limit)
 
 
 def list_moves(db, filters=None):
@@ -202,6 +211,18 @@ def list_moves(db, filters=None):
             sku = stock_store.get_sku(snapshot,move.sku_id)
             result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_account_id','destination_account_id','effective_date','created_at')} | dict(posted_at=move.created_at,quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
         return result
+
+
+def list_moves_page(db, filters=None, page=1, limit=20):
+    with store.read_snapshot(db) as snapshot:
+        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        moves, total = stock_store.moves_page(snapshot, filters, page=page, limit=limit)
+        result = []
+        for move in moves:
+            confirmation = snapshot.get(StockConfirmation,move.confirmation_id)
+            sku = stock_store.get_sku(snapshot,move.sku_id)
+            result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_account_id','destination_account_id','effective_date','created_at')} | dict(posted_at=move.created_at,quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
+        return dict(items=result, total=total, page=page, limit=limit, snapshot_at=timestamp)
 
 
 def business_data(db, item):

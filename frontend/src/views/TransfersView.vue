@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { NButton, NInput, NModal, NSelect } from "naive-ui";
 import {
   api,
@@ -10,15 +10,21 @@ import {
   type Account,
 } from "../api/funds";
 import AccountRoute from "../components/AccountRoute.vue";
+import PaginationBar from "../components/PaginationBar.vue";
 
 const props = defineProps<{
-  items: Transfer[];
+  items?: Transfer[];
   accounts: Account[];
   approvals: boolean;
   trusted: boolean;
   hideCreate?: boolean;
+  revision?: number;
 }>();
 const emit = defineEmits<{ changed: []; notice: [string]; create: [] }>();
+const local = computed(() => props.items !== undefined);
+const remoteItems = ref<Transfer[]>([]);
+const page = ref(1), limit = ref(20), total = ref(0), loading = ref(false);
+let filterTimer: number | undefined;
 const search = ref(""),
   status = ref<string | null>(null),
   tag = ref<string | null>(null);
@@ -26,7 +32,7 @@ const dateFrom = ref(""),
   dateTo = ref(""),
   showFilters = ref(false);
 const tags = computed(() =>
-  [...new Set(props.items.flatMap((t) => t.tags))].map((value) => ({
+  [...new Set((props.items ?? remoteItems.value).flatMap((t) => t.tags))].map((value) => ({
     label: value,
     value,
   })),
@@ -45,8 +51,9 @@ const hasFilters = computed(
     ),
 );
 const items = computed(() => {
+  if (!local.value) return remoteItems.value;
   const query = search.value.trim().toLocaleLowerCase();
-  return props.items.filter(
+  return props.items!.filter(
     (t) =>
       (!props.approvals || t.status === "pending") &&
       (!status.value || t.status === status.value) &&
@@ -64,6 +71,59 @@ const items = computed(() => {
         ].some((v) => v.toLocaleLowerCase().includes(query))),
   );
 });
+const count = computed(() => (local.value ? items.value.length : total.value));
+function params() {
+  const values: Record<string, string | number | undefined> = {
+    page: page.value,
+    limit: limit.value,
+  };
+  if (props.approvals) values.status = "pending";
+  else if (status.value) values.status = status.value;
+  if (tag.value) values.tag = tag.value;
+  if (search.value.trim()) values.q = search.value.trim();
+  if (dateFrom.value) values.date_from = dateFrom.value;
+  if (dateTo.value) values.date_to = dateTo.value;
+  return values;
+}
+async function load() {
+  if (local.value || dateError.value) return;
+  loading.value = true;
+  try {
+    const result = await api.transfers(params());
+    remoteItems.value = result.items;
+    total.value = result.total;
+    error.value = "";
+  } catch (e) {
+    error.value = (e as Error).message;
+  } finally {
+    loading.value = false;
+  }
+}
+function scheduleLoad() {
+  window.clearTimeout(filterTimer);
+  filterTimer = window.setTimeout(load, 250);
+}
+watch([search, status, tag, dateFrom, dateTo], () => {
+  if (local.value) return;
+  const wasFirst = page.value === 1;
+  page.value = 1;
+  if (wasFirst) scheduleLoad();
+});
+watch(page, () => {
+  if (!local.value) load();
+});
+watch(limit, () => {
+  window.clearTimeout(filterTimer);
+  if (page.value === 1) load();
+  else page.value = 1;
+});
+watch(() => props.revision, () => {
+  if (!local.value) load();
+});
+onMounted(() => {
+  if (!local.value) load();
+});
+onBeforeUnmount(() => window.clearTimeout(filterTimer));
 function resetFilters() {
   search.value = "";
   status.value = null;
@@ -170,6 +230,8 @@ async function reverse() {
       >标签<NSelect
         v-model:value="tag"
         clearable
+        filterable
+        tag
         placeholder="所有标签"
         :options="tags"
     /></label>
@@ -177,7 +239,7 @@ async function reverse() {
     ><label>业务日期止<input v-model="dateTo" type="date" /></label>
   </div>
   <div class="ledger-count">
-    <span>{{ items.length }} 笔{{ approvals ? "待审批" : "流水" }}</span
+    <span>{{ count }} 笔{{ approvals ? "待审批" : "流水" }}</span
     ><NButton v-if="hasFilters" class="plain-button" text @click="resetFilters"
       >清空筛选</NButton
     >
@@ -187,11 +249,13 @@ async function reverse() {
   <div v-if="!items.length" class="empty-state">
     <p>
       {{
-        hasFilters
-          ? "没有符合条件的流水"
-          : approvals
-            ? "暂无待审批的资金申请"
-            : "暂无资金流水"
+        !local && loading
+          ? "正在读取流水"
+          : hasFilters
+            ? "没有符合条件的流水"
+            : approvals
+              ? "暂无待审批的资金申请"
+              : "暂无资金流水"
       }}
     </p>
     <NButton v-if="hasFilters" @click="resetFilters">清空筛选</NButton
@@ -244,6 +308,14 @@ async function reverse() {
       </tbody>
     </table>
   </div>
+  <PaginationBar
+    v-if="!local"
+    :page="page"
+    :limit="limit"
+    :total="total"
+    @update:page="page = $event"
+    @update:limit="limit = $event"
+  />
   <NModal
     :show="!!detail"
     preset="card"

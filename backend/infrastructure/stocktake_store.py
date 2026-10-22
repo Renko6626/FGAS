@@ -1,5 +1,5 @@
 """Thin stocktake persistence and endpoint ownership queries."""
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, func
 from backend.infrastructure.models import FundStocktake, StockStocktake, Transfer, StockTransfer
 
 
@@ -12,6 +12,18 @@ def stocktakes(db, kind, status=None):
     query = select(cls).order_by(cls.created_at.desc(), cls.id)
     if status is not None: query = query.where(cls.status == status)
     return list(db.scalars(query))
+
+def stocktakes_page(db, kind, status=None, q=None, page=1, limit=20):
+    cls = model(kind)
+    query = select(cls)
+    if status is not None: query = query.where(cls.status == status)
+    if q:
+        pattern = f'%{q}%'
+        query = query.where(or_(cls.name.ilike(pattern), cls.description.ilike(pattern)))
+    total = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
+    items = list(db.scalars(query.order_by(cls.created_at.desc(), cls.id.desc())
+                            .offset((page - 1) * limit).limit(limit)))
+    return items, total
 
 def create(db, kind, values):
     item = model(kind)(**values)

@@ -100,8 +100,10 @@ def preview(db, user, data, *, access: AgentAccess | None = None, submit_mode: L
     lines = validate(db, data['source_account_id'], data['destination_account_id'], data['amount'])
     return {'amount_minor': lines[0].credit_minor, 'status': 'posted' if apply else 'pending', 'source_account_name': store.get_account(db, data['source_account_id']).name, 'destination_account_name': store.get_account(db, data['destination_account_id']).name, 'journal_lines': [vars(l) for l in lines]}
 
-def list_transfers(db, status=None, tag=None):
-    return [transfer_view(db, item) for item in store.transfers(db, status) if tag is None or tag in item.tags]
+def list_transfers(db, status=None, tag=None, q=None, date_from=None, date_to=None, sort='created_at', page=1, limit=20):
+    items, total = store.transfer_page(db, status=status, tag=tag, q=q, date_from=date_from, date_to=date_to,
+                                       sort=sort, page=page, limit=limit)
+    return dict(items=[transfer_view(db, item) for item in items], total=total, page=page, limit=limit)
 
 def reverse(db, user, identifier, reason, *, access=None):
     require_operator(user, access)

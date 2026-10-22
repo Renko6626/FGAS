@@ -52,7 +52,7 @@ systemctl status fgas --no-pager
 curl --fail http://127.0.0.1:10622/api/health
 ```
 
-健康接口应返回 status=ok。检查失败时先看 `journalctl -u fgas -n 100 --no-pager`，修好后再继续；systemd 显示 active 本身不能证明数据库可用。
+健康接口应返回 status=ok。检查失败时先看 `journalctl -u fgas -n 100 --no-pager`，修好后再继续；systemd 显示 active 本身不能证明数据库可用。接口还会返回 `version`、`git_sha` 和 `schema_revision`，用于确认部署版本与迁移状态；版本信息可用 `.env` 中的 `FGAS_VERSION`、`FGAS_GIT_SHA` 覆盖，未设置时 `git_sha` 从项目 `.git` 读取。
 
 单元文件默认开启 `ProtectSystem=strict`、`PrivateTmp` 等加固，项目目录对服务只读；后端不需要写文件，日志交给 journald。代码放在家目录时 `ProtectHome=read-only` 仍可读取，若以后新增本地写文件需求，再用 `ReadWritePaths` 精确放行，不要直接关闭整个加固。端口写死在 `ExecStart` 中：修改 `.env` 的 `API_PORT` 时，要同步修改 [fgas.service](fgas.service) 的 `--port` 和 Nginx 配置，然后 `sudo systemctl daemon-reload` 再重启。
 
@@ -147,6 +147,34 @@ sudo systemctl restart fgas
 `systemctl enable --now fgas` 已经处理开机自启；`sudo systemctl disable --now fgas` 取消自启并停止。修改服务账号、路径或端口后，先确认运行正常，再按需调整单元文件；不要用会波及其他服务的全局操作。
 
 如果服务器由个人账号维护代码而不是专用 `fgas` 账号，把单元里的 `User`/`Group` 改成该账号，并确保它对项目目录、`.venv` 和 `frontend/dist` 有读写权限；系统服务与手动目录更新仍可共存。
+
+## 自动备份与恢复
+
+备份使用 `pg_dump -Fc`，由 systemd timer 每天执行一次，写入 `/var/lib/fgas-backup`，默认保留 30 天。服务器需要安装与数据库主版本兼容的 PostgreSQL 客户端（提供 `pg_dump` 和 `pg_restore`）。
+
+安装并启用定时备份：
+
+```bash
+sudo cp /srv/fgas/deploy/fgas-backup.service /srv/fgas/deploy/fgas-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now fgas-backup.timer
+sudo systemctl start fgas-backup
+journalctl -u fgas-backup -n 50 --no-pager
+systemctl list-timers fgas-backup.timer
+```
+
+备份文件位于 `/var/lib/fgas-backup/fgas-<UTC时间>.dump`。`fgas-backup.service` 读取与后端相同的 `.env`，通过 `StateDirectory` 获得备份目录写权限，`ProtectSystem=strict` 仍然生效。`Persistent=true` 表示关机期间错过的任务会在开机后补跑；保留天数可用 `.env` 中的 `FGAS_BACKUP_RETENTION_DAYS` 覆盖（默认 30）。
+
+恢复会覆盖目标库，操作前先确认目标、另存一份当前备份，并停止服务：
+
+```bash
+sudo systemctl stop fgas
+sudo -u fgas bash -c 'set -a; . /srv/fgas/.env; set +a; pg_restore --clean --if-exists --no-owner -d "${DATABASE_URL/+psycopg2/}" /var/lib/fgas-backup/<备份文件>.dump'
+sudo systemctl start fgas
+curl --fail http://127.0.0.1:10622/api/health
+```
+
+`--clean --if-exists` 会删除并重建对象，不要在未确认目标库时执行。恢复完成后健康接口应返回 status=ok，`schema_revision` 应与当前代码期望的 Alembic 版本一致。
 
 ## PM2 方式（备选）
 

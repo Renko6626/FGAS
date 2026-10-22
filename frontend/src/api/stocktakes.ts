@@ -1,4 +1,4 @@
-import {request} from './client'
+import {request, query, type Page} from './client'
 import type {Transfer} from './funds'
 import type {StockTransfer} from './warehouse'
 export type StocktakeKind='fund'|'stock'
@@ -9,7 +9,7 @@ export type Stocktake=FundStocktake|StockStocktake
 export interface StocktakeDetail{stocktake:Stocktake;transfers:Transfer[]|StockTransfer[]}
 const path=(kind:StocktakeKind)=>`/${kind}-stocktakes`
 export const stocktakesApi={
- list:(kind:StocktakeKind)=>request<Stocktake[]>(path(kind)),
+ list:(kind:StocktakeKind,params:Record<string,string|number|boolean|undefined>={})=>request<Page<Stocktake>>(path(kind)+query(params)),
  create:(kind:StocktakeKind,data:{name:string;description:string})=>request<Stocktake>(path(kind),'POST',data),
  detail:(kind:StocktakeKind,id:string)=>request<StocktakeDetail>(`${path(kind)}/${id}`),
  update:(kind:StocktakeKind,id:string,description:string)=>request<Stocktake>(`${path(kind)}/${id}`,'PATCH',{description}),

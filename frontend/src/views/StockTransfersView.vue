@@ -1,33 +1,41 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { NButton, NInput, NModal, NSelect } from "naive-ui";
-import type { StockAccount, Transfer } from "../api/funds";
-import { money, approvalLabel, statuses as fundStatuses } from "../api/funds";
+import type { StockAccount } from "../api/funds";
+import { api, money, approvalLabel, statuses as fundStatuses } from "../api/funds";
 import { warehouse, stockStatuses, type StockTransfer } from "../api/warehouse";
 import AccountRoute from "../components/AccountRoute.vue";
 import AccountLabel from "../components/AccountLabel.vue";
 import StockCompletionEditor from "../components/StockCompletionEditor.vue";
 import StockTransferEditor from "../components/StockTransferEditor.vue";
+import PaginationBar from "../components/PaginationBar.vue";
 import type { Sku, Account } from "../api/funds";
 const props = defineProps<{
-  items: StockTransfer[];
+  items?: StockTransfer[];
   locations: StockAccount[];
-  funds: Transfer[];
   trusted: boolean;
   skus: Sku[];
   accounts: Account[];
   approvals?: boolean;
+  revision?: number;
 }>();
 const emit = defineEmits<{ changed: [] }>();
+const local = computed(() => props.items !== undefined);
+const remoteItems = ref<StockTransfer[]>([]);
+const page = ref(1), limit = ref(20), total = ref(0), loading = ref(false);
+let filterTimer: number | undefined;
 const editor = ref<InstanceType<typeof StockTransferEditor> | null>(null);
 const tag = ref<string | null>(null),
   search = ref(""),
   status = ref<string | null>(null);
+const fund = ref(""), fundResults = ref<{ label: string; value: string }[]>([]),
+  fundCache = ref<Record<string, string>>({}), fundLoading = ref(false);
+let fundTimer: number | undefined;
 const statusOptions = computed(() =>
   Object.entries(stockStatuses).map(([value, label]) => ({ label, value })),
 );
 const tags = computed(() =>
-  [...new Set(props.items.flatMap((t) => t.tags))].map((value) => ({
+  [...new Set((props.items ?? remoteItems.value).flatMap((t) => t.tags))].map((value) => ({
     label: value,
     value,
   })),
@@ -36,10 +44,10 @@ const detailShow = ref(false),
   detail = ref<StockTransfer | null>(null),
   busy = ref(false),
   error = ref(""),
-  reason = ref(""),
-  fund = ref("");
-const visibleItems = computed(() =>
-  props.items.filter(
+  reason = ref("");
+const items = computed(() => {
+  if (!local.value) return remoteItems.value;
+  return props.items!.filter(
     (t) =>
       (!props.approvals ||
         t.status === "pending" ||
@@ -57,15 +65,87 @@ const visibleItems = computed(() =>
           .join(" ")
           .toLowerCase()
           .includes(search.value.trim().toLowerCase())),
-  ),
-);
+  );
+});
+function params() {
+  const values: Record<string, string | number | boolean | undefined> = {
+    page: page.value,
+    limit: limit.value,
+  };
+  if (props.approvals) values.attention = true;
+  else if (status.value) values.status = status.value;
+  if (tag.value) values.tag = tag.value;
+  if (search.value.trim()) values.q = search.value.trim();
+  return values;
+}
+async function load() {
+  if (local.value) return;
+  loading.value = true;
+  try {
+    const result = await warehouse.transfers(params());
+    remoteItems.value = result.items;
+    total.value = result.total;
+    error.value = "";
+  } catch (e) {
+    error.value = (e as Error).message;
+  } finally {
+    loading.value = false;
+  }
+}
+function scheduleLoad() {
+  window.clearTimeout(filterTimer);
+  filterTimer = window.setTimeout(load, 250);
+}
+watch([search, status, tag], () => {
+  if (local.value) return;
+  const wasFirst = page.value === 1;
+  page.value = 1;
+  if (wasFirst) scheduleLoad();
+});
+watch(page, () => {
+  if (!local.value) load();
+});
+watch(limit, () => {
+  window.clearTimeout(filterTimer);
+  if (page.value === 1) load();
+  else page.value = 1;
+});
+watch(() => props.revision, () => {
+  if (!local.value) load();
+});
+onMounted(() => {
+  if (!local.value) load();
+  searchFunds("");
+});
+onBeforeUnmount(() => {
+  window.clearTimeout(filterTimer);
+  window.clearTimeout(fundTimer);
+});
+async function searchFunds(query: string) {
+  window.clearTimeout(fundTimer);
+  fundTimer = window.setTimeout(async () => {
+    fundLoading.value = true;
+    try {
+      const result = await api.transfers({ q: query.trim() || undefined, limit: 20 });
+      fundResults.value = result.items.map((f) => {
+        const label = `${f.description || f.id}（${fundStatuses[f.status] || f.status}）`;
+        fundCache.value[f.id] = label;
+        return { label, value: f.id };
+      });
+    } catch {
+      fundResults.value = [];
+    } finally {
+      fundLoading.value = false;
+    }
+  }, 200);
+}
+const fundOptions = computed(() => {
+  const options = [...fundResults.value];
+  if (fund.value && !options.some((option) => option.value === fund.value))
+    options.unshift({ label: fundCache.value[fund.value] || fund.value, value: fund.value });
+  return options;
+});
 const approvalAgent = computed(() => detail.value?.audit.find(event => ["approve", "automatic_approval"].includes(event.action) && event.agent_credential_id));
-const fundOptions = computed(() =>
-  props.funds.map((f) => ({
-    label: `${f.description || f.id}（${fundStatuses[f.status]}）`,
-    value: f.id,
-  })),
-);
 async function open(id: string) {
   if (busy.value) return;
   busy.value = true;
@@ -128,6 +208,8 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
     <NSelect
       v-model:value="tag"
       clearable
+      filterable
+      tag
       :options="tags"
       placeholder="所有标签"
     />
@@ -146,7 +228,7 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="t in visibleItems" :key="t.id">
+        <tr v-for="t in items" :key="t.id">
           <td>
             <div>{{ t.effective_date }}</div>
             <div v-if="t.description">{{ t.description }}</div>
@@ -198,12 +280,20 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
             <NButton :disabled="busy" @click="open(t.id)">详情 / 处理</NButton>
           </td>
         </tr>
-        <tr v-if="!visibleItems.length">
-          <td colspan="6">暂无符合条件的货物转移</td>
+        <tr v-if="!items.length">
+          <td colspan="6">{{ !local && loading ? "正在读取货物转移" : "暂无符合条件的货物转移" }}</td>
         </tr>
       </tbody>
     </table>
   </div>
+  <PaginationBar
+    v-if="!local"
+    :page="page"
+    :limit="limit"
+    :total="total"
+    @update:page="page = $event"
+    @update:limit="limit = $event"
+  />
   <NModal
     v-model:show="detailShow"
     preset="card"
@@ -370,14 +460,10 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
             ><strong>¥ {{ money(f.amount_minor) }}</strong>
           </div>
           <AccountRoute
-            v-if="funds.find((item) => item.id === f.id)"
+            v-if="f.source_account_id"
             :accounts="accounts"
-            :source-id="
-              funds.find((item) => item.id === f.id)!.source_account_id
-            "
-            :destination-id="
-              funds.find((item) => item.id === f.id)!.destination_account_id
-            "
+            :source-id="f.source_account_id"
+            :destination-id="f.destination_account_id!"
           />
         </div>
         <p v-if="!detail.fund_references.length">未关联资金记录</p>
@@ -387,7 +473,12 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
             >资金记录<NSelect
               v-model:value="fund"
               :disabled="busy"
-              :options="fundOptions" /></label
+              filterable
+              remote
+              clearable
+              :loading="fundLoading"
+              :options="fundOptions"
+              @search="searchFunds" /></label
           ><NButton
             :disabled="busy || !fund"
             @click="
@@ -491,7 +582,6 @@ function decide(item: StockTransfer, action: string, confirmationId?: string) {
     :locations="locations"
     :skus="skus"
     :accounts="accounts"
-    :funds="funds"
     @saved="changed"
   />
 </template>

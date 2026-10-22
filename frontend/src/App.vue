@@ -19,7 +19,7 @@ import SettlementsView from "./views/SettlementsView.vue";
 import MembersView from "./views/MembersView.vue";
 import UsersView from "./views/UsersView.vue";
 import AgentConnectionsView from "./views/AgentConnectionsView.vue";
-import { warehouse, type StockTransfer } from "./api/warehouse";
+import { warehouse } from "./api/warehouse";
 import { membersApi } from "./api/members";
 import type { Sku, Member } from "./api/funds";
 import SkusView from "./views/SkusView.vue";
@@ -34,7 +34,8 @@ const user = ref<User | null>(null),
   selected = ref<string | null>(null),
   accounts = ref<Account[]>([]),
   locations = ref<StockAccount[]>([]),
-  transfers = ref<Transfer[]>([]),
+  recentTransfers = ref<Transfer[]>([]),
+  counts = ref({ pendingFunds: 0, pendingStock: 0, inTransit: 0 }),
   total = ref(0),
   tab = ref("home"),
   error = ref(""),
@@ -44,7 +45,6 @@ const user = ref<User | null>(null),
   opening = ref(false);
 const switching = ref(false);
 const skus = ref<Sku[]>([]),
-  stock = ref<StockTransfer[]>([]),
   members = ref<Member[]>([]),
   revision = ref(0);
 const identityEpoch = ref(0);
@@ -122,13 +122,7 @@ const groups = computed(() => [
 const nav = computed(() => groups.value.flatMap((group) => group.items));
 const currentPage = computed(() => pages[tab.value] || pages.home!);
 const approvalCount = computed(
-  () =>
-    transfers.value.filter((t) => t.status === "pending").length +
-    stock.value.filter(
-      (t) =>
-        t.status === "pending" ||
-        t.confirmations.some((c) => c.status === "pending"),
-    ).length,
+  () => counts.value.pendingFunds + counts.value.pendingStock,
 );
 function navigate(value: string, approval?: "funds" | "stock") {
   if (approval) approvalType.value = approval;
@@ -167,9 +161,9 @@ function sessionExpired() {
   showIdentity.value = false;
   accounts.value = [];
   locations.value = [];
-  transfers.value = [];
+  recentTransfers.value = [];
+  counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
   skus.value = [];
-  stock.value = [];
   members.value = [];
   error.value = "登录状态已失效，请重新登录";
 }
@@ -181,23 +175,29 @@ async function refresh() {
   busy.value = true;
   error.value = "";
   try {
-    const [a, l, t, s, k, w, m] = await Promise.all([
+    const [a, l, s, k, m, recent, pendingFunds, pendingStock, inTransit] = await Promise.all([
       api.accounts(),
       api.stockAccounts(),
-      api.transfers(),
       api.summary(),
       warehouse.skus(),
-      warehouse.transfers(),
       membersApi.list(),
+      api.transfers({ limit: 6, sort: "effective_date" }),
+      api.transfers({ status: "pending", limit: 1 }),
+      warehouse.transfers({ attention: true, limit: 1 }),
+      warehouse.transfers({ status: "in_transit", limit: 1 }),
     ]);
     if (epoch !== identityEpoch.value || actor !== user.value?.id) return;
     accounts.value = a;
     locations.value = l;
-    transfers.value = t;
     total.value = s.total_minor;
     skus.value = k;
-    stock.value = w;
     members.value = m;
+    recentTransfers.value = recent.items;
+    counts.value = {
+      pendingFunds: pendingFunds.total,
+      pendingStock: pendingStock.total,
+      inTransit: inTransit.total,
+    };
     revision.value++;
   } catch (e) {
     error.value = (e as Error).message;
@@ -231,12 +231,12 @@ async function login() {
     await refresh();
   } catch (e) {
     user.value = null;
-    stock.value = [];
     skus.value = [];
     members.value = [];
     accounts.value = [];
     locations.value = [];
-    transfers.value = [];
+    recentTransfers.value = [];
+    counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
     error.value = (e as Error).message;
   } finally {
     busy.value = false;
@@ -251,12 +251,12 @@ async function logout() {
     identityEpoch.value++;
     await api.logout();
     user.value = null;
-    stock.value = [];
+    recentTransfers.value = [];
+    counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
     skus.value = [];
     members.value = [];
     accounts.value = [];
     locations.value = [];
-    transfers.value = [];
     notice.value = "已退出";
   } catch (e) {
     error.value = (e as Error).message;
@@ -416,8 +416,10 @@ onMounted(async () => {
           <DashboardView
             v-if="tab === 'home'"
             :accounts="accounts"
-            :transfers="transfers"
-            :stock="stock"
+            :recent="recentTransfers"
+            :pending-funds="counts.pendingFunds"
+            :pending-stock="counts.pendingStock"
+            :in-transit="counts.inTransit"
             :total="total"
             :trusted="trusted"
             @navigate="navigate"
@@ -450,10 +452,10 @@ onMounted(async () => {
           >
             <TransfersView
               :key="`${user.id}:${identityEpoch}`"
-              :items="transfers"
               :accounts="accounts"
               :approvals="false"
               :trusted="trusted"
+              :revision="revision"
               @changed="refresh"
               @notice="notice = $event"
               @create="create()"
@@ -469,42 +471,33 @@ onMounted(async () => {
                 @click="approvalType = 'funds'"
               >
                 资金申请
-                <span>{{
-                  transfers.filter((t) => t.status === "pending").length
-                }}</span></button
+                <span>{{ counts.pendingFunds }}</span></button
               ><button
                 :class="{ active: approvalType === 'stock' }"
                 @click="approvalType = 'stock'"
               >
                 货物申请
-                <span>{{
-                  stock.filter(
-                    (t) =>
-                      t.status === "pending" ||
-                      t.confirmations.some((c) => c.status === "pending"),
-                  ).length
-                }}</span>
+                <span>{{ counts.pendingStock }}</span>
               </button>
             </div>
             <TransfersView
               v-if="approvalType === 'funds'"
               :key="`${user.id}:${identityEpoch}:fund-approvals`"
-              :items="transfers"
               :accounts="accounts"
               approvals
               :trusted="trusted"
+              :revision="revision"
               @changed="refresh"
               @notice="notice = $event"
             />
             <StockTransfersView
               v-else
               :key="`${user.id}:${identityEpoch}:stock-approvals`"
-              :items="stock"
               :locations="locations"
-              :funds="transfers"
               :trusted="trusted"
               :skus="skus"
               :accounts="accounts"
+              :revision="revision"
               approvals
               @changed="refresh"
             />
@@ -528,12 +521,11 @@ onMounted(async () => {
             <StockTransfersView
               v-else-if="tab === 'stock'"
               :key="`${user.id}:${identityEpoch}:stock`"
-              :items="stock"
               :locations="locations"
-              :funds="transfers"
               :trusted="trusted"
               :skus="skus"
               :accounts="accounts"
+              :revision="revision"
               @changed="refresh"
             />
             <StocktakesView
@@ -542,7 +534,6 @@ onMounted(async () => {
               :accounts="accounts"
               :locations="locations"
               :skus="skus"
-              :funds="transfers"
               :members="members"
               :trusted="trusted"
               @changed="refresh"
@@ -604,7 +595,6 @@ onMounted(async () => {
         :locations="locations"
         :skus="skus"
         :accounts="accounts"
-        :funds="transfers"
         @saved="
           notice = '货物转移已保存';
           refresh();

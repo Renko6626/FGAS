@@ -38,7 +38,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 
 也可以在腾讯云等支持 systemd 的 Linux 主机上从 GitHub 拉取源码部署：systemd 管理 Uvicorn 后端，Nginx 提供 `frontend/dist` 并转发 `/api`、`/mcp`，数据保存在 PostgreSQL。主机需准备 Python 3.13、Node.js 22+、PostgreSQL 和 Nginx；公网使用需配置域名、HTTPS 和 Casdoor 回调地址。日常更新按“拉代码 → 按需安装依赖 → 构建前端 → 备份并执行 Alembic 迁移 → 重启服务”处理。
 
-仓库提供 [fgas.service](deploy/fgas.service) 和一次性的 [fgas-migrate.service](deploy/fgas-migrate.service)，按实际发行版、部署目录和运行用户调整后启用。环境准备、Nginx 转发和手动更新步骤见 [原生部署说明](deploy/README.native.md)。
+仓库提供 [fgas.service](deploy/fgas.service)、一次性的 [fgas-migrate.service](deploy/fgas-migrate.service) 和每日备份的 [fgas-backup.service](deploy/fgas-backup.service) / [fgas-backup.timer](deploy/fgas-backup.timer)，按实际发行版、部署目录和运行用户调整后启用。环境准备、Nginx 转发、手动更新和备份恢复步骤见 [原生部署说明](deploy/README.native.md)。
 
 ## 账户与标签
 

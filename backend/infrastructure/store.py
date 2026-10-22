@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import select, text, func, delete, inspect
+from sqlalchemy import select, text, func, delete, inspect, or_, cast, String
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import aliased
 from backend.infrastructure import auth_config
 from backend.infrastructure.database import DATABASE_URL, Session, engine
 from backend.infrastructure.models import Base, User, LoginSession, FundAccount, StockAccount, Transfer, JournalLine, Audit, Member
@@ -86,6 +88,28 @@ def transfers(db, status=None):
     query = select(Transfer).order_by(Transfer.created_at.desc())
     if status: query = query.where(Transfer.status == status)
     return list(db.scalars(query))
+def transfer_page(db, *, status=None, tag=None, q=None, date_from=None, date_to=None, sort='created_at', page=1, limit=20):
+    source, destination, actor = aliased(FundAccount), aliased(FundAccount), aliased(User)
+    query = (select(Transfer)
+             .join(source, Transfer.source_account_id == source.id)
+             .join(destination, Transfer.destination_account_id == destination.id)
+             .join(actor, Transfer.actor_id == actor.id))
+    if status: query = query.where(Transfer.status == status)
+    if tag: query = query.where(cast(Transfer.tags, JSONB).contains([tag]))
+    if date_from: query = query.where(Transfer.effective_date >= date_from)
+    if date_to: query = query.where(Transfer.effective_date <= date_to)
+    if q:
+        pattern = f'%{q}%'
+        query = query.where(or_(source.name.ilike(pattern), destination.name.ilike(pattern),
+                                Transfer.description.ilike(pattern), Transfer.counterparty.ilike(pattern),
+                                actor.display_name.ilike(pattern), cast(cast(Transfer.tags, JSONB), String).ilike(pattern)))
+    total = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
+    order = Transfer.effective_date.desc() if sort == 'effective_date' else Transfer.created_at.desc()
+    items = list(db.scalars(query.order_by(order, Transfer.id.desc()).offset((page - 1) * limit).limit(limit)))
+    return items, total
+def schema_revision(db):
+    if db.scalar(text("SELECT to_regclass('public.alembic_version')")) is None: return None
+    return db.scalar(text('SELECT version_num FROM alembic_version'))
 def balance_delta(db, identifier, as_of=None, basis='posted'):
     statement = select(func.coalesce(func.sum(JournalLine.debit_minor - JournalLine.credit_minor), 0)).where(JournalLine.account_id == identifier)
     if as_of is not None:

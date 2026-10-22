@@ -18,6 +18,10 @@ def stocktake_view(db, kind, item):
 def list_stocktakes(db, kind, status=None):
     return [stocktake_view(db, kind, item) for item in stocktake_store.stocktakes(db, kind, status)]
 
+def list_stocktakes_page(db, kind, status=None, q=None, page=1, limit=20):
+    items, total = stocktake_store.stocktakes_page(db, kind, status, q=q, page=page, limit=limit)
+    return dict(items=[stocktake_view(db, kind, item) for item in items], total=total, page=page, limit=limit)
+
 def require_stocktake(db, kind, identifier):
     item = stocktake_store.get(db, kind, identifier)
     if item is None: raise DomainError('盘点不存在', 404)

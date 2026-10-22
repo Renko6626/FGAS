@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import { NButton } from "naive-ui";
 import { money, statuses, type Account, type Transfer } from "../api/funds";
 import AccountRoute from "../components/AccountRoute.vue";
-import type { StockTransfer } from "../api/warehouse";
 
 const props = defineProps<{
   accounts: Account[];
-  transfers: Transfer[];
-  stock: StockTransfer[];
+  recent: Transfer[];
+  pendingFunds: number;
+  pendingStock: number;
+  inTransit: number;
   total: number;
   trusted: boolean;
 }>();
@@ -17,25 +17,6 @@ const emit = defineEmits<{
   create: [];
   createStock: [];
 }>();
-const pendingFunds = computed(
-  () => props.transfers.filter((t) => t.status === "pending").length,
-);
-const pendingStock = computed(
-  () =>
-    props.stock.filter(
-      (t) =>
-        t.status === "pending" ||
-        t.confirmations.some((c) => c.status === "pending"),
-    ).length,
-);
-const inTransit = computed(
-  () => props.stock.filter((t) => t.status === "in_transit").length,
-);
-const recent = computed(() =>
-  [...props.transfers]
-    .sort((a, b) => b.effective_date.localeCompare(a.effective_date))
-    .slice(0, 6),
-);
 </script>
 
 <template>

@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from datetime import date
+from typing import Literal
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from backend.infrastructure import auth_config
 from backend.infrastructure.store import transaction as database
@@ -132,8 +134,12 @@ def preview(data: Preview, user=Depends(identity), db=Depends(database)):
 def submit(data: Submit, user=Depends(identity), db=Depends(database)):
     return funds.transfer_view(db, funds.submit(db, user, data.model_dump(mode='json')), True)
 @app.get('/api/transfers')
-def transfers(status: str | None=None, tag: str | None=None, user=Depends(identity), db=Depends(database)):
-    return funds.list_transfers(db, status, tag)
+def transfers(status: str | None=None, tag: str | None=None, q: str | None=None,
+              date_from: date | None=None, date_to: date | None=None,
+              sort: Literal['created_at', 'effective_date']='created_at',
+              page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
+              user=Depends(identity), db=Depends(database)):
+    return funds.list_transfers(db, status, tag, q, date_from, date_to, sort, page, limit)
 @app.get('/api/transfers/{identifier}')
 def detail(identifier: str, user=Depends(identity), db=Depends(database)):
     return funds.transfer_view(db, funds.get_transfer(db, identifier), True)
@@ -189,8 +195,11 @@ from backend.application import warehouse
 def submit_stock_transfer(data: StockTransferInput, user=Depends(identity), db=Depends(database)):
     return warehouse.submit_transfer(db, user, data.model_dump(mode='json'))
 @app.get('/api/stock-transfers')
-def stock_transfers(status: str | None=None, tag: str | None=None, source_account_id: str | None=None, destination_account_id: str | None=None, sku_id: str | None=None, user=Depends(identity), db=Depends(database)):
-    return warehouse.list_transfers(db, status, dict(tag=tag,source_account_id=source_account_id,destination_account_id=destination_account_id,sku_id=sku_id))
+def stock_transfers(status: str | None=None, tag: str | None=None, source_account_id: str | None=None, destination_account_id: str | None=None, sku_id: str | None=None,
+                    q: str | None=None, date_from: date | None=None, date_to: date | None=None, attention: bool=False,
+                    page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
+                    user=Depends(identity), db=Depends(database)):
+    return warehouse.list_transfers(db, status, dict(tag=tag,source_account_id=source_account_id,destination_account_id=destination_account_id,sku_id=sku_id,q=q,date_from=date_from,date_to=date_to,attention=attention), page=page, limit=limit)
 @app.get('/api/stock-transfers/{identifier}')
 def stock_transfer_detail(identifier: str, user=Depends(identity), db=Depends(database)):
     return warehouse.transfer_detail(db, identifier)
@@ -214,11 +223,15 @@ def approve_stock_completion(identifier: str, data: StockApproval, user=Depends(
 def reject_stock_completion(identifier: str, data: StockRejection, user=Depends(identity), db=Depends(database)):
     return warehouse.decide_completion(db, user, identifier, data.model_dump(mode='json'), rejection=True)
 @app.get('/api/inventory')
-def stock_inventory(sku_id: str | None=None, account_id: str | None=None, member_id: str | None=None, custodian_id: str | None=None, user=Depends(identity), db=Depends(database)):
-    return warehouse.inventory(db, dict(sku_id=sku_id, account_id=account_id, member_id=member_id,custodian_id=custodian_id))
+def stock_inventory(sku_id: str | None=None, account_id: str | None=None, member_id: str | None=None, custodian_id: str | None=None,
+                    page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
+                    user=Depends(identity), db=Depends(database)):
+    return warehouse.inventory(db, dict(sku_id=sku_id, account_id=account_id, member_id=member_id,custodian_id=custodian_id), page=page, limit=limit)
 @app.get('/api/stock-moves')
-def stock_moves(sku_id: str | None=None, source_account_id: str | None=None, destination_account_id: str | None=None, transfer_id: str | None=None, user=Depends(identity), db=Depends(database)):
-    return warehouse.list_moves(db,dict(sku_id=sku_id,source_account_id=source_account_id,destination_account_id=destination_account_id,transfer_id=transfer_id))
+def stock_moves(sku_id: str | None=None, source_account_id: str | None=None, destination_account_id: str | None=None, transfer_id: str | None=None,
+                page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
+                user=Depends(identity), db=Depends(database)):
+    return warehouse.list_moves_page(db,dict(sku_id=sku_id,source_account_id=source_account_id,destination_account_id=destination_account_id,transfer_id=transfer_id),page=page,limit=limit)
 
 @app.post('/api/stock-transfers/{identifier}/fund-references')
 def add_stock_fund_reference(identifier: str, data: StockFundReferenceInput, user=Depends(identity), db=Depends(database)):
@@ -233,8 +246,10 @@ def submit_stock_operation(data: StockOperationInput, user=Depends(identity), db
 from backend.application import stocktakes
 
 @app.get('/api/fund-stocktakes')
-def list_fund_stocktakes(status: Literal['in_progress', 'ended'] | None=None, user=Depends(identity), db=Depends(database)):
-    return stocktakes.list_stocktakes(db, 'fund', status)
+def list_fund_stocktakes(status: Literal['in_progress', 'ended'] | None=None, q: str | None=None,
+                         page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
+                         user=Depends(identity), db=Depends(database)):
+    return stocktakes.list_stocktakes_page(db, 'fund', status, q, page, limit)
 @app.post('/api/fund-stocktakes', status_code=201)
 def create_fund_stocktake(data: StocktakeCreate, user=Depends(identity), db=Depends(database)):
     return stocktakes.create_stocktake(db, user, 'fund', data.model_dump())
@@ -249,8 +264,10 @@ def end_fund_stocktake(identifier: str, user=Depends(identity), db=Depends(datab
     return stocktakes.end_stocktake(db, user, 'fund', identifier)
 
 @app.get('/api/stock-stocktakes')
-def list_stock_stocktakes(status: Literal['in_progress', 'ended'] | None=None, user=Depends(identity), db=Depends(database)):
-    return stocktakes.list_stocktakes(db, 'stock', status)
+def list_stock_stocktakes(status: Literal['in_progress', 'ended'] | None=None, q: str | None=None,
+                          page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
+                          user=Depends(identity), db=Depends(database)):
+    return stocktakes.list_stocktakes_page(db, 'stock', status, q, page, limit)
 @app.post('/api/stock-stocktakes', status_code=201)
 def create_stock_stocktake(data: StocktakeCreate, user=Depends(identity), db=Depends(database)):
     return stocktakes.create_stocktake(db, user, 'stock', data.model_dump())

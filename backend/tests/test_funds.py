@@ -51,7 +51,7 @@ def test_formal_write_failure_rolls_back(client):
     try:
         with pytest.raises(Exception, match='induced journal failure'):
             transfer(client, 'opening', 'fund_pool', '100')
-        assert client.get('/api/transfers').json() == []
+        assert client.get('/api/transfers').json()['items'] == []
         assert client.get('/api/funds/summary').json()['total_minor'] == 0
         with engine.connect() as db:
             assert db.scalar(text('SELECT count(*) FROM audit_events')) == 0
@@ -90,7 +90,7 @@ def test_fund_stocktake_transfers_and_reversal(client):
     assert all(accounts[item[key]]['stocktake']['status'] == 'ended' for key in ('gain_account_id', 'loss_account_id'))
     assert client.patch(path, json={'description': '已核对凭证'}).json()['description'] == '已核对凭证'
     assert client.get('/api/funds/summary').json()['total_minor'] == 10000
-    assert [s['id'] for s in client.get('/api/fund-stocktakes?status=ended').json()] == [item['id']]
+    assert [s['id'] for s in client.get('/api/fund-stocktakes?status=ended').json()['items']] == [item['id']]
 
 
 def test_fund_stocktake_endpoint_failure_rolls_back(client):
@@ -100,7 +100,7 @@ def test_fund_stocktake_endpoint_failure_rolls_back(client):
     try:
         with pytest.raises(Exception, match='induced endpoint failure'):
             client.post('/api/fund-stocktakes', json={'name': '失败核对'})
-        assert client.get('/api/fund-stocktakes').json() == []
+        assert client.get('/api/fund-stocktakes').json()['items'] == []
         accounts = client.get('/api/accounts').json()
         assert not any(a['name'].startswith('失败核对') for a in accounts)
         assert all(a['stocktake'] is None for a in accounts)
@@ -127,3 +127,20 @@ def test_account_contact_type_tags_and_disabled_processing(client):
     assert client.post(f"/api/transfers/{pending['id']}/approve",json={'expected_version':pending['version']}).status_code==200
     assert transfer(client,account['id'],'expense','1').status_code==409
     assert client.post(f"/api/transfers/{pending['id']}/reverse",json={'reason':'录错'}).status_code==201
+
+
+def test_list_pagination_filters_and_health(client):
+    for amount in ('100', '200', '300'):
+        assert transfer(client, 'opening', 'fund_pool', amount).status_code == 201
+    page = client.get('/api/transfers', params={'page': 2, 'limit': 2}).json()
+    assert page['total'] == 3 and page['page'] == 2 and page['limit'] == 2
+    assert len(page['items']) == 1
+    filtered = client.get('/api/transfers', params={'q': '资金池', 'date_from': '2026-10-11', 'date_to': '2026-10-13'}).json()
+    assert filtered['total'] == 3
+    client.post('/api/transfers', json=dict(source_account_id='opening', destination_account_id='fund_pool',
+                                            amount='50', effective_date='2026-10-12', description='交通', tags=['差旅']))
+    assert client.get('/api/transfers', params={'q': '差旅'}).json()['total'] == 1
+    health = client.get('/api/health').json()
+    assert health['status'] == 'ok'
+    assert health['schema_revision'] == '0001'
+    assert 'version' in health and 'git_sha' in health

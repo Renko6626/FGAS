@@ -1,6 +1,8 @@
 """Inventory persistence; writes share the existing transaction and advisory lock."""
 from datetime import date, datetime
-from sqlalchemy import select
+from sqlalchemy import select, or_, cast, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import aliased
 from backend.infrastructure.models import Base, Sku, StockAccountCustody
 from backend.infrastructure import store
 
@@ -28,7 +30,7 @@ def account_referenced(db, identifier):
     return referenced(db, 'stock_transfers', ['source_account_id', 'destination_account_id'], identifier)
 
 
-from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit
+from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit, StockAccount, StockConfirmation, StockMove
 
 def get_transfer(db, identifier): return db.get(StockTransfer, identifier)
 def transfers(db, status=None, filters=None):
@@ -40,15 +42,40 @@ def transfers(db, status=None, filters=None):
         elif name == 'sku_id': query = query.where(StockTransfer.id.in_(select(StockTransferLine.transfer_id).where(StockTransferLine.sku_id == value)))
         else: query = query.where(getattr(StockTransfer,name) == value)
     return [t for t in db.scalars(query) if not (filters or {}).get('tag') or filters['tag'] in t.tags]
+def transfer_page(db, *, status=None, tag=None, q=None, date_from=None, date_to=None, attention=False,
+                  source_account_id=None, destination_account_id=None, sku_id=None, page=1, limit=20):
+    source, destination = aliased(StockAccount), aliased(StockAccount)
+    query = (select(StockTransfer)
+             .join(source, StockTransfer.source_account_id == source.id)
+             .join(destination, StockTransfer.destination_account_id == destination.id))
+    if status: query = query.where(StockTransfer.status == status)
+    if attention:
+        pending = select(StockConfirmation.transfer_id).where(StockConfirmation.status == 'pending')
+        query = query.where(or_(StockTransfer.status == 'pending', StockTransfer.id.in_(pending)))
+    if tag: query = query.where(cast(StockTransfer.tags, JSONB).contains([tag]))
+    if date_from: query = query.where(StockTransfer.effective_date >= date_from)
+    if date_to: query = query.where(StockTransfer.effective_date <= date_to)
+    if source_account_id: query = query.where(StockTransfer.source_account_id == source_account_id)
+    if destination_account_id: query = query.where(StockTransfer.destination_account_id == destination_account_id)
+    if sku_id: query = query.where(StockTransfer.id.in_(select(StockTransferLine.transfer_id).where(StockTransferLine.sku_id == sku_id)))
+    if q:
+        pattern = f'%{q}%'
+        sku_matches = (select(StockTransferLine.transfer_id)
+                       .join(Sku, Sku.id == StockTransferLine.sku_id)
+                       .where(Sku.name.ilike(pattern)))
+        query = query.where(or_(source.name.ilike(pattern), destination.name.ilike(pattern),
+                                StockTransfer.description.ilike(pattern), StockTransfer.id.ilike(pattern),
+                                StockTransfer.id.in_(sku_matches)))
+    total = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
+    items = list(db.scalars(query.order_by(StockTransfer.created_at.desc(), StockTransfer.id.desc())
+                            .offset((page - 1) * limit).limit(limit)))
+    return items, total
 def lines(db, identifier):
     return list(db.scalars(select(StockTransferLine).where(StockTransferLine.transfer_id == identifier).order_by(StockTransferLine.id)))
 def fund_references(db, identifier):
     return list(db.scalars(select(StockTransferFundReference).where(StockTransferFundReference.stock_transfer_id == identifier).order_by(StockTransferFundReference.fund_transfer_id)))
 def audit_events(db, identifier):
     return list(db.scalars(select(StockAudit).where(StockAudit.stock_transfer_id == identifier).order_by(StockAudit.created_at, StockAudit.id)))
-from sqlalchemy import func
-from backend.infrastructure.models import StockConfirmation, StockMove
-
 def confirmations(db, identifier):
     return list(db.scalars(select(StockConfirmation).where(StockConfirmation.transfer_id == identifier).order_by(StockConfirmation.created_at, StockConfirmation.id)))
 def available(db, account_id, sku_id):
@@ -61,7 +88,14 @@ def _as_date(value): return date.fromisoformat(value) if isinstance(value, str) 
 def _as_datetime(value): return datetime.fromisoformat(value.replace('Z', '+00:00')) if isinstance(value, str) else value
 
 def moves(db, filters=None):
-    filters = filters or {}
+    return list(db.scalars(_moves_query(filters or {}).order_by(StockMove.created_at, StockMove.id)))
+def moves_page(db, filters=None, page=1, limit=20):
+    query = _moves_query(filters or {})
+    total = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
+    items = list(db.scalars(query.order_by(StockMove.created_at, StockMove.id)
+                            .offset((page - 1) * limit).limit(limit)))
+    return items, total
+def _moves_query(filters):
     query = select(StockMove)
     for name in ('sku_id', 'source_account_id', 'destination_account_id'):
         if filters.get(name) is not None:
@@ -78,7 +112,7 @@ def moves(db, filters=None):
             query = query.where(column >= _as_datetime(filters[name + '_from']))
         if filters.get(name + '_to') is not None:
             query = query.where(column < _as_datetime(filters[name + '_to']))
-    return list(db.scalars(query.order_by(StockMove.created_at, StockMove.id)))
+    return query
 
 def related_transfers(db, transfer_id):
     return list(db.scalars(select(StockTransfer).where(StockTransfer.related_transfer_id == transfer_id).order_by(StockTransfer.created_at, StockTransfer.id)))

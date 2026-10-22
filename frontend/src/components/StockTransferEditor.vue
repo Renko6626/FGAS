@@ -1,29 +1,50 @@
 <script setup lang="ts">
-import { computed, h, ref } from "vue";
+import { computed, h, onBeforeUnmount, ref } from "vue";
 import { NButton, NInput, NModal, NSelect, type SelectOption } from "naive-ui";
-import type { StockAccount, Sku, Account, Transfer } from "../api/funds";
+import type { StockAccount, Sku, Account } from "../api/funds";
+import { api, statuses as fundStatuses } from "../api/funds";
 import { warehouse, today, type StockInput } from "../api/warehouse";
 import StockAccountSelector from "./StockAccountSelector.vue";
 import EndpointSelector from "./EndpointSelector.vue";
 import TagInput from "./TagInput.vue";
 import AccountRoute from "./AccountRoute.vue";
 import AccountLabel from "./AccountLabel.vue";
-import { statuses as fundStatuses } from "../api/funds";
 const props = defineProps<{
   locations: StockAccount[];
   skus: Sku[];
   accounts: Account[];
-  funds: Transfer[];
   hideTrigger?: boolean;
   initial?: Partial<StockInput>;
 }>();
 const emit = defineEmits<{ saved: [] }>();
-const fundOptions = computed(() =>
-  props.funds.map((f) => ({
-    label: `${f.description || f.id}（${fundStatuses[f.status] || f.status}）`,
-    value: f.id,
-  })),
-);
+const fundResults = ref<SelectOption[]>([]), fundCache = ref<Record<string, string>>({}),
+  fundLoading = ref(false);
+let fundTimer: number | undefined;
+async function searchFunds(query: string) {
+  window.clearTimeout(fundTimer);
+  fundTimer = window.setTimeout(async () => {
+    fundLoading.value = true;
+    try {
+      const result = await api.transfers({ q: query.trim() || undefined, limit: 20 });
+      fundResults.value = result.items.map((f) => {
+        const label = `${f.description || f.id}（${fundStatuses[f.status] || f.status}）`;
+        fundCache.value[f.id] = label;
+        return { label, value: f.id };
+      });
+    } catch {
+      fundResults.value = [];
+    } finally {
+      fundLoading.value = false;
+    }
+  }, 200);
+}
+const fundOptions = computed(() => {
+  const options = [...fundResults.value];
+  for (const id of refs.value)
+    if (!options.some((option) => option.value === id))
+      options.push({ label: fundCache.value[id] || id, value: id });
+  return options;
+});
 const show = ref(false),
   busy = ref(false),
   error = ref(""),
@@ -59,6 +80,7 @@ function open(initial: Partial<StockInput> = props.initial || {}) {
   amount.value = "";
   error.value = "";
   show.value = true;
+  searchFunds("");
 }
 function renderSkuLabel(option: SelectOption) {
   const sku = props.skus.find((s) => s.id === option.value);
@@ -71,6 +93,7 @@ function renderSkuLabel(option: SelectOption) {
   ]);
 }
 defineExpose({ open });
+onBeforeUnmount(() => window.clearTimeout(fundTimer));
 async function save() {
   if (busy.value) return;
   busy.value = true;
@@ -218,8 +241,12 @@ async function save() {
           :disabled="busy"
           multiple
           clearable
+          filterable
+          remote
+          :loading="fundLoading"
           :options="fundOptions"
-          placeholder="选择已有资金记录"
+          placeholder="搜索已有资金记录"
+          @search="searchFunds"
         />
         <template v-else>
           <p>资金按原规则审批过账，货物须另外确认完成。</p>

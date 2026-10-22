@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { NButton, NSelect } from "naive-ui";
 import type { StockAccount, Sku } from "../api/funds";
 import type { Member } from "../api/funds";
 import { warehouse, type InventoryRow } from "../api/warehouse";
 import AccountLabel from "../components/AccountLabel.vue";
+import PaginationBar from "../components/PaginationBar.vue";
 const props = defineProps<{
   locations: StockAccount[];
   skus: Sku[];
@@ -18,7 +19,10 @@ const location = ref(""),
   totals = ref<{ sku_id: string; quantity: string; valuation: string }[]>([]),
   error = ref(""),
   busy = ref(false),
-  snapshot = ref("");
+  snapshot = ref(""),
+  page = ref(1),
+  limit = ref(20),
+  total = ref(0);
 async function refresh() {
   if (busy.value) return;
   busy.value = true;
@@ -27,9 +31,10 @@ async function refresh() {
       account_id: location.value,
       sku_id: sku.value,
       custodian_id: member.value,
-    });
-    rows.value = result.quantities;
+    }, page.value, limit.value);
+    rows.value = result.items;
     totals.value = result.totals;
+    total.value = result.total;
     snapshot.value = result.snapshot_at;
     error.value = "";
   } catch (e) {
@@ -38,6 +43,10 @@ async function refresh() {
     busy.value = false;
   }
 }
+watch([location, sku, member], () => {
+  page.value = 1;
+});
+watch([page, limit], refresh);
 onMounted(refresh);
 </script>
 <template>
@@ -99,6 +108,13 @@ onMounted(refresh);
       </tbody>
     </table>
   </div>
+  <PaginationBar
+    :page="page"
+    :limit="limit"
+    :total="total"
+    @update:page="page = $event"
+    @update:limit="limit = $event; page = 1"
+  />
   <p v-for="t in totals" :key="t.sku_id">
     {{ skus.find((s) => s.id === t.sku_id)?.name || t.sku_id }} 合计：{{
       t.quantity

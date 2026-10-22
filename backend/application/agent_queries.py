@@ -152,7 +152,7 @@ def get_inventory(db, access: AgentAccess, filters: dict) -> dict:
     as_of = filters.get('as_of')
     basis = filters.get('basis', 'posted')
     value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_id','member_id','custodian_id','as_of','basis') if key in filters})
-    return _page(value['quantities'], filters, snapshot_at=value['snapshot_at'], totals=value['totals'],
+    return _page(value['items'], filters, snapshot_at=value['snapshot_at'], totals=value['totals'],
                  as_of=as_of, basis=basis if as_of is not None else None)
 
 
