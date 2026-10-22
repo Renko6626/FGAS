@@ -23,6 +23,22 @@ npm run dev
 
 普通启动只建缺少的表和初始化种子，不自动清库、不升级旧表。2026-10-15 新增 SKU 图片字段；此前已有数据库可显式执行 `ALTER TABLE skus ADD COLUMN IF NOT EXISTS avatar_url VARCHAR;`，仅加可空列，保留原数据；新库由 metadata 建立该列。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
 
+## 服务器部署与更新
+
+当前优先使用 Linux 原生部署：PM2 管理后端，前端构建成静态文件，数据库使用服务器上的 PostgreSQL。首次准备环境、建库和配置网站见 [部署说明](deploy/README.md)。Docker 文件保留为备选，不是部署前提。
+
+首次安装依赖用 `npm run setup`，确认新建数据库的配置后用 `npm run db:init` 初始化一次。后续没有依赖或数据库结构变化时，日常更新只需要：
+
+```bash
+git pull --ff-only
+npm run build
+pm2 startOrRestart ecosystem.config.cjs --update-env
+```
+
+逐条执行，失败时先处理错误。依赖变化时在构建前再跑 `npm run setup`；数据库升级按版本说明单独处理，PM2 重启不初始化或重建数据库。`.env` 中可设置 `API_PORT`，默认8000；服务只监听本机，由网站服务转发 `/api/` 和 `/mcp`。
+
+目前仍为开发登录，正式公网使用还需完成 Casdoor 接入。这里提供部署流程，不代表正式上线已验收。
+
 ## 账户与标签
 
 资金表 `fund_accounts`、货物表 `stock_accounts` 共用 `id/name/kind/member_id/avatar_url/tags/active`。类型 `public/private/external` 创建后固定；联系人可空，公私分类不由联系人决定。图片为空或加载失败时显示名称首字，按名称生成稳定的浅背景、深文字配色。SKU 也保存可空 `avatar_url`，可在货物目录中维护缩略图 URL；货物账户复用同名字段。

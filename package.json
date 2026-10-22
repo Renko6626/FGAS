@@ -1,1 +1,13 @@
-{"name":"fgas","private":true,"scripts":{"dev":"node scripts/dev.mjs","build":"npm --prefix frontend run build"},"engines":{"node":">=22"}}
+{
+  "name": "fgas",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm --prefix frontend run build",
+    "setup": "python3.13 -m venv .venv && .venv/bin/python -m pip install -r backend/requirements.txt && npm --prefix frontend ci",
+    "db:init": "node scripts/init-db.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

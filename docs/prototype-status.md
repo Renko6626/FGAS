@@ -295,3 +295,16 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 指南说明如何从文档URL确定同源/mcp地址、识别当前客户端、复用已有配置和运行时凭据、配置Bearer及只读验证；没有密钥时只引导用户到Agent连接签发。附OpenCode配置示例及核心业务模型说明，具体业务契约仍由连接后的help按需提供。未修改密钥、权限、后端或用户客户端配置。
 
 验证：`npm run build`通过，vue-tsc及Vite完成；保留现有主JS约511.05kB的体积提示。一次性HTMLParser检查源码和dist原始HTML均含指南链接，dist/agent-setup.md与public源文件一致。`git --git-dir=.fgas-git --work-tree=. diff --check`通过。未新增永久测试，未运行浏览器交互或数据库检查，未部署或验证公网可访问性。
+
+
+### 2026-10-22：Linux 与 PM2 原生部署流程
+
+用户选择先不Docker化，在普通Linux服务器上优先使用PM2。新增根目录ecosystem.config.cjs，使用项目.venv/bin/python直接启动Uvicorn，单进程监听127.0.0.1，默认API_PORT=8000。配置读取项目.env，文件值优先于同名环境变量；缺少DATABASE_URL时明确报错。PM2重启不调用初始化或数据库升级。
+
+新增`npm run setup`准备Python虚拟环境/现有依赖和前端锁定依赖；`npm run db:init`显式调用原初始化逻辑，不传清库参数，与PM2共用配置。日常更新为`git pull --ff-only`、`npm run build`、`pm2 startOrRestart ecosystem.config.cjs --update-env`。依赖变更时额外setup，数据库升级按版本说明单独安排。原开发启动脚本保持现状。
+
+新增deploy/README.md说明首次安装、数据库配置、静态前端与/api和/mcp转发、日志、更新及PM2开机启动；Nginx仅提供现有站点的配置示例，不安装或开放站点。现有Docker文件保留备选，README与架构说明改为原生部署优先。未配置CI/CD，未扩展发布队列或自动回滚。
+
+验证：`node --check ecosystem.config.cjs`、`node --check scripts/init-db.mjs`通过；使用本机PM2 7.0.3的真实Common.parseConfig在临时目录解析配置，核对cwd、Python执行参数、.env优先级及缺少数据库配置的错误，未启动PM2守护进程。`npm run build`通过，保留现有约511.05kB主JS体积提示；`git --git-dir=.fgas-git --work-tree=. diff --check`通过。未新增永久测试。
+
+未执行setup安装依赖或db:init，未启动/重启服务、修改真实.env、连接数据库、配置Nginx、安装开机服务或做远程部署。实际服务器启动及端到端接入待部署时验证；当前开发登录仍不能作为正式公网身份验证。
