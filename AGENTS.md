@@ -24,13 +24,14 @@
 npm run setup      # 建 .venv、装后端依赖、前端 ci
 npm run dev        # 本地开发（后端 127.0.0.1:8000，前端 5173，/api 代理）
 npm run build      # 前端类型检查 + 生产构建
-npm run db:init    # 显式初始化数据库
-./tools/run_tests.sh   # 全部后端测试
+npm run db:init    # Alembic upgrade + 开发种子
+.venv/bin/python -m alembic -c alembic.ini upgrade head   # 升级 schema
+./tools/run_tests.sh   # 全部后端测试（含迁移测试）
 ```
 
 ## 验证红线
 
-- 测试**只允许**运行于 `fgas_test` 库；脚本每次会重建该库的 FGAS 表。**绝不**把日常开发库传给测试，绝不为跑测试运行 `--reset-db`。
+- 测试**只允许**运行于 `fgas_test` 库；脚本每次会重建该库的 FGAS 表。迁移测试在同一 PostgreSQL 实例上创建并删除独立临时库，不触碰共享表。**绝不**把日常开发库传给测试，绝不为跑测试运行 `--reset-db`。
 - 测试使用真实 PostgreSQL + HTTP 路径，不访问外部服务（Casdoor 走 mock）。
 - 前端验证 = TypeScript 检查 + 生产构建；未经用户明确要求，不做浏览器自动点击/填表，UI 至多截图。
 - 关键新行为补测试覆盖，不按每次修改机械新增测试；无独立 CI 扩展任务。
@@ -54,12 +55,13 @@ npm run db:init    # 显式初始化数据库
 ## 明确不做（第一阶段范围外）
 
 - 不实现估值、成本、利润、订单、清点明细、请求恢复。
-- 不引入 Alembic、微服务、队列、缓存、多主同步、通用规则引擎、幂等键/自动重试/Outbox。
-- 不自动清库、不自动迁移旧表；升级 SQL（`scripts/upgrade-*.sql`）只能在用户明确授权、确认目标库并备份后显式执行。
+- 不引入微服务、队列、缓存、多主同步、通用规则引擎、幂等键/自动重试/Outbox。
+- 数据库 schema 只通过 Alembic 演进：部署由 Compose `migrate` 一次性服务在 API 启动前执行 `alembic upgrade head`；迁移前必须备份，失败即停止发布。禁止用 `create_all` 或手写 SQL 作为新装/升级路径，禁止自动 downgrade。
+- 历史 `scripts/upgrade-*.sql` 仅用于收养基线前旧库：不可丢弃的库必须备份、执行遗留脚本、校验 schema，再 `alembic stamp 0001`；可丢弃的旧库直接重建。
 - 生产部署以 `deploy/README.md` 的 Docker Compose 路线为准；真实 Casdoor 联调、HTTPS、附件、备份恢复、MCP 外部客户端联调尚未验收——不要把开发环境行为当作生产已验收。
 
 ## 已知待办线索
 
 - `backend/modules/member_claims/` 目前是空壳占位。
 - 测试盲区：stocktakes、catalogs 等无专项测试。
-- 数据库升级脚本 `upgrade-agent-access.sql`、`upgrade-user-auth.sql`、`upgrade-posted-at.sql` 未在日常开发库执行过，动库前先问用户。
+- `backend/migrations/versions/0001_baseline_schema.py` 是当前基线；未来模型变更必须新增 revision，并在 `fgas_test` 上通过迁移测试。旧 `upgrade-agent-access.sql`、`upgrade-user-auth.sql`、`upgrade-posted-at.sql` 只用于收养旧库，处理不可丢弃的库前先问用户。

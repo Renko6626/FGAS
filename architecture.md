@@ -52,7 +52,9 @@ Vue / 人工 HTTP       Agent / MCP
 
 2026-10-22 用户进一步确认采用 Docker Compose，统一管理 PostgreSQL 14、Python 3.13 后端、内置 Nginx 的静态前端。Node 22 只参与镜像构建；目标 Linux amd64 服务器不需要 Python、Node、PM2 或 uv。Nginx 提供网页和接入指南，将 /api 与 /mcp 转发到后端。数据库与后端不映射主机端口，网页默认映射127.0.0.1:8080。
 
-发布保留两条路径：本机构建完整镜像并通过 SSH 传包加载；GitHub Actions 构建镜像并发布 GHCR，服务器拉取。两者共用运行 Compose 和启动脚本，持久配置位于部署根目录.env，数据库位于固定 fgas_postgres-data 卷。首次初始化显式执行，普通启动与更新不建表、不清库、不自动迁移。版本升级 SQL 及备份由维护者按版本说明安排。
+发布保留两条路径：本机构建完整镜像并通过 SSH 传包加载；GitHub Actions 构建镜像并发布 GHCR，服务器拉取。两者共用运行 Compose 和启动脚本，持久配置位于部署根目录.env，数据库位于固定 fgas_postgres-data 卷。首次初始化与普通更新都通过 Compose 一次性 `migrate` 服务执行 `alembic upgrade head`；API 依赖迁移成功后才启动。发布前自动 `pg_dump` 备份，迁移失败即停止发布；不自动清库、不自动 downgrade。
+
+数据库迁移以 Alembic 为唯一 schema 演进路径，`backend/migrations/versions/0001_baseline_schema.py` 是当前基线；模型变更必须新增 revision，不能回到 `create_all` 或手写升级 SQL。在线迁移使用独立 advisory lock，避免并发执行；测试在独立临时库验证 upgrade/check/downgrade。历史 `scripts/upgrade-*.sql` 只用于收养基线前旧库：备份、执行、校验后 `alembic stamp 0001`。
 
 工作流在版本标签或手动触发时构建，通过容器启动与反向代理检查后发布。配置服务器凭据并启用后可经 SSH 自动更新；不新增发布服务、队列或自动回滚。开发用 npm run dev 保持原有行为，PM2 方案保留备用。操作说明见 [deploy/README.md](deploy/README.md)。
 
@@ -108,7 +110,7 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 ## 7 重建、上线配套与后续边界
 
-用户允许本轮破坏性更新，显式重建开发 FGAS 应用表，包含退役表；不引入 Alembic、旧接口兼容或旧账目迁移。普通启动不清库，测试仅运行于 `fgas_test`。当前权威账本是单数据库，不将成员散放货物解释为数据库分布式同步。
+2026-10-22 以当前模型重建开发 FGAS 应用表，并以 Alembic `0001` 作为基线；此后 schema 只通过 revision 演进，不再用 `create_all` 或手写 SQL 升级。普通启动不自动迁移，迁移由发布阶段或显式本地初始化执行；测试仅运行于 `fgas_test`，迁移测试使用独立临时库。当前权威账本是单数据库，不将成员散放货物解释为数据库分布式同步。
 
 正式使用前需确认期初日期、公账资金、私账往来及各账户 SKU 数量，通过普通期初记录建立，并保留不足的原始依据。正式 SSO、票据附件、生产部署和备份恢复仍需后续落实。附件按既有私有存储方向实施，不能随意公开；数据库与附件备份应保存对应恢复时点和版本信息，在空环境验证基本恢复，不把开发备份搬成正式账本。不在本次新增实现。
 
@@ -130,4 +132,4 @@ low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具�
 
 v2 直接替换旧公开工具名；旧名只返回 tool_migrated，不调用旧动作。客户端重连/重新发现，固定旧名脚本需更新；地址、凭据与业务数据不变。仍未正式发布。
 
-旧库升级仅显式执行 `scripts/upgrade-agent-access.sql`、`scripts/upgrade-user-auth.sql` 和 `scripts/upgrade-posted-at.sql` 的非破坏性增量；普通启动不升级旧表。本轮日常开发库升级未执行，运行验证仅使用专用 fgas_test。具体命令、客户端版本和联调限制见阶段记录。
+新装与升级统一执行 Alembic revision；`0001_baseline_schema.py` 包含 Agent 凭据、SSO、`transfers.posted_at` 等全部当前结构。旧库若不可丢弃，先备份并显式执行 `scripts/upgrade-agent-access.sql`、`scripts/upgrade-user-auth.sql`、`scripts/upgrade-posted-at.sql`，校验 schema 与基线一致后 `alembic stamp 0001`；可丢弃的旧库直接重建。普通启动不升级旧表，不自动降级。具体命令、客户端版本和联调限制见阶段记录。

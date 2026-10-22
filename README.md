@@ -19,9 +19,9 @@ npm run dev
 
 后端默认 `127.0.0.1:8000`，前端 `5173`，通过 `/api` 代理。认证由 `AUTH_MODE` 切换：本地开发使用 `development` 的账号选择；正式环境使用 `casdoor`，通过既有 Casdoor OIDC 登录。Casdoor 首次登录自动建立本地用户，默认普通用户，角色由管理员在“用户权限”中维护；`INITIAL_ADMIN_SUBJECT` 只在首次建号时把匹配的 Casdoor `sub` 或用户名绑定为管理员。三档角色为管理员、受信任用户、普通用户。
 
-2026-10-14 的自由账户整理曾显式重建开发表，这是已完成的历史更新，不是本轮升级步骤。Agent 接入使用增量脚本 [scripts/upgrade-agent-access.sql](scripts/upgrade-agent-access.sql)，只创建凭据表并添加可空来源字段，保留旧记录。已有数据库须先确认目标库、备份并明确授权，停止相关服务后显式执行该 SQL，并核对原业务记录保留；本轮尚未升级日常开发库。不要为 Agent 更新运行 `--reset-db`。用户认证升级使用 [scripts/upgrade-user-auth.sql](scripts/upgrade-user-auth.sql)，为 `users` 和 `login_sessions` 增加 SSO、时间与到期字段；正式新库由 metadata 建表，不需要执行。Agent 截止余额/库存查询使用 `transfers.posted_at`；已有库升级使用 [scripts/upgrade-posted-at.sql](scripts/upgrade-posted-at.sql)，从 `audit_events` 的 `posted` 事件回填并创建索引，pending/rejected 保持 NULL；同样需要先备份、确认目标库并显式执行。
+数据库 schema 由 Alembic 管理，当前基线是 `0001_baseline_schema`。`npm run db:init` 会执行 `alembic upgrade head` 并写入开发种子；`npm run dev` 启动前也会 upgrade。已有 FGAS 表但没有 `alembic_version` 的旧库会被明确拒绝，必须先备份并收养或重建，不能回到 `create_all`。修改模型后生成新的 revision，不要手写升级 SQL；完整流程见 [数据库迁移](docs/migrations.md)。
 
-普通启动只建缺少的表和初始化种子，不自动清库、不升级旧表。2026-10-15 新增 SKU 图片字段；此前已有数据库可显式执行 `ALTER TABLE skus ADD COLUMN IF NOT EXISTS avatar_url VARCHAR;`，仅加可空列，保留原数据；新库由 metadata 建立该列。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
+历史 [scripts/upgrade-agent-access.sql](scripts/upgrade-agent-access.sql)、[scripts/upgrade-user-auth.sql](scripts/upgrade-user-auth.sql)、[scripts/upgrade-posted-at.sql](scripts/upgrade-posted-at.sql) 仅用于收养基线前旧库：备份、执行、校验 schema 后 `alembic stamp 0001`。可丢弃的旧库直接重建即可。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
 
 ## 服务器部署与更新
 
@@ -32,7 +32,7 @@ npm run dev
 - 手动发布：本机构建完整镜像，打包后通过 SSH 传到服务器加载。
 - 自动发布：GitHub Actions 构建镜像并推送 GHCR，服务器拉取后更新。
 
-首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。原来的 [PM2 原生方式](deploy/README.native.md) 保留备用。数据库只在首次部署时显式初始化，普通更新不初始化、不执行升级 SQL。
+首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。原来的 [PM2 原生方式](deploy/README.native.md) 保留备用。首次部署和普通更新都会先备份数据库、再通过 Compose 一次性 `migrate` 服务执行 Alembic；迁移失败时 API 不启动。
 
 Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应用并填写回调地址、client id/secret 和初始管理员。默认只监听服务器本机的 8080 端口；HTTPS 站点必须设置 `COOKIE_SECURE=true`。真实 Casdoor 联调、域名和 HTTPS 验收尚未完成，部署脚本不代表正式上线已验收。
 
@@ -95,7 +95,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 npm run build
 ```
 
-测试脚本仅允许 `fgas_test`，每次集中运行先重建该测试库的 FGAS 表；不要把日常开发库传给测试。测试使用真实数据库及 HTTP 生产路径，Casdoor 流程通过 mock IdP 覆盖，不访问外部服务。前端验证为 TypeScript 检查和生产构建，未经要求不做浏览器自动点击/填表。
+测试脚本仅允许 `fgas_test`，每次集中运行先重建该测试库的 FGAS 表；不要把日常开发库传给测试。迁移测试会在同一 PostgreSQL 实例上创建并删除独立临时库，验证 upgrade、drift check 和 downgrade，不触碰 `fgas_test` 的共享表。测试使用真实数据库及 HTTP 生产路径，Casdoor 流程通过 mock IdP 覆盖，不访问外部服务。前端验证为 TypeScript 检查和生产构建，未经要求不做浏览器自动点击/填表。
 
 真实 Casdoor 联调、附件、生产部署、备份恢复尚未验收，本轮不实现估值、利润、订单、清点明细或请求恢复。
 

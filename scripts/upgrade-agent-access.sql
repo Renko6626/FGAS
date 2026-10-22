@@ -1,3 +1,7 @@
+-- LEGACY / ADOPTION ONLY after the Alembic baseline.
+-- Use only to adopt a pre-baseline database that cannot be discarded: back up,
+-- run the legacy scripts, verify the schema, then `alembic stamp 0001`.
+-- New installs and normal upgrades use `alembic upgrade head`.
 -- Explicit PostgreSQL upgrade. Confirm the target database and stop related
 -- services before running. Existing records remain unchanged; source stays NULL.
 -- Run with psql -v ON_ERROR_STOP=1 -f scripts/upgrade-agent-access.sql.

@@ -34,9 +34,9 @@ PM2 配置从项目根目录读取 `.env`，文件中的值优先于同名环境
 npm run db:init
 ```
 
-初始化使用与 PM2 相同的数据库配置，创建缺少的表和初始目录，不带清库参数。不要把其他系统的数据库拿来初始化，也不要在部署时使用 `--reset`、`--reset-db` 或测试脚本。
+初始化使用与 PM2 相同的数据库配置，执行 Alembic 基线迁移并写入初始目录，不带清库参数。不要把其他系统的数据库拿来初始化，也不要在部署时使用 `--reset`、`--reset-db` 或测试脚本。
 
-如果接手的是已有 FGAS 数据库，先查看版本和更新说明。初始化不会给旧表自动增加字段；例如早期版本的 Agent 接入升级使用 [upgrade-agent-access.sql](../scripts/upgrade-agent-access.sql)，本版本的网页认证升级使用 [upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)，截止余额查询升级使用 [upgrade-posted-at.sql](../scripts/upgrade-posted-at.sql)。这些都需要先核对目标库和备份，停止相关服务后再按确认后的步骤显式执行；正式新库由初始化直接建表，不需要执行。
+如果接手的是已有 FGAS 数据库，先查看 `alembic_version` 和更新说明。已有基线版本直接执行 `alembic upgrade head`；没有版本号的旧库需要先备份、执行 [upgrade-agent-access.sql](../scripts/upgrade-agent-access.sql)、[upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)、[upgrade-posted-at.sql](../scripts/upgrade-posted-at.sql)，校验 schema 后 `alembic stamp 0001`；可丢弃的旧库直接重建。所有操作都要先确认目标库和备份。
 
 构建前端，启动后端：
 
@@ -121,7 +121,7 @@ curl --fail http://127.0.0.1:8000/api/health
 
 只改前端时，构建后网站就会读取新文件；重启后端是统一流程的一部分。只改 `.env` 时，使用上述带配置文件的 startOrRestart 命令重新加载，不要只执行 `pm2 restart fgas` 期望它重读文件。
 
-正常更新和 PM2 重启都不会调用数据库初始化，也不自动执行升级 SQL。遇到数据库结构变更，按该版本说明单独安排。数据库定期备份由服务器维护者负责，不能用测试脚本检查正式库。
+正常更新和 PM2 重启不会自动迁移。遇到数据库结构变更，先备份，再显式执行 `.venv/bin/python -m alembic -c alembic.ini upgrade head`，成功后才重启后端；迁移失败不要重启或自动降级。数据库定期备份由服务器维护者负责，不能用测试脚本检查正式库。
 
 ## 日志、停止和开机启动
 

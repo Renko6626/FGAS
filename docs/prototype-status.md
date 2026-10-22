@@ -21,7 +21,7 @@
 
 垫付标记、偿还匹配、货物审批和实际确认将作为外层能力增加，不为它们另造资金或数量账本。
 
-开发阶段通过 SQLAlchemy metadata 直接建表，没有 Alembic 或历史数据升级流程。普通启动保留数据；需要变更开发 Schema 时，显式重建可丢弃的开发数据。正式部署与数据迁移方案留待成熟阶段。
+开发与部署阶段统一由 Alembic 管理 schema，当前基线为 `0001_baseline_schema.py`。普通启动保留数据；开发环境需要重建时显式执行 reset，重建后自动 upgrade 到 head。正式部署由 Compose `migrate` 服务在 API 启动前执行迁移，迁移前自动备份，失败停止发布。
 
 ## 启动与重置
 
@@ -40,7 +40,7 @@ npm run dev -- --reset-db
 npm run dev
 ```
 
-重置入口仅在 `AUTH_MODE=development` 下执行，清空配置数据库中的 FGAS 应用表并重新初始化。它不自动在每次启动时运行，也不管理 PostgreSQL 服务。
+重置入口仅在 `AUTH_MODE=development` 下执行，清空配置数据库中的 FGAS 应用表并重新执行 Alembic upgrade，再写入开发种子。它不自动在每次启动时运行，也不管理 PostgreSQL 服务。
 
 ## 2026-10-12 检查点验证与未验证项
 
@@ -330,6 +330,15 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 管理员用户页展示来源、Casdoor 用户名、缩短的 subject、邮箱和最后登录；可修改角色、启停、强制下线。最后一名启用管理员不可降级或停用；停用和强制下线删除目标全部网页会话，停用同时阻止 Agent。强制下线不撤销 MCP 凭据。前端按模式渲染登录页，处理 `sso_error` 和 401 会话失效事件。Compose 默认切换为 `casdoor`，环境变量示例、CI 冒烟断言和部署文档同步。
 
 验证：`./tools/run_tests.sh` 的 50 项测试全部通过，包含 `backend/tests/test_auth_casdoor.py` 对重定向/PKCE/state、首次建号、初始管理员、停用、模式门禁、会话过期、强制下线、最后管理员和停用撤销会话的 mock IdP 覆盖，不访问外部网络；`npm run build` 的 vue-tsc 与生产构建通过。未执行真实 Casdoor 应用配置或登录联调、浏览器自动交互、生产部署；未读取或修改用户 Casdoor 实例、`CASDOOR_KEY`/`CASDOOR_SECRET` 或仓库现有 `.env`。
+
+
+### 2026-10-22：Alembic 基线与自动迁移
+
+引入 Alembic 作为唯一 schema 演进路径。`backend/migrations/versions/0001_baseline_schema.py` 从当前 SQLAlchemy 模型生成，覆盖 20 张表、18 个 CHECK、8 个 UNIQUE、显式索引与 partial index；同时给 `Base.metadata` 增加命名规范，稳定 PK/FK/UQ/CK 名称。`initialize` 改为执行 `alembic upgrade head`，`reset_schema` 只负责删除；已有 FGAS 表但没有 `alembic_version` 的库会 fail closed。
+
+部署新增 Compose 一次性 `migrate` 服务，API 依赖其成功完成；`apply-release.sh` 在迁移前自动 `pg_dump -Fc` 到部署根 `backups/`，备份为空或迁移失败即停止发布，不自动 downgrade。历史 `upgrade-*.sql` 标记为 legacy/adoption only。
+
+本地开发库已按要求备份（`.runtime/backups/fgas-20261022T145806Z-pre-baseline.dump`）后重建，当前 `alembic_version=0001`、20 张表、`transfers.posted_at` 存在、开发种子已写入。验证：`./tools/run_tests.sh` 的 57 项测试全部通过，包含独立临时库上的 upgrade、幂等 upgrade、`alembic check`、downgrade/upgrade 和约束/索引/JSON 检查；本地 `alembic check` 无差异。未构建真实镜像、未执行 Compose/SSH 发布、未对生产库执行迁移。
 
 
 ### 2026-10-22：MCP 默认时间窗与 as-of 状态查询

@@ -1,4 +1,7 @@
--- Explicit PostgreSQL upgrade for existing databases.
+-- LEGACY / ADOPTION ONLY after the Alembic baseline.
+-- Use only to adopt a pre-baseline database that cannot be discarded: back up,
+-- run the legacy scripts, verify the schema, then `alembic stamp 0001`.
+-- New installs and normal upgrades use `alembic upgrade head`.
 -- Adds the ledger posting timestamp used by as-of balance queries, backfills
 -- existing posted/reversed transfers from their 'posted' audit event, and adds
 -- the indexes used by as-of reads. Pending/rejected transfers keep posted_at NULL.

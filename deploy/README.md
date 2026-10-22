@@ -55,7 +55,7 @@ bash scripts/push-release.sh .releases/fgas-manual-20261022-1.tar.gz deploy@你�
 
 第一条构建前后端镜像，连同 PostgreSQL 导出为 `.releases/fgas-版本号.tar.gz`。包内只有镜像、Compose 和启动配置模板，没有真实密码或业务数据。第二条通过 SCP 传包、解压，并调用服务器上的启动脚本；SSH 密钥、端口等使用本机常规 SSH 配置。
 
-**`--init-db` 只用于确认过的新 FGAS 数据库**，创建表和初始目录，不带清库参数。日常更新换一个版本号，去掉它：
+**`--init-db` 只用于确认过的新 FGAS 数据库**：先执行 Compose migrate 建表，再由 initialize 写入初始目录，不带清库参数。日常更新换一个版本号，去掉它；普通更新也会自动备份并迁移：
 
 ```bash
 bash scripts/package-release.sh manual-20261023-1
@@ -114,7 +114,7 @@ bash scripts/push-release.sh /下载目录/fgas-版本号.tar.gz deploy@你的�
 
 不要关闭 SSH 主机校验。`DEPLOY_KNOWN_HOSTS` 使用完整 known_hosts 行；可以采集后通过服务器控制台核对指纹，再填入。GitHub runner 必须能连接目标机默认 SSH 端口 22；只在内网可达的服务器先用手动方式。
 
-手动运行工作流时，勾选 **Deploy to the configured server after publishing** 也会部署，不要求 `DEPLOY_ENABLED=true`。未勾选且未启用标签自动部署时，只构建和发布，不连接服务器。自动部署始终不初始化数据库、不执行升级 SQL。
+手动运行工作流时，勾选 **Deploy to the configured server after publishing** 也会部署，不要求 `DEPLOY_ENABLED=true`。未勾选且未启用标签自动部署时，只构建和发布，不连接服务器。自动部署会先备份数据库，再运行 Compose 一次性 `migrate` 服务；迁移失败时不会启动新 API。
 
 工作流提交到默认分支后才能从 Actions 页面手动运行。这里仅准备配置，没有替你创建 Secrets、推送版本标签或执行远程部署。
 
@@ -154,7 +154,9 @@ docker compose --env-file /opt/fgas/.env --env-file release.env -f compose.yaml 
 
 固定项目名为 `fgas`，数据库保存在 `fgas_postgres-data` 卷，替换镜像和普通 `down` 不删除它。**不要执行 `down -v`、删除该卷，或对正式数据库运行测试脚本。** 已有其他 Compose 项目的数据卷不会自动迁移过来；接手旧环境先核对卷名、数据库和版本。
 
-健康接口只检查数据库可连接，不能证明已有库结构已升级。数据库结构变化按版本说明先备份、单独执行 SQL，普通更新不负责迁移。从开发库升级到本版本需先备份、停服务并确认目标库，再显式执行 [scripts/upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)，为 `users` 和 `login_sessions` 增加 SSO、时间与到期字段；本版本的截止余额查询还需要 [scripts/upgrade-posted-at.sql](../scripts/upgrade-posted-at.sql)，为 `transfers` 增加 `posted_at`、回填过账时间并创建索引；正式新库由 metadata 建表，不需要执行。发布目录和镜像不会自动清理；确认不用后手动清理旧文件，数据库备份与恢复仍由维护者负责。
+健康接口只检查数据库可连接，不能证明 schema 已升级。`apply-release.sh` 在每次更新前把数据库备份到 `/opt/fgas/backups`（`pg_dump -Fc`，保留 30 天），再执行一次性 `migrate` 服务（`alembic upgrade head`）；迁移失败会中止发布，不自动降级。手工 `docker compose up` 可能复用已退出的 one-shot 容器，更新前应显式执行 `docker compose run --rm migrate`，数据重要时先备份。
+
+基线前旧库的收养路径：备份 → 执行 [upgrade-agent-access.sql](../scripts/upgrade-agent-access.sql)、[upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)、[upgrade-posted-at.sql](../scripts/upgrade-posted-at.sql) → 校验 schema → `alembic stamp 0001`。可丢弃的旧库直接重建即可。发布目录和镜像不会自动清理；确认不用后手动清理旧文件，数据库备份与恢复仍由维护者负责。
 
 ## 可选：在服务器从源码构建
 

@@ -1,6 +1,8 @@
+-- LEGACY / ADOPTION ONLY after the Alembic baseline.
+-- Use only to adopt a pre-baseline database that cannot be discarded: back up,
+-- run the legacy scripts, verify the schema, then `alembic stamp 0001`.
+-- New installs and normal upgrades use `alembic upgrade head`.
 -- Explicit PostgreSQL upgrade for existing development databases only.
--- Formal environments start from an empty database; metadata creates the new
--- schema and does not need this script.
 -- Back up the database, stop related services and confirm the target database
 -- before running: psql -v ON_ERROR_STOP=1 -f scripts/upgrade-user-auth.sql.
 -- Existing development users keep sso_subject NULL; existing sessions receive
