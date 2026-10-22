@@ -120,7 +120,7 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 `AgentCredential/agent_credentials` 保存 ID、所属用户、名称、low/high、启用、到期、创建时间和 SHA-256 摘要，不保存明文。可信用户仅自己的 low，管理员可自己的 low/high，只能停用他人的连接。实际授权同时检查凭据及所属用户；不改变 User.role，不新增对象白名单、grant 矩阵或只读第三档。
 
-low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具。所有原有业务能力通过固定 resource/action 组合保留，列表与详情共用 query。MCP 适配层的 agent_catalog 契约表共用于帮助、精确参数校验与固定函数分派，应用层不反向依赖它。公开 Schema 只声明小型外壳，具体操作参数按需由 help 返回，服务端仍按选中的输入/输出模型校验。propose 对两档始终待审，execute 及其应用函数均校验 high。返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/ID排序、业务按创建时间/ID倒序，page/limit/has_more 标明分页；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。
+low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具。所有原有业务能力通过固定 resource/action 组合保留，列表与详情共用 query。MCP 适配层的 agent_catalog 契约表共用于帮助、精确参数校验与固定函数分派，应用层不反向依赖它。公开 Schema 只声明小型外壳，具体操作参数按需由 help 返回，服务端仍按选中的输入/输出模型校验。propose 对两档始终待审，execute 及其应用函数均校验 high。返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/ID排序、业务按创建时间/ID倒序，page/limit/has_more 标明分页；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。事件列表（资金单、货物单、货物流水）默认最近 30 天按 `created_at` 录入时间，`all_time=true` 或显式时间条件才查更早/全量；`identifier` 详情不受窗口影响。`fund_balances` 和 `inventory` 支持 `as_of`/`basis`：默认按 `transfers.posted_at` 或 `stock_moves.created_at` 的过账时间，`basis=effective_date` 按业务日期；库存 as-of 只计算 on-hand，历史在途不可用。
 
 三种 propose 对管理员所属 high 也固定待审。资金 direct 过账、货物 direct 在途、完成 direct 才写 StockMove。`submit_mode` 仅服务内部参数，客户端不能指定。资金和货物主单、完成申请记录 `submitted_credential_id/name`；审计记录实际操作者 `agent_credential_id/name`，审批/执行快照保留连接。`approval_mode` 区分 `agent_direct`、`agent_approval` 及人工既有 automatic/manual，改连接名称不覆盖历史快照。原历史字段为空时仍按人工记录解释。
 
@@ -130,4 +130,4 @@ low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具�
 
 v2 直接替换旧公开工具名；旧名只返回 tool_migrated，不调用旧动作。客户端重连/重新发现，固定旧名脚本需更新；地址、凭据与业务数据不变。仍未正式发布。
 
-旧库升级仅显式执行 `scripts/upgrade-agent-access.sql` 的非破坏性增量；普通启动不升级旧表。本轮日常开发库升级未执行，运行验证仅使用专用 fgas_test。具体命令、客户端版本和联调限制见阶段记录。
+旧库升级仅显式执行 `scripts/upgrade-agent-access.sql`、`scripts/upgrade-user-auth.sql` 和 `scripts/upgrade-posted-at.sql` 的非破坏性增量；普通启动不升级旧表。本轮日常开发库升级未执行，运行验证仅使用专用 fgas_test。具体命令、客户端版本和联调限制见阶段记录。

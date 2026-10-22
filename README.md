@@ -19,7 +19,7 @@ npm run dev
 
 后端默认 `127.0.0.1:8000`，前端 `5173`，通过 `/api` 代理。认证由 `AUTH_MODE` 切换：本地开发使用 `development` 的账号选择；正式环境使用 `casdoor`，通过既有 Casdoor OIDC 登录。Casdoor 首次登录自动建立本地用户，默认普通用户，角色由管理员在“用户权限”中维护；`INITIAL_ADMIN_SUBJECT` 只在首次建号时把匹配的 Casdoor `sub` 或用户名绑定为管理员。三档角色为管理员、受信任用户、普通用户。
 
-2026-10-14 的自由账户整理曾显式重建开发表，这是已完成的历史更新，不是本轮升级步骤。Agent 接入使用增量脚本 [scripts/upgrade-agent-access.sql](scripts/upgrade-agent-access.sql)，只创建凭据表并添加可空来源字段，保留旧记录。已有数据库须先确认目标库、备份并明确授权，停止相关服务后显式执行该 SQL，并核对原业务记录保留；本轮尚未升级日常开发库。不要为 Agent 更新运行 `--reset-db`。用户认证升级使用 [scripts/upgrade-user-auth.sql](scripts/upgrade-user-auth.sql)，为 `users` 和 `login_sessions` 增加 SSO、时间与到期字段；正式新库由 metadata 建表，不需要执行。
+2026-10-14 的自由账户整理曾显式重建开发表，这是已完成的历史更新，不是本轮升级步骤。Agent 接入使用增量脚本 [scripts/upgrade-agent-access.sql](scripts/upgrade-agent-access.sql)，只创建凭据表并添加可空来源字段，保留旧记录。已有数据库须先确认目标库、备份并明确授权，停止相关服务后显式执行该 SQL，并核对原业务记录保留；本轮尚未升级日常开发库。不要为 Agent 更新运行 `--reset-db`。用户认证升级使用 [scripts/upgrade-user-auth.sql](scripts/upgrade-user-auth.sql)，为 `users` 和 `login_sessions` 增加 SSO、时间与到期字段；正式新库由 metadata 建表，不需要执行。Agent 截止余额/库存查询使用 `transfers.posted_at`；已有库升级使用 [scripts/upgrade-posted-at.sql](scripts/upgrade-posted-at.sql)，从 `audit_events` 的 `posted` 事件回填并创建索引，pending/rejected 保持 NULL；同样需要先备份、确认目标库并显式执行。
 
 普通启动只建缺少的表和初始化种子，不自动清库、不升级旧表。2026-10-15 新增 SKU 图片字段；此前已有数据库可显式执行 `ALTER TABLE skus ADD COLUMN IF NOT EXISTS avatar_url VARCHAR;`，仅加可空列，保留原数据；新库由 metadata 建立该列。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
 

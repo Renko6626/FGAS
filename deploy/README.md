@@ -154,7 +154,7 @@ docker compose --env-file /opt/fgas/.env --env-file release.env -f compose.yaml 
 
 固定项目名为 `fgas`，数据库保存在 `fgas_postgres-data` 卷，替换镜像和普通 `down` 不删除它。**不要执行 `down -v`、删除该卷，或对正式数据库运行测试脚本。** 已有其他 Compose 项目的数据卷不会自动迁移过来；接手旧环境先核对卷名、数据库和版本。
 
-健康接口只检查数据库可连接，不能证明已有库结构已升级。数据库结构变化按版本说明先备份、单独执行 SQL，普通更新不负责迁移。从开发库升级到本版本需先备份、停服务并确认目标库，再显式执行 [scripts/upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)，为 `users` 和 `login_sessions` 增加 SSO、时间与到期字段；正式新库由 metadata 建表，不需要执行。发布目录和镜像不会自动清理；确认不用后手动清理旧文件，数据库备份与恢复仍由维护者负责。
+健康接口只检查数据库可连接，不能证明已有库结构已升级。数据库结构变化按版本说明先备份、单独执行 SQL，普通更新不负责迁移。从开发库升级到本版本需先备份、停服务并确认目标库，再显式执行 [scripts/upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)，为 `users` 和 `login_sessions` 增加 SSO、时间与到期字段；本版本的截止余额查询还需要 [scripts/upgrade-posted-at.sql](../scripts/upgrade-posted-at.sql)，为 `transfers` 增加 `posted_at`、回填过账时间并创建索引；正式新库由 metadata 建表，不需要执行。发布目录和镜像不会自动清理；确认不用后手动清理旧文件，数据库备份与恢复仍由维护者负责。
 
 ## 可选：在服务器从源码构建
 

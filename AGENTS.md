@@ -62,4 +62,4 @@ npm run db:init    # 显式初始化数据库
 
 - `backend/modules/member_claims/` 目前是空壳占位。
 - 测试盲区：stocktakes、catalogs 等无专项测试。
-- 数据库升级脚本 `upgrade-agent-access.sql`、`upgrade-user-auth.sql` 未在日常开发库执行过，动库前先问用户。
+- 数据库升级脚本 `upgrade-agent-access.sql`、`upgrade-user-auth.sql`、`upgrade-posted-at.sql` 未在日常开发库执行过，动库前先问用户。

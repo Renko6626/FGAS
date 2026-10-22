@@ -1,6 +1,6 @@
 # FGAS Agent 业务与操作指南
 
-guide_version：2026-10-22-v2，api_version：2。模型入门见 [核心模型](overview.md)，同一内容随 MCP 初始化 instructions 和 `fgas_help()` 提供。接口仍处开发阶段，实际验证状态见项目阶段记录。
+guide_version：2026-10-22-v3，api_version：2。模型入门见 [核心模型](overview.md)，同一内容随 MCP 初始化 instructions 和 `fgas_help()` 提供。接口仍处开发阶段，实际验证状态见项目阶段记录。
 
 ## 1. 先把用户的话还原成账本事实
 
@@ -110,6 +110,10 @@ low/high 共用业务读取范围，low 只能提出三种待审申请。high �
 Patch 只传确实要改的字段。省略表示保留原值；只有用户明确要求清空且字段允许清空时才传 null。不要将改名变为重填所有字段。
 
 列表默认 page=1、limit=20，limit 上限100；has_more=true 表示还有后续结果。一页不能代表全部记录。业务日期 effective_date_from/to 包含两端；录入时间 created_at_from/to 是带时区的 ISO 时间，左闭右开。“昨天补录上个月支出”应分别使用录入时间和业务日期条件。
+
+事件列表（fund_transfers、stock_transfers、stock_moves）默认只返回最近 30 天按 created_at 录入的记录。需要更早或全量时传 all_time=true，或直接提供 created_at_*/effective_date_*/posted_at_* 条件；任一显式时间条件都会关闭默认窗口。identifier 详情不受默认窗口影响。目录、余额、库存、盘点和结算不套用默认窗口。
+
+fund_balances 和 inventory 支持 as_of（带时区的 ISO 时间）与 basis。basis=posted（默认）按实际过账时间；basis=effective_date 按业务日期。资金 as-of 包含 posted_at 不晚于 as_of 的全部分录，包括冲销后仍保留的原单分录；inventory 的 as-of 只计算 on-hand，in_transit_planned_quantity 返回 null，历史在途不可用。资金单的 posted_at 是实际过账时间，pending 为 null；货物流水的 posted_at 与 created_at 相同，是完成过账时间。
 
 仅使用对应帮助列出的过滤字段；不支持金额/数量/全文搜索时读取合适候选再核对，不能捏造参数。fund_balances 的 total 始终是全部公账合计，即使 items 只筛选某个账户或私账。逐笔未结使用结算概况，不从部分资金记录或净余额推算。
 

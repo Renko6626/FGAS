@@ -330,3 +330,12 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 管理员用户页展示来源、Casdoor 用户名、缩短的 subject、邮箱和最后登录；可修改角色、启停、强制下线。最后一名启用管理员不可降级或停用；停用和强制下线删除目标全部网页会话，停用同时阻止 Agent。强制下线不撤销 MCP 凭据。前端按模式渲染登录页，处理 `sso_error` 和 401 会话失效事件。Compose 默认切换为 `casdoor`，环境变量示例、CI 冒烟断言和部署文档同步。
 
 验证：`./tools/run_tests.sh` 的 50 项测试全部通过，包含 `backend/tests/test_auth_casdoor.py` 对重定向/PKCE/state、首次建号、初始管理员、停用、模式门禁、会话过期、强制下线、最后管理员和停用撤销会话的 mock IdP 覆盖，不访问外部网络；`npm run build` 的 vue-tsc 与生产构建通过。未执行真实 Casdoor 应用配置或登录联调、浏览器自动交互、生产部署；未读取或修改用户 Casdoor 实例、`CASDOOR_KEY`/`CASDOOR_SECRET` 或仓库现有 `.env`。
+
+
+### 2026-10-22：MCP 默认时间窗与 as-of 状态查询
+
+按用户确认的方案，MCP 事件类列表（资金单、货物单、货物流水）默认只返回最近 30 天按 `created_at` 录入的记录；`all_time=true` 或任一显式时间条件关闭默认窗口，`identifier` 详情不受影响。目录、余额、库存、盘点和结算不套用默认窗口。
+
+`fund_balances` 和 `inventory` 新增 `as_of` / `basis`：默认 `posted`，按实际过账时间；也可显式使用 `effective_date` 按业务日期。资金侧新增 `transfers.posted_at`，由 `funds.post()` 写入；as-of 查询按该时间加总分录，不按当前 status 过滤，因此冲销前后都正确。库存 as-of 只计算 on-hand，历史在途不可用，`in_transit_planned_quantity` 返回 null。结算、在途 as-of 和盘点窗口不在本轮范围。
+
+已有库升级新增显式脚本 `scripts/upgrade-posted-at.sql`：增加可空列、从 `audit_events(action='posted')` 回填、补充查询索引；pending/rejected 保持 null。脚本未在日常开发库执行，部署顺序要求先备份并执行 SQL，再上线依赖该列的代码。验证：`./tools/run_tests.sh` 的 56 项测试全部通过，覆盖默认窗口、`all_time`、显式时间条件绕过、详情豁免、资金 as-of 与冲销、库存 as-of、货物流水 SQL 过滤和帮助 Schema；未执行真实升级脚本或部署联调。

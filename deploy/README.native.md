@@ -36,7 +36,7 @@ npm run db:init
 
 初始化使用与 PM2 相同的数据库配置，创建缺少的表和初始目录，不带清库参数。不要把其他系统的数据库拿来初始化，也不要在部署时使用 `--reset`、`--reset-db` 或测试脚本。
 
-如果接手的是已有 FGAS 数据库，先查看版本和更新说明。初始化不会给旧表自动增加字段；例如早期版本的 Agent 接入升级使用 [upgrade-agent-access.sql](../scripts/upgrade-agent-access.sql)，本版本的网页认证升级使用 [upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)。两者都需要先核对目标库和备份，停止相关服务后再按确认后的步骤显式执行；正式新库由初始化直接建表，不需要执行。
+如果接手的是已有 FGAS 数据库，先查看版本和更新说明。初始化不会给旧表自动增加字段；例如早期版本的 Agent 接入升级使用 [upgrade-agent-access.sql](../scripts/upgrade-agent-access.sql)，本版本的网页认证升级使用 [upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)，截止余额查询升级使用 [upgrade-posted-at.sql](../scripts/upgrade-posted-at.sql)。这些都需要先核对目标库和备份，停止相关服务后再按确认后的步骤显式执行；正式新库由初始化直接建表，不需要执行。
 
 构建前端，启动后端：
 
