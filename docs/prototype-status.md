@@ -348,3 +348,19 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 `fund_balances` 和 `inventory` 新增 `as_of` / `basis`：默认 `posted`，按实际过账时间；也可显式使用 `effective_date` 按业务日期。资金侧新增 `transfers.posted_at`，由 `funds.post()` 写入；as-of 查询按该时间加总分录，不按当前 status 过滤，因此冲销前后都正确。库存 as-of 只计算 on-hand，历史在途不可用，`in_transit_planned_quantity` 返回 null。结算、在途 as-of 和盘点窗口不在本轮范围。
 
 已有库升级新增显式脚本 `scripts/upgrade-posted-at.sql`：增加可空列、从 `audit_events(action='posted')` 回填、补充查询索引；pending/rejected 保持 null。脚本未在日常开发库执行，部署顺序要求先备份并执行 SQL，再上线依赖该列的代码。验证：`./tools/run_tests.sh` 的 56 项测试全部通过，覆盖默认窗口、`all_time`、显式时间条件绕过、详情豁免、资金 as-of 与冲销、库存 as-of、货物流水 SQL 过滤和帮助 Schema；未执行真实升级脚本或部署联调。
+
+
+### 2026-10-23：首页资金、库存与近期转移
+
+按用户确认的口径，主账户为全部公账合计。新增只读 `GET /api/dashboard`，在现有应用与基础设施分层内汇总正式分录和 StockMove，不改 schema。资金展示当前余额、滚动近 7 天流入/流出/净变化与最近 3 笔余额变化；库存包含 public/private 仓库，按 SKU 和原单位列当前数量、周增减与最近 3 笔库存变化。内部公账转移和仓库调拨不影响合计，在途不提前计库存；冲销保留原分录，并按反向流水自己的入账时间计入周变化。
+
+首页沿用现有黑白边框主题，下方合并资金与货物最近创建的 10 笔转移，可按类型切换，保留状态、说明、端点、金额/货物和操作人；保留待办与登记入口。App 刷新由原 9 个请求缩减为 5 个；首页样式独立放在 `frontend/src/styles/dashboard.css`。
+
+验证：`./tools/run_tests.sh` 在专用 fgas_test 上 62 passed，含新增首页真实 HTTP 统计测试和已有迁移检查；`npm run build` 的类型检查与生产构建通过，保留既有主 JS 超过 500 kB 提示；`git diff --check` 通过。静态模拟数据截图覆盖桌面、手机、空状态，无页面横向溢出及运行时报错；未自动点击、填表或做交互流程。截图仅用于布局验证，不代表真实业务数据验收。未部署、未修改日常开发库、未新增依赖或迁移。
+
+
+### 2026-10-23：首页紧凑布局与近期货物
+
+根据用户反馈，将首页卡片、周变化、待办及转移表压缩，最近变化改为单行；库存首页最多展示最近实际库存变化的 4 种货物，总种类数仍计全部库存。按非零组织库存变化时间排序，内部调拨不会把货物顶到前面；完整库存沿用原入口，无数据库或接口结构变动。
+
+验证：在专用 fgas_test 运行 `.venv/bin/python -m pytest backend/tests/test_dashboard.py -q --tb=short`，3 passed；`npm run build` 与 `git diff --check` 通过。24 种库存模拟数据的桌面/手机/空状态仅静态截图，确认最多 4 行且无页面横向溢出或运行时报错；桌面卡片由约 724px 降至 387px。未执行自动交互或部署。

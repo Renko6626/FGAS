@@ -69,6 +69,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 | `/transfers/preview`、`/transfers`、`/transfers/{id}` | 资金转移预览/提交/列表/详情 |
 | `/transfers/{id}/approve`、`reject`、`reverse` | 资金审批、拒绝、冲销 |
 | `/funds/summary` | 公账合计 |
+| `/dashboard` | 首页汇总：公账余额、组织库存、按实际入账时间统计的近 7 天变化、近期转移和待办计数 |
 | `/accounts/{id}/settlement-overview` | 私账净余额、原收支及逐笔结算情况 |
 | `/settlements` | 创建普通结算付款并匹配，`{transfer,allocations:[{item_transfer_id,amount}]}` |
 | `/transfers/{id}/settlement-matches` | 向已有付款追加上述匹配 |

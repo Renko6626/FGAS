@@ -10,6 +10,7 @@ from backend.application import funds, catalogs, warehouse_catalogs, members as 
 from backend.entrypoints.schemas import *
 from backend.entrypoints.agent_schemas import CredentialCreate, CredentialPatch
 from backend.application import agent_access
+from backend.application import dashboard
 from backend.entrypoints.mcp import create_mcp_app
 
 mcp_app = create_mcp_app()
@@ -155,6 +156,10 @@ def reverse(identifier: str, data: Reversal, user=Depends(identity), db=Depends(
 @app.get('/api/funds/summary')
 def summary(user=Depends(identity), db=Depends(database)):
     return funds.summary(db)
+
+@app.get('/api/dashboard')
+def dashboard_overview(user=Depends(identity), db=Depends(database)):
+    return dashboard.overview(db)
 
 @app.get('/api/members')
 def members(user=Depends(identity), db=Depends(database)):

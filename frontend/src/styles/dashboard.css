@@ -1,0 +1,93 @@
+.dashboard-overview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.dashboard-overview span { font-family: inherit; }
+.dashboard-overview .overview-panel, .dashboard-overview .home-records { padding: 16px 20px; }
+.overview-caption { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 7px; }
+.overview-caption small { font-size: 11px; }
+.overview-caption small:last-child { text-align: right; }
+.overview-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.overview-heading h2 { margin: 0; font-size: 20px; }
+.overview-heading .n-button { flex-shrink: 0; font-size: 12px; }
+.overview-heading .overview-link { min-width: 84px; padding: 0 12px; border-image: none; font-weight: 600; }
+.overview-panel { min-width: 0; }
+.fund-balance { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; line-height: 1.2; }
+.fund-balance strong { font-size: 36px; font-weight: 500; letter-spacing: -1px; overflow-wrap: anywhere; min-width: 0; }
+.currency { font-size: 22px; }
+.overview-note { color: #666; font-size: 11px; margin: 4px 0 0; }
+.week-summary { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 12px; margin: 10px 0 0; padding: 8px 0; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+.week-summary > div { min-width: 0; }
+.week-summary small { display: block; font-size: 11px; }
+.week-summary strong { display: block; margin-top: 1px; font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
+.week-summary strong small { display: inline; font-weight: 400; color: #777; }
+.changes-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 12px 0 2px; }
+.changes-heading h3 { margin: 0; font-size: 15px; }
+.changes-heading small { font-size: 10px; text-align: right; }
+.change-list { list-style: none; padding: 0; margin: 0; }
+.change-list li { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 12px; }
+.change-list li:last-child { border-bottom: 0; }
+.change-list time { flex-shrink: 0; font-size: 10px; color: #777; white-space: nowrap; }
+.change-description { min-width: 0; flex: 1; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.change-value { text-align: right; flex-shrink: 0; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.stock-change-value { max-width: 48%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.stock-change-value strong { font-weight: 500; }
+.stock-change-value strong + strong::before { content: '，'; color: #777; }
+.increase { color: #387454; }
+.decrease { color: #b0443c; }
+.unchanged { color: #666; }
+.stock-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.stock-heading small { font-size: 11px; }
+.stock-totals { overflow-x: auto; margin-top: 8px; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+.stock-summary-table { width: 100%; min-width: 0; font-size: 12px; }
+.stock-summary-table th { background: white; font-size: 10px; font-weight: 400; color: #666; white-space: nowrap; }
+.stock-summary-table th, .stock-summary-table td { padding: 5px 0; }
+.stock-summary-table th + th, .stock-summary-table td + td { padding-left: 8px; }
+.stock-summary-table strong { font-weight: 500; }
+.sku-name { display: flex; align-items: center; min-width: 0; overflow-wrap: anywhere; }
+.sku-name :deep(.account-avatar) { width: 22px; height: 22px; font-size: 11px; }
+.overview-empty { color: #777; font-size: 12px; padding: 12px 0; margin: 0; }
+.stock-empty { border-bottom: 1px solid #ddd; }
+.dashboard-pending { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; margin: 0 7px; padding: 6px 0; }
+.pending-label { color: #666; font-size: 11px; }
+.dashboard-pending button, .operation-filters button { min-width: 0; border: 0; border-image: none; background: transparent; padding: 3px 0; font-family: inherit; font-size: 12px; }
+.dashboard-pending button:hover { text-decoration: underline; text-underline-offset: 4px; }
+.dashboard-pending button strong { font-size: 15px; margin-left: 5px; font-weight: 500; }
+.dashboard-pending button span { color: #666; font-size: 11px; }
+.records-heading { margin-bottom: 12px; }
+.operation-filters { display: flex; flex-shrink: 0; gap: 4px; background: #f2f2f2; padding: 2px; }
+.operation-filters button { padding: 4px 12px; color: #666; }
+.operation-filters button.selected { background: white; color: black; box-shadow: 0 1px 3px #0002; }
+.operations-table { min-width: 760px; width: 100%; }
+.operations-table th { font-size: 11px; color: #666; font-weight: 400; padding: 8px 10px; }
+.operations-table td { padding: 8px 10px; vertical-align: top; font-size: 12px; line-height: 1.5; }
+.operation-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.operation-description { width: 23%; min-width: 140px; max-width: 300px; }
+.operation-description p { margin: 0; overflow-wrap: anywhere; }
+.operation-description small { font-size: 10px; margin-top: 0; }
+.operation-route { min-width: 120px; max-width: 240px; overflow-wrap: anywhere; }
+.operation-route small { display: block; margin-top: 1px; font-size: 10px; }
+.operation-amount p { margin: 0 0 2px; }
+.operation-amount strong { font-weight: 500; }
+.operations-table .status-pill { font-family: inherit; font-size: 10px; }
+.records-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; }
+.records-footer > div { display: flex; flex-wrap: wrap; gap: 16px; }
+.records-footer small { font-size: 10px; }
+.dashboard-placeholder { grid-column: 1 / -1; padding: 32px 16px; text-align: center; color: #666; }
+.fund-balance, .week-summary, .change-value, .numeric { font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) {
+  .dashboard-overview { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .dashboard-overview { gap: 12px; }
+  .dashboard-overview .fantasy_guide_div_1 { padding: 14px; }
+  .overview-caption { align-items: flex-start; }
+  .overview-caption small { font-size: 10px; }
+  .fund-balance strong { font-size: 32px; }
+  .week-summary { gap: 8px; }
+  .week-summary strong { font-size: 15px; }
+  .change-list li { gap: 6px; }
+  .dashboard-pending { gap: 4px 12px; }
+  .pending-label { width: 100%; }
+  .records-heading { flex-wrap: wrap; gap: 8px; }
+  .operation-filters { margin-left: auto; }
+  .stock-summary-table { font-size: 11px; }
+  .sku-name :deep(.account-avatar) { display: none; }
+}

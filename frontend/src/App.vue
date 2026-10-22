@@ -3,6 +3,7 @@ import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 import { NButton, NSelect, NModal, NConfigProvider, zhCN } from "naive-ui";
 import { workspaceTheme } from "./theme";
 import DashboardView from "./views/DashboardView.vue";
+import { dashboardApi, type Dashboard } from "./api/dashboard";
 import {
   api,
   money,
@@ -10,7 +11,6 @@ import {
   type User,
   type Account,
   type StockAccount,
-  type Transfer,
 } from "./api/funds";
 import StocktakesView from "./views/StocktakesView.vue";
 import CatalogView from "./views/CatalogView.vue";
@@ -34,7 +34,7 @@ const user = ref<User | null>(null),
   selected = ref<string | null>(null),
   accounts = ref<Account[]>([]),
   locations = ref<StockAccount[]>([]),
-  recentTransfers = ref<Transfer[]>([]),
+  dashboard = ref<Dashboard | null>(null),
   counts = ref({ pendingFunds: 0, pendingStock: 0, inTransit: 0 }),
   total = ref(0),
   tab = ref("home"),
@@ -161,7 +161,7 @@ function sessionExpired() {
   showIdentity.value = false;
   accounts.value = [];
   locations.value = [];
-  recentTransfers.value = [];
+  dashboard.value = null;
   counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
   skus.value = [];
   members.value = [];
@@ -175,29 +175,21 @@ async function refresh() {
   busy.value = true;
   error.value = "";
   try {
-    const [a, l, s, k, m, recent, pendingFunds, pendingStock, inTransit] = await Promise.all([
+    const [a, l, overview, k, m] = await Promise.all([
       api.accounts(),
       api.stockAccounts(),
-      api.summary(),
+      dashboardApi.overview(),
       warehouse.skus(),
       membersApi.list(),
-      api.transfers({ limit: 6, sort: "effective_date" }),
-      api.transfers({ status: "pending", limit: 1 }),
-      warehouse.transfers({ attention: true, limit: 1 }),
-      warehouse.transfers({ status: "in_transit", limit: 1 }),
     ]);
     if (epoch !== identityEpoch.value || actor !== user.value?.id) return;
     accounts.value = a;
     locations.value = l;
-    total.value = s.total_minor;
+    total.value = overview.funds.total_minor;
     skus.value = k;
     members.value = m;
-    recentTransfers.value = recent.items;
-    counts.value = {
-      pendingFunds: pendingFunds.total,
-      pendingStock: pendingStock.total,
-      inTransit: inTransit.total,
-    };
+    dashboard.value = overview;
+    counts.value = overview.counts;
     revision.value++;
   } catch (e) {
     error.value = (e as Error).message;
@@ -235,7 +227,7 @@ async function login() {
     members.value = [];
     accounts.value = [];
     locations.value = [];
-    recentTransfers.value = [];
+    dashboard.value = null;
     counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
     error.value = (e as Error).message;
   } finally {
@@ -251,7 +243,7 @@ async function logout() {
     identityEpoch.value++;
     await api.logout();
     user.value = null;
-    recentTransfers.value = [];
+    dashboard.value = null;
     counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
     skus.value = [];
     members.value = [];
@@ -393,8 +385,12 @@ onMounted(async () => {
             <div>
               <h1>{{ currentPage.title }}</h1>
             </div>
+            <div v-if="tab === 'home'" class="page-actions">
+              <NButton @click="createStock">登记货物</NButton>
+              <NButton type="primary" @click="create()">登记资金</NButton>
+            </div>
             <div
-              v-if="tab === 'accounts' || tab === 'transfers'"
+              v-else-if="tab === 'accounts' || tab === 'transfers'"
               class="page-actions"
             >
               <NButton v-if="tab === 'accounts'" @click="create(true)"
@@ -415,12 +411,8 @@ onMounted(async () => {
           </div>
           <DashboardView
             v-if="tab === 'home'"
-            :accounts="accounts"
-            :recent="recentTransfers"
-            :pending-funds="counts.pendingFunds"
-            :pending-stock="counts.pendingStock"
-            :in-transit="counts.inTransit"
-            :total="total"
+            :data="dashboard"
+            :loading="busy"
             :trusted="trusted"
             @navigate="navigate"
             @create="create()"
