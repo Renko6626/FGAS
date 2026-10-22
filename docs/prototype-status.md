@@ -286,3 +286,12 @@ AUTH_MODE=development .venv/bin/python -m backend.application.initialize --initi
 完整验收限制：当前.venv缺少mcp，安装现有requirements因沙箱代理连接被拒绝而失败。使用项目旧工作区中同版本mcp2.3.0、httpx2 2.13.1及pytest8.4.2，通过本次命令PYTHONPATH复用，未改长期环境。`PYTHONPATH=... ./tools/run_tests.sh`在首次连接专用fgas_test Unix socket时被`Operation not permitted`拒绝，没有执行重建或测试。pg_ctl在沙箱内无法看到宿主进程，启动尝试因已有postmaster.pid被拒绝；未移除锁文件、停止服务或修改日常库。
 
 因此不声称资金/货物数据库回归、SDK真实ASGI业务协议或外部客户端v2联调已通过。已有及新增数据库测试保留，待允许访问测试库的环境运行。未做浏览器自动交互、前端构建、生产部署、数据库迁移或远程发布。
+
+
+### 2026-10-22：网页中的 Agent 自助接入入口
+
+按用户要求，在原始frontend/index.html页脚加入“给 AI Agent：请先阅读接入指南，按说明配置 MCP”。链接指向`/agent-setup.md`，通过现有Vite public静态文件方式提供，不新增后端接口或登录要求。不运行网页脚本的读取器也能从原始HTML发现该链接。
+
+指南说明如何从文档URL确定同源/mcp地址、识别当前客户端、复用已有配置和运行时凭据、配置Bearer及只读验证；没有密钥时只引导用户到Agent连接签发。附OpenCode配置示例及核心业务模型说明，具体业务契约仍由连接后的help按需提供。未修改密钥、权限、后端或用户客户端配置。
+
+验证：`npm run build`通过，vue-tsc及Vite完成；保留现有主JS约511.05kB的体积提示。一次性HTMLParser检查源码和dist原始HTML均含指南链接，dist/agent-setup.md与public源文件一致。`git --git-dir=.fgas-git --work-tree=. diff --check`通过。未新增永久测试，未运行浏览器交互或数据库检查，未部署或验证公网可访问性。

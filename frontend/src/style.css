@@ -21,6 +21,17 @@ body {
   font-size: 14px;
   line-height: 1.6;
 }
+.agent-setup-hint {
+  padding: 12px 20px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--paper);
+  font-size: 12px;
+}
+.agent-setup-hint a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
 button,
 input {
   font: inherit;
