@@ -155,15 +155,24 @@ def test_high_direct_business_and_source(client):
 
 def test_queries_support_disambiguation_and_submission_lookup(client):
     low, high = issue(client), issue(client, 'high')
-    member = client.post('/api/members', json={'name': '联系人'}).json()['id']
+    member = client.post('/api/members', json={'name': '联系人', 'note': '负责教材采购'}).json()['id']
     for kind in ('public', 'private'):
         client.post('/api/accounts', json={'name': '同名', 'kind': kind, 'member_id': member})
     payload = stock_data(client)
+    custody = client.post(f"/api/stock-accounts/{payload['destination_account_id']}/custody", json={'member_id': member})
+    assert custody.status_code == 200
     parent = client.post('/api/stock-transfers', json=payload).json()
     start = datetime(2026, 10, 15, tzinfo=timezone.utc)
     with Session() as db:
         access = agent_access.resolve(db, low['secret'])
         high_access = agent_access.resolve(db, high['secret'])
+        selected, values = catalog.prepare_call('fgas_query', {'resource': 'members', 'filters': {'q': '联系人'}})
+        contacts = selected.output_model.model_validate(selected.handler(db, access, values)).data.items
+        assert [(row.id, row.note) for row in contacts] == [(member, '负责教材采购')]
+        selected, values = catalog.prepare_call('fgas_query', {'resource': 'stock_accounts', 'filters': {'q': '仓库'}})
+        accounts = selected.output_model.model_validate(selected.handler(db, access, values)).data.items
+        assert accounts[0].current_custody.member_id == member
+        assert accounts[0].current_custody.member_name == '联系人'
         candidates = queries.list_fund_accounts(db, access, {'q': '同名'})['data']['items']
         assert {row['kind'] for row in candidates} == {'public', 'private'}
         assert all(row['member_name'] == '联系人' and row['active'] for row in candidates)
@@ -198,7 +207,12 @@ def test_queries_support_disambiguation_and_submission_lookup(client):
 
 def test_mcp_auth_discovery_and_structured_results(client):
     connection = issue(client)
-    stock_data(client)
+    stock = stock_data(client)
+    sku_ids = {stock['lines'][0]['sku_id']}
+    for index in range(20):
+        response = client.post('/api/skus', json={'name': f'分页货物{index:02}', 'unit': '件'})
+        assert response.status_code == 201
+        sku_ids.add(response.json()['id'])
     for headers in ({}, {'Authorization': 'Bearer invalid'}, {'Cookie': '; '.join(f'{k}={v}' for k, v in client.cookies.items())}):
         assert client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}, headers=headers).status_code == 401
 
@@ -222,6 +236,29 @@ def test_mcp_auth_discovery_and_structured_results(client):
                         as_of = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {'as_of': '2026-10-01T00:00:00+08:00'}})
                         assert not as_of.is_error and as_of.structured_content['data']['basis'] == 'posted'
                         assert all(row['in_transit_planned_quantity'] is None for row in as_of.structured_content['data']['items'])
+                        pages = []
+                        for page, limit in ((1, 20), (2, 20), (1, 100)):
+                            result = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {
+                                'account_id': stock['destination_account_id'], 'page': page, 'limit': limit,
+                            }})
+                            assert not result.is_error
+                            pages.append(result.structured_content['data'])
+                        first, second, large = pages
+                        assert len(first['items']) == 20 and first['has_more']
+                        assert len(second['items']) == 1 and not second['has_more']
+                        assert {row['sku_id'] for row in first['items'] + second['items']} == sku_ids
+                        assert len(large['items']) == 21 and not large['has_more']
+                        assert {row['sku_id'] for row in large['items']} == sku_ids
+                        assert first['totals'] == second['totals'] == large['totals']
+                        help_result = await session.call_tool('fgas_help', {'topic': 'query', 'resource': 'inventory'})
+                        assert not help_result.is_error
+                        assert 'output_schema' not in help_result.structured_content['data']['list']
+                        full_help = await session.call_tool('fgas_help', {
+                            'topic': 'query', 'resource': 'inventory', 'include_output_schema': True,
+                        })
+                        assert not full_help.is_error
+                        Draft202012Validator(full_help.structured_content['data']['list']['output_schema']).validate(
+                            {'api_version': '2', 'data': large})
                         proposed = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': fund_data()})
                         assert not proposed.is_error and proposed.structured_content['data']['status'] == 'pending'
                         detail = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'identifier': proposed.structured_content['data']['transfer_id']})
@@ -245,6 +282,7 @@ def test_mcp_auth_discovery_and_structured_results(client):
 
 def test_compact_help_contract_and_patch_inputs():
     help_data = catalog.help_data('high', topic='execute', resource='fund_account', action='update')
+    assert 'output_schema' not in help_data
     _, values = catalog.prepare_call('fgas_execute', help_data['example'])
     assert values == {'identifier': 'account-id', 'name': '新的账户名称'}
     _, cleared = catalog.prepare_call('fgas_execute', {
@@ -267,6 +305,8 @@ def test_compact_help_contract_and_patch_inputs():
     ({'resource': 'fund_transfers', 'identifier': 'id', 'filters': {'status': 'pending'}}, 'filters'),
     ({'resource': 'members', 'identifier': 'id'}, 'identifier'),
     ({'resource': 'fund_transfers', 'filters': {'amount': '100'}}, 'filters.amount'),
+    ({'resource': 'fund_transfers', 'filters': {'status': 'approved'}}, 'filters.status'),
+    ({'resource': 'stock_transfers', 'filters': {'status': 'posted'}}, 'filters.status'),
 ])
 def test_compact_query_rejects_ignored_parameters(arguments, field):
     with pytest.raises(catalog.InputProblem) as error:
@@ -329,7 +369,7 @@ def test_help_describes_non_null_patch_and_combined_result():
     assert error.value.fields[0]['field'] == 'data.name'
     cleared = example | {'data': {'identifier': 'account-id', 'avatar_url': None}}
     Draft202012Validator(help_data['input_schema']).validate(cleared)
-    combined = catalog.help_data('high', topic='execute', resource='stock_operation', action='create')
+    combined = catalog.help_data('high', topic='execute', resource='stock_operation', action='create', include_output_schema=True)
     Draft202012Validator(combined['output_schema']).validate({'api_version': '2', 'data': {
         'resource_type': 'stock_operation',
         'fund_transfer': {'resource_type': 'fund_transfer', 'transfer_id': 'fund-id', 'status': 'posted', 'ledger_effect_applied': True, 'approval_required': False},
@@ -458,6 +498,11 @@ def test_stock_move_filters_sql(client):
         assert default == {move.id for move in moves if move.id != old_move.id}
         all_rows = {row['id'] for row in queries.list_stock_moves(db, access, {'all_time': True})['data']['items']}
         assert all_rows == {move.id for move in moves}
+        first_page = queries.list_stock_moves(db, access, {'all_time': True, 'limit': 1})['data']
+        second_page = queries.list_stock_moves(db, access, {'all_time': True, 'limit': 1, 'page': 2})['data']
+        assert first_page['has_more'] and not second_page['has_more']
+        assert first_page['items'][0]['stock_transfer_id'] == second
+        assert second_page['items'][0]['stock_transfer_id'] == first
         by_effective = queries.list_stock_moves(db, access, {'effective_date_from': '2026-10-01', 'effective_date_to': '2026-10-01'})['data']['items']
         assert [row['id'] for row in by_effective] == [old_move.id]
         by_created = queries.list_stock_moves(db, access, {
@@ -473,6 +518,15 @@ def test_stock_move_filters_sql(client):
 
 
 def test_help_schemas_for_windows_and_as_of():
+    for resource, valid, invalid_status in [('fund_transfers', 'posted', 'approved'), ('stock_transfers', 'in_transit', 'posted')]:
+        schema = catalog.help_data('low', topic='query', resource=resource)['list']['input_schema']
+        validator = Draft202012Validator(schema)
+        validator.validate({'resource': resource, 'filters': {'status': valid}})
+        assert not validator.is_valid({'resource': resource, 'filters': {'status': invalid_status}})
+    help_validator = Draft202012Validator(catalog.HelpInput.model_json_schema())
+    help_validator.validate({'topic': 'execute', 'resource': 'fund_transfer', 'action': 'approve'})
+    assert not help_validator.is_valid({'topic': 'execute', 'resource': 'fund_transfer', 'action': 'aprove'})
+    assert not help_validator.is_valid({'topic': 'query', 'resource': 'fund_transferz'})
     _, values = catalog.prepare_call('fgas_query', {'resource': 'fund_transfers', 'filters': {'all_time': True}})
     assert values['all_time'] is True
     _, values = catalog.prepare_call('fgas_query', {

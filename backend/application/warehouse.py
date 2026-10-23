@@ -46,7 +46,7 @@ def validate(db,data,existing=False):
     if any(store.get_transfer(db,i) is None for i in funds): raise DomainError('资金引用不存在',404)
     return lines
 
-def transfer_view(db, item):
+def transfer_view(db, item, *, detail=True):
     value = {key: getattr(item, key) for key in ('id','source_account_id','destination_account_id','effective_date','description','tags','source_reference','actor_id','status','related_transfer_id','approved_by','approval_mode','approval_snapshot','reason','created_at','submitted_credential_id','submitted_credential_name')}
     for side in ('source', 'destination'):
         account = store.get_stock_account(db, getattr(item, side + '_account_id'))
@@ -56,6 +56,10 @@ def transfer_view(db, item):
     for line in stock_store.lines(db, item.id):
         sku = stock_store.get_sku(db, line.sku_id)
         value['lines'].append(dict(id=line.id, sku_id=sku.id, sku_name=sku.name, specification=sku.specification, unit=sku.unit, quantity=quantity_string(line.quantity)))
+    value['snapshot_at'] = now()
+    if not detail:
+        value.pop('approval_snapshot')
+        return value
     value['confirmations'] = [confirmation_view(c) for c in stock_store.confirmations(db, item.id)]
     value['fund_references'] = []
     for reference in stock_store.fund_references(db, item.id):
@@ -63,7 +67,6 @@ def transfer_view(db, item):
         value['fund_references'].append(dict(id=fund.id,status=fund.status,description=fund.description,amount_minor=fund.amount_minor,reversal_of=fund.reversal_of,source_account_id=fund.source_account_id,destination_account_id=fund.destination_account_id))
     value['related_transfers']=[dict(id=a.id,status=a.status,source_account_id=a.source_account_id,destination_account_id=a.destination_account_id,
         lines=[dict(sku_id=l.sku_id,quantity=quantity_string(l.quantity)) for l in stock_store.lines(db,a.id)]) for a in stock_store.related_transfers(db,item.id)]
-    value['snapshot_at'] = now()
     value['audit'] = [dict(id=a.id, actor_id=a.actor_id, action=a.action, snapshot=a.snapshot, created_at=a.created_at, agent_credential_id=a.agent_credential_id, agent_credential_name=a.agent_credential_name) for a in stock_store.audit_events(db, item.id)]
     return value
 
@@ -213,10 +216,10 @@ def list_moves(db, filters=None):
         return result
 
 
-def list_moves_page(db, filters=None, page=1, limit=20):
+def list_moves_page(db, filters=None, page=1, limit=20, *, descending=False):
     with store.read_snapshot(db) as snapshot:
         timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
-        moves, total = stock_store.moves_page(snapshot, filters, page=page, limit=limit)
+        moves, total = stock_store.moves_page(snapshot, filters, page=page, limit=limit, descending=descending)
         result = []
         for move in moves:
             confirmation = snapshot.get(StockConfirmation,move.confirmation_id)

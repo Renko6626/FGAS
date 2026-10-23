@@ -364,3 +364,19 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 根据用户反馈，将首页卡片、周变化、待办及转移表压缩，最近变化改为单行；库存首页最多展示最近实际库存变化的 4 种货物，总种类数仍计全部库存。按非零组织库存变化时间排序，内部调拨不会把货物顶到前面；完整库存沿用原入口，无数据库或接口结构变动。
 
 验证：在专用 fgas_test 运行 `.venv/bin/python -m pytest backend/tests/test_dashboard.py -q --tb=short`，3 passed；`npm run build` 与 `git diff --check` 通过。24 种库存模拟数据的桌面/手机/空状态仅静态截图，确认最多 4 行且无页面横向溢出或运行时报错；桌面卡片由约 724px 降至 387px。未执行自动交互或部署。
+
+
+### 2026-10-23：Agent 查询修复、帮助精简与真实模型体验
+
+修复 MCP 库存查询重复分页：将 page/limit 传入现有数据库分页查询，用 total 判断 has_more；跨页 totals 保持全部筛选结果汇总。资金/货物状态分别声明枚举，help 的 resource/action 从契约表声明有限值。货物流水复用数据库分页并保持倒序，货物列表不再读取随后丢弃的详情。联系人查询增加 note，货物账户增加 current_custody。
+
+用户确认 help 默认保留说明、精确输入 Schema 和示例，新增 include_output_schema=true 按需取完整输出；服务端输入输出校验不变。精简 overview/guide，工具说明明确首次调用 help。依据本机 DSH 0.1.5-rc.3 MCP 桥接与工具呈现实现，保留标准 Schema 和四入口，不增加运行时或依赖。相同紧凑 JSON 字符口径下，资金转移默认帮助10526→2518（-76.1%）、货物转移13069→2420（-81.5%）、库存4233→1432（-66.2%）；overview1769→1047，guide5720→4350。发现阶段输入 Schema2151→2738，增长来自明确help枚举和新开关；这些是字符数，不是实际token节省或成功率。
+
+验证：先在现有 MCP 用例复现跨页has_more错误及非法状态漏验，再完成修复。显式指定fgas_test执行 `./tools/run_tests.sh`：64 passed（22.77s）。一次独立只读审阅无重要问题。
+
+用户随后明确要求真实subagent体验，通过dsh_subagent原生MCP启动临时native preset，仅提供FGAS四工具，无源码读取或shell工具。测试服务只监听回环，连接fgas_test，临时Bearer仅由进程内存注入，不持久化或进入模型上下文。Agent独立查帮助和业务对象，查全27条库存行，完成120元采购付款及2本货物入库，提交32.50元待审垫付；四次写调用均首次成功。父agent用实际MCP重新读取确认公账880元、库存12本、在途0、只有一笔采购付款、垫付保持pending。此证据包含模型实际编排，仍不代表公网、其他客户端或所有业务均已验收。
+
+模型17次帮助查询各不相同。根据反馈补充直接完成与送审路径、父单与完成申请ID、付款引用及库存保管人字段的短说明；未扩大成详情裁剪或返回结构重设计。仅文案/字段说明后续改动运行 `pytest backend/tests/test_agent_access.py -k 'help or compact' -q`：8 passed，12 deselected；`git diff --check`通过。测试凭据已停用，临时服务、专属preset及DSH运行时已清理。无密钥原始证据保留 `/tmp/fgas-agent-trial/`。未改生产配置、未部署、未做浏览器交互。
+
+
+用户随后确认在总览开头补充概念说明，并强调简化复式资金账本：来源贷方、去向借方自动等额记账，一次转移不拆成两次提交；货物按数量记增减、与资金独立生效。概述同步用于初始化 instructions 和 help，guide_version 更新为2026-10-23-v5。此后 overview 为1364字符、guide4488字符，上文篇幅对比保留为此前精简阶段记录。一次性核对加载内容、版本和生产 balanced_transfer 借贷方向；提交前相关帮助检查8 passed、12 deselected，git diff --check通过。完整64项及真实模型体验仍以上述已执行记录为准，未因文案调整重复全量验证。

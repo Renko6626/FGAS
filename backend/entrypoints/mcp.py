@@ -20,7 +20,7 @@ _bearer: ContextVar[str | None] = ContextVar('fgas_mcp_bearer', default=None)
 _DOCS = Path(__file__).resolve().parents[2] / 'docs/ai'
 GUIDE = (_DOCS / 'guide.md').read_text()
 OVERVIEW = (_DOCS / 'overview.md').read_text()
-GUIDE_VERSION = '2026-10-22-v3'
+GUIDE_VERSION = '2026-10-23-v5'
 RESULT_SCHEMA = QueryResult[dict].model_json_schema()
 logger = logging.getLogger(__name__)
 LEGACY_TOOLS = {'fgas_get_context'} | {
@@ -44,6 +44,8 @@ def get_help(access, arguments):
         return catalog.help_data(access.level, **request.model_dump())
     if request.resource is not None or request.action is not None:
         catalog.invalid('topic', 'overview/guide 不接收 resource 或 action；请选 query/propose/execute', catalog.help_call('overview'))
+    if request.include_output_schema:
+        catalog.invalid('include_output_schema', 'overview/guide 没有操作契约；请选择具体操作', catalog.help_call('overview'))
     if request.topic == 'guide':
         return dict(guide_version=GUIDE_VERSION, guide=GUIDE)
     capabilities = dict(query=list(catalog.QUERIES), propose=list(catalog.PROPOSALS))

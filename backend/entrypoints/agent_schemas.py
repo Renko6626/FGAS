@@ -54,7 +54,6 @@ class BalanceFilters(AccountFilters):
 
 
 class TransferFilters(WindowFilters):
-    status: str | None = None
     tag: str | None = None
     source_account_id: str | None = None
     destination_account_id: str | None = None
@@ -64,19 +63,21 @@ class TransferFilters(WindowFilters):
 
 
 class FundTransferFilters(TransferFilters):
+    status: Literal['pending', 'posted', 'rejected', 'reversed'] | None = Field(default=None, description='pending 待审；posted 已过账；rejected 已拒绝；reversed 已冲销。')
     posted_at_from: AwareDatetime | None = None
     posted_at_to: AwareDatetime | None = None
 
 
 class StockTransferFilters(TransferFilters):
+    status: Literal['pending', 'in_transit', 'completed', 'rejected', 'cancelled'] | None = Field(default=None, description='pending 待审；in_transit 在途；completed 已完成；rejected 已拒绝；cancelled 已取消。')
     sku_id: str | None = None
 
 
 class InventoryFilters(PageFilters):
     account_id: str | None = None
     sku_id: str | None = None
-    member_id: str | None = None
-    custodian_id: str | None = None
+    member_id: str | None = Field(default=None, description='按账户联系人筛选。')
+    custodian_id: str | None = Field(default=None, description='按当前实际保管人筛选；返回行的 member_id/member_name 也是此保管人。')
     as_of: AwareDatetime | None = None
     basis: Literal['posted', 'effective_date'] = 'posted'
 
@@ -109,12 +110,28 @@ class MemberRow(BaseModel):
     name: str
 
 
+class SavedMember(MemberRow):
+    note: str
+
+
 class AccountRow(MemberRow):
     kind: str
     member_id: str | None
     member_name: str | None
     tags: list[str]
     active: bool
+
+
+class CustodyRow(BaseModel):
+    id: str
+    member_id: str
+    member_name: str
+    valid_from: datetime
+    actor_id: str
+
+
+class StockAccountRow(AccountRow):
+    current_custody: CustodyRow | None
 
 
 class SkuRow(MemberRow):
@@ -382,9 +399,9 @@ class SettlementOverviewData(BaseModel):
 
 QUERY_OUTPUT_SCHEMAS = {
     'list_fund_accounts': QueryResult[PageData[AccountRow, AccountFilters]],
-    'list_stock_accounts': QueryResult[PageData[AccountRow, AccountFilters]],
+    'list_stock_accounts': QueryResult[PageData[StockAccountRow, AccountFilters]],
     'list_skus': QueryResult[PageData[SkuRow, SkuFilters]],
-    'list_members': QueryResult[PageData[MemberRow, DirectoryFilters]],
+    'list_members': QueryResult[PageData[SavedMember, DirectoryFilters]],
     'get_fund_balances': QueryResult[BalanceData],
     'list_fund_transfers': QueryResult[PageData[FundTransferRow, FundTransferFilters]],
     'get_fund_transfer': QueryResult[FundTransferDetail],
@@ -482,14 +499,6 @@ class CompletionWriteData(WriteEffect):
     stock_transfer_status: str
 
 
-class CustodyRow(BaseModel):
-    id: str
-    member_id: str
-    member_name: str
-    valid_from: datetime
-    actor_id: str
-
-
 class SavedAccount(AccountRow):
     avatar_url: str | None
     stocktake: StocktakeMetadata | None
@@ -506,10 +515,6 @@ class SavedStockAccount(SavedAccount):
 
 class SavedSku(SkuRow):
     avatar_url: str | None
-
-
-class SavedMember(MemberRow):
-    note: str
 
 
 class FundAccountWriteData(WriteEffect):

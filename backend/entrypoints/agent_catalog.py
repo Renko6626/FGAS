@@ -35,11 +35,11 @@ ALLOCATION = [dict(item_transfer_id='expense-or-receipt-id', amount='120.50')]
 
 QUERIES = {
     'fund_accounts': contract(queries.list_fund_accounts, '查资金账户及其公私分类、联系人和标签。', {'q': '公账', 'active': True}),
-    'stock_accounts': contract(queries.list_stock_accounts, '查货物账户；账户联系人不等于保管人。', {'q': '仓库', 'active': True}),
+    'stock_accounts': contract(queries.list_stock_accounts, '查货物账户、联系人和 current_custody 当前保管人。', {'q': '仓库', 'active': True}),
     'skus': contract(queries.list_skus, '查货物名称、规格和整数计量单位。', {'q': '书', 'active': True}),
-    'members': contract(queries.list_members, '查成员与联系人业务目录，不是登录用户。', {'q': '小王'}),
+    'members': contract(queries.list_members, '查业务联系人名称及 note 备注。', {'q': '小王'}),
     'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计；支持 as_of/basis 查截止时点。', {'kind': 'public', 'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'posted'}),
-    'inventory': contract(queries.get_inventory, '查正式库存和在途计划量，不提供价值或利润；支持 as_of/basis 查历史 on-hand，历史在途不可用。', {'account_id': 'stock-account-id', 'as_of': '2026-10-01T00:00:00+08:00'}),
+    'inventory': contract(queries.get_inventory, '查正式库存和在途计划量；items.member_id/member_name 是当前保管人，totals 是全部筛选结果的 SKU 合计。as_of/basis 查历史库存，历史在途不可用，不提供估值。', {'account_id': 'stock-account-id', 'as_of': '2026-10-01T00:00:00+08:00'}),
     'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；默认最近30天，全量传 all_time=true；支持 identifier 查详情。', {'status': 'pending'}),
     'stock_transfers': contract(queries.list_stock_transfers, '按条件查货物转移；默认最近30天，全量传 all_time=true；完成申请在父单详情中。', {'status': 'in_transit'}),
     'stock_moves': contract(queries.list_stock_moves, '查已经发生的正式数量流水；默认最近30天，全量传 all_time=true。', {'created_at_from': '2026-10-01T00:00:00+08:00'}),
@@ -56,7 +56,7 @@ DETAILS = {
 PROPOSALS = {
     'fund_transfer': contract(ops.propose_fund_transfer, '提交资金待审申请，不产生资金分录；high 调用也待审。', FUND),
     'stock_transfer': contract(ops.propose_stock_transfer, '提交货物待审申请，不改变库存；批准后仍须确认完成。', STOCK),
-    'stock_completion': contract(ops.propose_stock_completion, '为在途父单申请整笔完成；identifier 是货物单 ID，申请仍待审。', COMPLETION),
+    'stock_completion': contract(ops.propose_stock_completion, '需要人工审批到货时使用；identifier 是父货物单 ID。返回待审完成申请，批准后才记库存；high 也待审。申请状态查父单详情的 confirmations。', COMPLETION),
 }
 EXECUTIONS = {
     'fund_account': {
@@ -78,20 +78,20 @@ EXECUTIONS = {
     },
     'fund_transfer': {
         'create': contract(ops.create_fund_transfer, '直接登记并过账，产生资金分录；不发起实际银行付款。', FUND),
-        'approve': contract(ops.approve_fund_transfer, '批准待审资金单并过账；expected_version 从详情读取。', {'identifier': 'fund-transfer-id', 'expected_version': 1}),
+        'approve': contract(ops.approve_fund_transfer, '批准待审资金单并过账；expected_version 填资金单详情的 version。', {'identifier': 'fund-transfer-id', 'expected_version': 1}),
         'reject': contract(ops.reject_fund_transfer, '拒绝待审资金单，保留原因；不产生分录。', {'identifier': 'fund-transfer-id', 'expected_version': 1, 'reason': '用户说明的拒绝原因'}),
         'reverse': contract(ops.reverse_fund_transfer, '以反向资金记录更正已过账单，保留原单；不自动退款或退货。', {'identifier': 'fund-transfer-id', 'reason': '用户说明的更正原因'}),
     },
     'stock_transfer': {
-        'create': contract(ops.create_stock_transfer, '直接登记在途货物单，库存不变；收到货后另行 complete。', STOCK),
+        'create': contract(ops.create_stock_transfer, '登记在途货物单，库存不变；fund_transfer_ids 可关联已有付款，建单后也可用 link_fund 补充。到货后另行 complete。', STOCK),
         'approve': contract(ops.approve_stock_transfer, '批准待审货物单进入在途，库存不变。', {'identifier': 'stock-transfer-id'}),
         'reject': contract(ops.reject_stock_transfer, '拒绝待审货物单，保留原因。', {'identifier': 'stock-transfer-id', 'reason': '用户说明的拒绝原因'}),
         'cancel': contract(ops.cancel_stock_transfer, '取消可取消的货物单，不自动退款；已完成货物须新增更正转移。', {'identifier': 'stock-transfer-id', 'reason': '用户说明的取消原因'}),
-        'complete': contract(ops.complete_stock_transfer, '确认在途货物整笔完成并产生数量流水；identifier 是父货物单 ID。', COMPLETION),
+        'complete': contract(ops.complete_stock_transfer, '用户已确认整笔到货并授权直接登记时使用；identifier 是父货物单 ID。新建并完成确认，立即记库存。返回 stock_confirmation：confirmation_id/status 属于确认，stock_transfer_id/stock_transfer_status 属于父单。已有待审完成申请时应 approve 该申请。', COMPLETION),
         'link_fund': contract(ops.add_stock_fund_reference, '引用已有资金单，不新建付款或改变库存。', {'identifier': 'stock-transfer-id', 'fund_transfer_id': 'fund-transfer-id'}),
     },
     'stock_completion': {
-        'approve': contract(ops.approve_stock_completion, '批准完成申请并产生数量流水；identifier 是完成申请 ID。', {'identifier': 'confirmation-id'}),
+        'approve': contract(ops.approve_stock_completion, '批准已有待审完成申请并记库存；identifier 填父货物单详情 confirmations 中的申请 ID，无需再执行 stock_transfer/complete。', {'identifier': 'confirmation-id'}),
         'reject': contract(ops.reject_stock_completion, '拒绝完成申请；identifier 是完成申请 ID，父单可能仍在途。', {'identifier': 'confirmation-id', 'reason': '用户说明的拒绝原因'}),
     },
     'settlement': {
@@ -114,10 +114,15 @@ EXECUTIONS = {
 }
 
 
+Resource = Literal[tuple(dict.fromkeys([*QUERIES, *PROPOSALS, *EXECUTIONS]))]
+Action = Literal[tuple(sorted({action for actions in EXECUTIONS.values() for action in actions}))]
+
+
 class HelpInput(Input):
     topic: Literal['overview', 'guide', 'query', 'propose', 'execute'] = 'overview'
-    resource: str | None = Field(default=None, min_length=1)
-    action: str | None = Field(default=None, min_length=1)
+    resource: Resource | None = None
+    action: Action | None = None
+    include_output_schema: bool = Field(default=False, description='仅查看具体操作时使用；true 额外返回完整输出 Schema。')
 
 
 QueryInput = create_model('QueryInput', __base__=Input,
@@ -129,15 +134,15 @@ ProposeInput = create_model('ProposeInput', __base__=Input,
     data=(dict[str, Any], Field(description='该申请的精确业务参数，参见 fgas_help(topic=propose, resource=...)。')))
 ExecuteInput = create_model('ExecuteInput', __base__=Input,
     resource=(Literal[tuple(EXECUTIONS)], ...),
-    action=(Literal[tuple(sorted({action for actions in EXECUTIONS.values() for action in actions}))], ...),
+    action=(Action, ...),
     data=(dict[str, Any], Field(description='按对象/动作校验的参数；仅变更指定字段，需要 ID 时使用 data.identifier。')))
 PUBLIC_INPUTS = {'fgas_help': HelpInput, 'fgas_query': QueryInput,
                  'fgas_propose': ProposeInput, 'fgas_execute': ExecuteInput}
 TOOL_DESCRIPTIONS = {
-    'fgas_help': '了解 FGAS 核心模型、当前权限和用法；按 topic/resource/action 获取精确参数与示例。已知参数可直接办理，不必反复读取。',
-    'fgas_query': '读取账户、货物、联系人、余额、库存、资金/货物记录、结算和盘点；不修改数据。按 resource 选对象，identifier 查详情，filters 查列表。事件列表默认最近30天，全量传 all_time=true；余额/库存支持 as_of/basis 查截止时点。',
-    'fgas_propose': '提交资金转移、货物转移或整笔完成申请；始终待审，不改变正式余额或库存，高权限调用也不直接执行。',
-    'fgas_execute': '高权限直接办理目录、资金、货物、审批、更正、结算、保管和盘点。按 resource/action 选择，data 传业务参数；各动作生效规则见 help。',
+    'fgas_help': '首次使用先无参调用，了解账本模型和当前权限；按 topic/resource/action 查输入参数与示例。已知用法无需重复查。',
+    'fgas_query': '读取业务资料。首次使用先 fgas_help()；identifier 查详情，filters 查列表。事件默认近30天，全量传 all_time=true；has_more=true 继续翻页。',
+    'fgas_propose': '提交资金、货物或整笔完成申请，high 也始终待审、不记正式流水。首次使用先 fgas_help()，参数查 topic=propose。',
+    'fgas_execute': '仅 high 直接办理业务。首次使用先 fgas_help()，具体参数查 topic=execute；资金创建过账，货物创建在途、完成才记库存。',
 }
 
 
@@ -207,7 +212,7 @@ def prepare_call(tool, arguments):
     return selected, parsed.model_dump(mode='json', exclude_unset=selected.handler.__name__.startswith('update_'))
 
 
-def describe(topic, resource, selected, action=None, detail=False):
+def describe(topic, resource, selected, action=None, detail=False, *, include_output_schema=False):
     """Generate an exact, executable call schema only for the requested operation."""
     fields = {'resource': (Literal[resource], ...)}
     if topic == 'query':
@@ -226,11 +231,13 @@ def describe(topic, resource, selected, action=None, detail=False):
         if action is not None:
             example['action'] = action
     model = create_model('OperationInput', __base__=Input, **fields)
-    return dict(summary=selected.summary, input_schema=model.model_json_schema(), example=example,
-                output_schema=selected.output_model.model_json_schema())
+    result = dict(summary=selected.summary, input_schema=model.model_json_schema(), example=example)
+    if include_output_schema:
+        result['output_schema'] = selected.output_model.model_json_schema()
+    return result
 
 
-def help_data(level, *, topic, resource=None, action=None):
+def help_data(level, *, topic, resource=None, action=None, include_output_schema=False):
     """On-demand contracts, independent of any client discovery implementation."""
     if topic == 'execute' and level != 'high':
         raise DomainError('当前连接只能查询或提交待审申请，没有直接办理权限', 403)
@@ -238,6 +245,8 @@ def help_data(level, *, topic, resource=None, action=None):
         invalid('topic', '请选择 query、propose 或 execute 查看契约', help_call('overview'))
     if topic != 'execute' and action is not None:
         invalid('action', '仅 execute 帮助接收 action', help_call(topic, resource))
+    if include_output_schema and (resource is None or (topic == 'execute' and action is None)):
+        invalid('include_output_schema', '请先选定 resource；execute 还须指定 action', help_call(topic, resource))
     if resource is None:
         if action is not None:
             invalid('resource', '指定动作时也须指定对象', help_call(topic))
@@ -248,12 +257,12 @@ def help_data(level, *, topic, resource=None, action=None):
     if topic == 'query':
         if resource not in QUERIES:
             invalid('resource', '未知查询对象', help_call(topic))
-        result = dict(resource=resource, list=describe(topic, resource, QUERIES[resource]))
+        result = dict(resource=resource, list=describe(topic, resource, QUERIES[resource], include_output_schema=include_output_schema))
         if resource in DETAILS:
-            result['detail'] = describe(topic, resource, DETAILS[resource], detail=True)
+            result['detail'] = describe(topic, resource, DETAILS[resource], detail=True, include_output_schema=include_output_schema)
         return result
     if topic == 'execute' and action is None:
         if resource not in EXECUTIONS:
             invalid('resource', '未知执行对象', help_call(topic))
         return dict(resource=resource, actions={name: item.summary for name, item in EXECUTIONS[resource].items()})
-    return describe(topic, resource, select_write(topic, resource, action), action)
+    return describe(topic, resource, select_write(topic, resource, action), action, include_output_schema=include_output_schema)

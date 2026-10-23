@@ -69,6 +69,12 @@ def _page(rows, filters, *, sliced=False, snapshot_at=None, **extra):
     return _result(dict(items=selected[:filters['limit']], page=filters['page'], has_more=len(selected) > filters['limit'], filters=filters, snapshot_at=snapshot_at or datetime.now(timezone.utc), **extra))
 
 
+def _database_page(value, filters, **extra):
+    return _result(dict(items=value['items'], page=filters['page'],
+                        has_more=filters['page'] * filters['limit'] < value['total'],
+                        filters=filters, snapshot_at=value['snapshot_at'], **extra))
+
+
 def _accounts(db, filters, stock=False):
     getter = store.stock_accounts if stock else store.accounts
     result = []
@@ -76,7 +82,13 @@ def _accounts(db, filters, stock=False):
         if filters.get('q') is not None and filters['q'].casefold() not in item.name.casefold(): continue
         if 'active' in filters and item.active != filters['active']: continue
         member = store.get_member(db, item.member_id) if item.member_id else None
-        result.append({key: getattr(item, key) for key in ('id','name','kind','member_id','tags','active')} | dict(member_name=member.name if member else None))
+        row = {key: getattr(item, key) for key in ('id','name','kind','member_id','tags','active')} | dict(member_name=member.name if member else None)
+        if stock:
+            custody = stock_store.current_custody(db, item.id)
+            custodian = store.get_member(db, custody.member_id) if custody else None
+            row['current_custody'] = (dict(id=custody.id, member_id=custody.member_id, member_name=custodian.name,
+                                          valid_from=custody.valid_from, actor_id=custody.actor_id) if custody else None)
+        result.append(row)
     return sorted(result, key=lambda row: (row['name'], row['id']))
 
 
@@ -98,7 +110,7 @@ def list_skus(db, access: AgentAccess, filters: dict) -> dict:
 
 def list_members(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
-    return _page([dict(id=item.id, name=item.name) for item in store.members(db) if 'q' not in filters or filters['q'].casefold() in item.name.casefold()], filters)
+    return _page([dict(id=item.id, name=item.name, note=item.note) for item in store.members(db) if 'q' not in filters or filters['q'].casefold() in item.name.casefold()], filters)
 
 
 def get_fund_balances(db, access: AgentAccess, filters: dict) -> dict:
@@ -117,11 +129,7 @@ def get_fund_balances(db, access: AgentAccess, filters: dict) -> dict:
 
 
 def _stock_view(db, item, detail=False):
-    value = warehouse.transfer_view(db, item)
-    if not detail:
-        for key in ('audit','approval_snapshot','confirmations','related_transfers','fund_references'):
-            value.pop(key, None)
-    return value
+    return warehouse.transfer_view(db, item, detail=detail)
 
 
 def _transfers(db, access, filters, stock=False):
@@ -151,16 +159,17 @@ def get_inventory(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
     as_of = filters.get('as_of')
     basis = filters.get('basis', 'posted')
-    value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_id','member_id','custodian_id','as_of','basis') if key in filters})
-    return _page(value['items'], filters, snapshot_at=value['snapshot_at'], totals=value['totals'],
+    value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_id','member_id','custodian_id','as_of','basis') if key in filters},
+                                page=filters['page'], limit=filters['limit'])
+    return _database_page(value, filters, totals=value['totals'],
                  as_of=as_of, basis=basis if as_of is not None else None)
 
 
 def list_stock_moves(db, access: AgentAccess, filters: dict) -> dict:
     filters = _event_filters(filters)
-    rows = warehouse.list_moves(db, {key: filters[key] for key in ('transfer_id','sku_id','source_account_id','destination_account_id','effective_date_from','effective_date_to','created_at_from','created_at_to','posted_at_from','posted_at_to') if key in filters})
-    rows.sort(key=lambda row: (row['created_at'], row['id']), reverse=True)
-    return _page(rows, filters)
+    value = warehouse.list_moves_page(db, {key: filters[key] for key in ('transfer_id','sku_id','source_account_id','destination_account_id','effective_date_from','effective_date_to','created_at_from','created_at_to','posted_at_from','posted_at_to') if key in filters},
+                                      page=filters['page'], limit=filters['limit'], descending=True)
+    return _database_page(value, filters)
 
 
 def get_settlement_overview(db, access: AgentAccess, filters: dict) -> dict:

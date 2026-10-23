@@ -89,10 +89,11 @@ def _as_datetime(value): return datetime.fromisoformat(value.replace('Z', '+00:0
 
 def moves(db, filters=None):
     return list(db.scalars(_moves_query(filters or {}).order_by(StockMove.created_at, StockMove.id)))
-def moves_page(db, filters=None, page=1, limit=20):
+def moves_page(db, filters=None, page=1, limit=20, *, descending=False):
     query = _moves_query(filters or {})
     total = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
-    items = list(db.scalars(query.order_by(StockMove.created_at, StockMove.id)
+    order = (StockMove.created_at.desc(), StockMove.id.desc()) if descending else (StockMove.created_at, StockMove.id)
+    items = list(db.scalars(query.order_by(*order)
                             .offset((page - 1) * limit).limit(limit)))
     return items, total
 def _moves_query(filters):
