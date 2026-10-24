@@ -2,7 +2,6 @@
 from datetime import date
 from typing import Literal
 from backend.application.agent_access import AgentAccess, auto_apply, require_operator, source_fields, operation_fields
-from sqlalchemy import text
 from backend.infrastructure import store, stock_store
 from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit, now
 from backend.application.identity import authorize_write
@@ -123,12 +122,12 @@ def decide_transfer(db, user, identifier, data, rejection=False, *, access=None)
 def cancel_transfer(db, user, identifier, data, *, access=None): return lifecycle(db, user, identifier, data, 'cancel', access=access)
 def transfer_detail(db, identifier):
     with store.read_snapshot(db) as snapshot:
-        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        timestamp = store.snapshot_timestamp(snapshot)
         return transfer_view(snapshot,get_transfer(snapshot,identifier)) | dict(snapshot_at=timestamp)
 def list_transfers(db, status=None, filters=None, page=1, limit=20):
     filters = filters or {}
     with store.read_snapshot(db) as snapshot:
-        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        timestamp = store.snapshot_timestamp(snapshot)
         items, total = stock_store.transfer_page(
             snapshot, status=status, tag=filters.get('tag'), q=filters.get('q'),
             date_from=filters.get('date_from'), date_to=filters.get('date_to'),
@@ -198,20 +197,9 @@ def inventory(db, filters=None, page=1, limit=20):
     return query_inventory(db,filters,page=page,limit=limit)
 
 
-def list_moves(db, filters=None):
-    with store.read_snapshot(db) as snapshot:
-        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
-        result = []
-        for move in stock_store.moves(snapshot, filters):
-            confirmation = snapshot.get(StockConfirmation,move.confirmation_id)
-            sku = stock_store.get_sku(snapshot,move.sku_id)
-            result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_account_id','destination_account_id','effective_date','created_at')} | dict(posted_at=move.created_at,quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
-        return result
-
-
 def list_moves_page(db, filters=None, page=1, limit=20, *, descending=False):
     with store.read_snapshot(db) as snapshot:
-        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        timestamp = store.snapshot_timestamp(snapshot)
         moves, total = stock_store.moves_page(snapshot, filters, page=page, limit=limit, descending=descending)
         result = []
         for move in moves:

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from "vue";
 import { NButton, NInput, NModal, NSelect, type SelectOption } from "naive-ui";
-import { money } from "../api/funds";
+import { money } from "../presentation/funds";
 import { type Account } from "../api/accounts";
 import {
   settlementsApi,
   type SettlementItem,
   type SettlementPayment,
 } from "../api/settlements";
-import { today } from "../api/warehouse";
+import { today } from "../presentation/warehouse";
 import AccountLabel from "./AccountLabel.vue";
 import AccountRoute from "./AccountRoute.vue";
 import TagInput from "./TagInput.vue";

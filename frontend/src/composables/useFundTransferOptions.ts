@@ -1,5 +1,6 @@
-import { computed, onBeforeUnmount, ref } from "vue";
-import { fundsApi, statuses } from "../api/funds";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { fundsApi } from "../api/funds";
+import { statuses } from "../presentation/funds";
 export function useFundTransferOptions(selected: () => string[], prependSelected = false) {
   const results = ref<{
     label: string;
@@ -8,12 +9,16 @@ export function useFundTransferOptions(selected: () => string[], prependSelected
   const cache = ref<Record<string, string>>({});
   const loading = ref(false);
   let timer: number | undefined;
+  let requestSequence = 0;
   function search(query: string) {
+    const sequence = ++requestSequence;
     window.clearTimeout(timer);
+    loading.value = true;
     timer = window.setTimeout(async () => {
       loading.value = true;
       try {
         const result = await fundsApi.transfers({ q: query.trim() || undefined, limit: 20 });
+        if (sequence !== requestSequence) return;
         results.value = result.items.map(item => {
           const label = `${item.description || item.id}（${statuses[item.status] || item.status}）`;
           cache.value[item.id] = label;
@@ -21,10 +26,10 @@ export function useFundTransferOptions(selected: () => string[], prependSelected
         });
       }
       catch {
-        results.value = [];
+        if (sequence === requestSequence) results.value = [];
       }
       finally {
-        loading.value = false;
+        if (sequence === requestSequence) loading.value = false;
       }
     }, 200);
   }
@@ -41,6 +46,17 @@ export function useFundTransferOptions(selected: () => string[], prependSelected
     }
     return values;
   });
-  onBeforeUnmount(() => window.clearTimeout(timer));
+  watch(() => [...selected()], (value, previous) => {
+    if (value.length === 0 && previous.length > 0) {
+      ++requestSequence;
+      window.clearTimeout(timer);
+      results.value = [];
+      loading.value = false;
+    }
+  }, { flush: "sync" });
+  onBeforeUnmount(() => {
+    ++requestSequence;
+    window.clearTimeout(timer);
+  });
   return { options, loading, search };
 }

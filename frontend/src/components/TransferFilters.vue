@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { NButton, NInput, NSelect } from "naive-ui";
-import { statuses, type Transfer } from "../api/funds";
+import { type Transfer } from "../api/funds";
+import { statuses } from "../presentation/funds";
 import { emptyFundFilters, hasFundFilters, fundDateError, type FundFilters } from "../composables/transferFilters";
 const props = defineProps<{
   items: Transfer[];

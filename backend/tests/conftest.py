@@ -6,7 +6,7 @@ from sqlalchemy import text
 from backend.infrastructure.database import engine
 from backend.infrastructure.models import Base
 from backend.application.initialize import initialize
-from backend.entrypoints.http import app
+from backend.entrypoints.http import create_app
 
 CASDOOR_ENV = {
     'AUTH_MODE': 'casdoor',
@@ -32,7 +32,7 @@ def client(monkeypatch):
     monkeypatch.setenv('AUTH_MODE', 'development')
     prepare_database()
     initialize()
-    with TestClient(app) as client:
+    with TestClient(create_app()) as client:
         client.post('/api/auth/login', json={'user_id': 'trusted'})
         yield client
 
@@ -41,5 +41,5 @@ def casdoor_client(monkeypatch):
     for name, value in CASDOOR_ENV.items(): monkeypatch.setenv(name, value)
     prepare_database()
     initialize()
-    with TestClient(app) as client:
+    with TestClient(create_app()) as client:
         yield client

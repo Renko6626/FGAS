@@ -1,6 +1,5 @@
 """Private-account settlements are an application service over ordinary transfers."""
 from backend.infrastructure import store, settlement_store
-from backend.infrastructure.models import SettlementMatch
 from backend.application import funds
 from backend.application.agent_access import require_operator
 from backend.application.identity import authorize_write
@@ -20,22 +19,41 @@ def item_account(db,transfer):
     if source.kind=='external' and destination.kind=='private': return destination.id,'receipt'
     return None
 
+def effective(match, endpoints):
+    return all(endpoints[identifier].status == 'posted'
+               for identifier in (match.settlement_transfer_id, match.item_transfer_id))
+
+
+def matched_amounts(matches, endpoints):
+    by_item = {}; by_settlement = {}
+    for match in matches:
+        if effective(match, endpoints):
+            by_item[match.item_transfer_id] = by_item.get(match.item_transfer_id, 0) + match.amount_minor
+            by_settlement[match.settlement_transfer_id] = by_settlement.get(match.settlement_transfer_id, 0) + match.amount_minor
+    return by_item, by_settlement
+
+
 def validate_matches(db,settlement,allocations):
     if settlement.status!='posted' or settlement.reversal_of: raise DomainError('结算付款须为已过账的普通转移',409)
     account_id,direction=settlement_account(db,settlement)
     if not allocations: raise DomainError('请选择待结算记录')
+    matches, endpoints = settlement_store.matches_with_endpoints(
+        db, {settlement.id, *(allocation['item_transfer_id'] for allocation in allocations)})
+    by_item, by_settlement = matched_amounts(matches, endpoints)
+    existing = {(match.settlement_transfer_id, match.item_transfer_id) for match in matches}
     seen=set(); result=[]
     for allocation in allocations:
         item_id=allocation['item_transfer_id']; amount=yuan_to_minor(allocation['amount'])
-        item=funds.get_transfer(db,item_id)
+        item=endpoints.get(item_id)
+        if item is None: raise DomainError('流水不存在', 404)
         if item.status!='posted' or item.reversal_of: raise DomainError('原收支须已批准过账',409)
         if item_account(db,item)!=(account_id,direction): raise DomainError('匹配须对应同一私账及相应收支方向')
-        if item_id in seen or db.get(SettlementMatch,(settlement.id,item_id)): raise DomainError('不能重复匹配同一记录')
+        if item_id in seen or (settlement.id,item_id) in existing: raise DomainError('不能重复匹配同一记录')
         seen.add(item_id)
-        remaining=item.amount_minor-settlement_store.matched(db,item_id,'item_transfer_id')
+        remaining=item.amount_minor-by_item.get(item_id, 0)
         if amount>remaining: raise DomainError('匹配金额超过原收支未结金额')
         result.append((item_id,amount))
-    remaining=settlement.amount_minor-settlement_store.matched(db,settlement.id,'settlement_transfer_id')
+    remaining=settlement.amount_minor-by_settlement.get(settlement.id, 0)
     if sum(amount for _,amount in result)>remaining: raise DomainError('匹配总额超过付款未匹配金额')
     return result
 
@@ -64,12 +82,16 @@ def overview(db,account_id):
         if not account: raise DomainError('账户不存在',404)
         if account.kind!='private': raise DomainError('请选择私账账户')
         expenses=[];receipts=[];settlements=[]
-        all_matches=settlement_store.matches(snapshot)
+        all_matches, endpoints = settlement_store.matches_with_endpoints(snapshot)
+        by_item, by_settlement = matched_amounts(all_matches, endpoints)
+        matches_by_settlement = {}
+        for match in all_matches:
+            matches_by_settlement.setdefault(match.settlement_transfer_id, []).append(match)
         for transfer in store.transfers(snapshot):
             if account_id not in (transfer.source_account_id,transfer.destination_account_id): continue
             kind=item_account(snapshot,transfer)
             if kind and not transfer.reversal_of:
-                settled=settlement_store.matched(snapshot,transfer.id,'item_transfer_id')
+                settled=by_item.get(transfer.id, 0)
                 row=dict(transfer=funds.transfer_view(snapshot,transfer),settled_minor=settled,
                          outstanding_minor=transfer.amount_minor-settled if transfer.status=='posted' else 0)
                 (expenses if kind[1]=='expense' else receipts).append(row)
@@ -77,9 +99,9 @@ def overview(db,account_id):
                 try: settlement_account(snapshot,transfer)
                 except DomainError: continue
                 if transfer.reversal_of: continue
-                linked=[m for m in all_matches if m.settlement_transfer_id==transfer.id]
-                matched=settlement_store.matched(snapshot,transfer.id,'settlement_transfer_id')
+                linked=matches_by_settlement.get(transfer.id, [])
+                matched=by_settlement.get(transfer.id, 0)
                 settlements.append(dict(transfer=funds.transfer_view(snapshot,transfer),matched_minor=matched,
                     unmatched_minor=transfer.amount_minor-matched if transfer.status=='posted' else 0,
-                    matches=[dict(item_transfer_id=m.item_transfer_id,amount_minor=m.amount_minor,effective=settlement_store.effective(snapshot,m)) for m in linked]))
+                    matches=[dict(item_transfer_id=m.item_transfer_id,amount_minor=m.amount_minor,effective=effective(m,endpoints)) for m in linked]))
         return dict(account=catalog_account_view(snapshot,account),expenses=expenses,receipts=receipts,settlements=settlements)

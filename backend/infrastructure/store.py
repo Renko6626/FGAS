@@ -178,4 +178,9 @@ def read_snapshot(db):
     with owner.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
         with connection.begin():
             connection.execute(text('SET TRANSACTION READ ONLY'))
-            with Session(bind=connection) as snapshot: yield snapshot
+            with Session(bind=connection) as snapshot:
+                snapshot.info['snapshot_timestamp'] = snapshot.scalar(text('SELECT transaction_timestamp()'))
+                yield snapshot
+
+def snapshot_timestamp(snapshot) -> datetime:
+    return snapshot.info['snapshot_timestamp']

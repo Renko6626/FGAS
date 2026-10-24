@@ -1,5 +1,7 @@
 # Linux 原生部署：systemd 管后端
 
+本文是明确不使用 Docker 时的替代路线，新部署首选 Compose。完整定位见 [部署路线对照表](README.md)；PM2 仅保留兼容用途，新原生部署优先 systemd。
+
 日常更新按“拉代码 → 按需安装依赖 → 备份并迁移 → 构建 → 重启”处理。后端由 systemd 管理 Uvicorn，前端构建后由服务器上的静态网站服务提供，数据库使用现有 PostgreSQL。仍想用 PM2 时见文末的备选方式。
 
 登录支持 `development` 与 `casdoor` 两种模式。本机或内网试用可用开发账号选择；正式环境使用既有 Casdoor OIDC，需要先在 Casdoor 建立应用并填写回调地址、client id/secret 和初始管理员。真实 Casdoor 联调、域名和 HTTPS 尚未验收。这份文档整理运行和更新方式，不会自动开放网站或安装系统服务。

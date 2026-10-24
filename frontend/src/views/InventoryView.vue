@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { NButton, NSelect } from "naive-ui";
 import type { StockAccount } from "../api/accounts";
 import type { Member } from "../api/members";
@@ -23,8 +23,9 @@ const location = ref(""),
   page = ref(1),
   limit = ref(20),
   total = ref(0);
+let requestSequence = 0;
 async function refresh() {
-  if (busy.value) return;
+  const sequence = ++requestSequence;
   busy.value = true;
   try {
     const result = await warehouse.inventory({
@@ -32,21 +33,26 @@ async function refresh() {
       sku_id: sku.value,
       custodian_id: member.value,
     }, page.value, limit.value);
+    if (sequence !== requestSequence) return;
     rows.value = result.items;
     totals.value = result.totals;
     total.value = result.total;
     snapshot.value = result.snapshot_at;
     error.value = "";
   } catch (e) {
-    error.value = (e as Error).message;
+    if (sequence === requestSequence) error.value = (e as Error).message;
   } finally {
-    busy.value = false;
+    if (sequence === requestSequence) busy.value = false;
   }
 }
 watch([location, sku, member], () => {
+  ++requestSequence;
+  busy.value = false;
   page.value = 1;
-});
-watch([page, limit], refresh);
+}, { flush: "sync" });
+watch([page, limit], refresh, { flush: "sync" });
+watch(() => props.revision, refresh, { flush: "sync" });
+onBeforeUnmount(() => { ++requestSequence; });
 onMounted(refresh);
 </script>
 <template>

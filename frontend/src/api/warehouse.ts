@@ -1,6 +1,6 @@
 import { request, query, type Page } from './client';
 import type { TransferInput } from "./funds";
-import type { AgentSource, AgentAudit } from './audit';
+import type { AgentSource, AgentAudit, JsonValue } from './audit';
 export interface Sku {
   id: string;
   name: string;
@@ -55,7 +55,7 @@ export interface StockTransfer extends AgentSource {
   status: string;
   related_transfer_id: string | null;
   related_transfers: RelatedTransfer[];
-  approval_snapshot: unknown;
+  approval_snapshot: StockApprovalSnapshot | null;
   lines: StockLine[];
   confirmations: Confirmation[];
   fund_references: {
@@ -63,13 +63,43 @@ export interface StockTransfer extends AgentSource {
     status: string;
     description: string;
     amount_minor: number;
-    source_account_id?: string;
-    destination_account_id?: string;
+    reversal_of: string | null;
+    source_account_id: string;
+    destination_account_id: string;
   }[];
   audit: (AgentAudit & {
-    snapshot: unknown;
+    snapshot: JsonValue;
   })[];
 }
+export interface StockApprovalSnapshot {
+  source_account_id: string;
+  destination_account_id: string;
+  source_account_name: string;
+  destination_account_name: string;
+  source_kind: string;
+  destination_kind: string;
+  description: string;
+  tags: string[];
+  source_reference: string | null;
+  lines: StockLine[];
+  fund_references: StockTransfer["fund_references"];
+  related_transfer_id: string | null;
+  effective_date: string;
+  actor_id: string;
+  role: string;
+  mode: string;
+  approved_at: string;
+  agent_credential_id?: string | null;
+  agent_credential_name?: string | null;
+}
+export interface SkuCreateInput {
+  name: string;
+  specification?: string;
+  unit: string;
+  avatar_url?: string | null;
+  active?: boolean;
+}
+export type SkuUpdateInput = Partial<SkuCreateInput>;
 export interface StockInput {
   source_account_id: string;
   destination_account_id: string;
@@ -108,16 +138,10 @@ export interface InventoryPage extends Page<InventoryRow> {
   snapshot_at: string;
   totals: InventoryTotals[];
 }
-export const stockStatuses: Record<string, string> = {
-  pending: "待审批",
-  in_transit: "在途（待确认完成）",
-  completed: "已完成",
-  rejected: "已拒绝",
-  cancelled: "已取消",
-  invalidated: "已失效",
-};
-export const today = () => new Date().toLocaleDateString("sv-SE");
+
 export const warehouse = {
+  createSku: (body: SkuCreateInput) => request<Sku>("/skus", "POST", body),
+  updateSku: (id: string, body: SkuUpdateInput) => request<Sku>(`/skus/${id}`, "PATCH", body),
   skus: () => request<Sku[]>("/skus"),
   transfers: (params: Record<string, string | number | boolean | undefined> = {}) =>
     request<Page<StockTransfer>>("/stock-transfers" + query(params)),

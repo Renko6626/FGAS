@@ -10,12 +10,7 @@ export interface AgentAudit {
   created_at: string;
 }
 
-export function approvalLabel(mode: string | null | undefined) {
-  const labels: Record<string, string> = {
-    automatic: "自动批准",
-    manual: "人工批准",
-    agent_direct: "Agent 直接执行",
-    agent_approval: "Agent 批准",
-  };
-  return labels[mode || ""] || "待处理";
+export interface FundAuditEvent extends AgentAudit {
+  detail: string;
 }
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };

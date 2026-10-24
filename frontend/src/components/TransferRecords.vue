@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { NButton } from "naive-ui";
-import { money, statuses, type Transfer } from "../api/funds";
+import { type Transfer } from "../api/funds";
+import { money, statuses } from "../presentation/funds";
 import { type Account } from "../api/accounts";
 import AccountRoute from "./AccountRoute.vue";
 import TransferDetail from "./TransferDetail.vue";

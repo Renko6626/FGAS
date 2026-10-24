@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { NInput, NSelect } from "naive-ui";
-import { stockStatuses, type StockTransfer } from "../api/warehouse";
+import { type StockTransfer } from "../api/warehouse";
+import { stockStatuses } from "../presentation/warehouse";
 import type { StockFilters } from "../composables/transferFilters";
 const props = defineProps<{
   items: StockTransfer[];

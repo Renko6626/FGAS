@@ -5,6 +5,7 @@ from hashlib import sha256
 import secrets
 from typing import Literal
 
+from backend.application.identity import require_trusted
 from backend.infrastructure import agent_store, store
 from backend.infrastructure.models import AgentCredential, User
 from backend.kernel.accounting import DomainError
@@ -29,8 +30,9 @@ def hash_secret(secret: str) -> str:
 def require_issue_level(user: User, level: str) -> None:
     if level not in ('low', 'high'):
         raise DomainError('连接权限等级无效')
-    if not user.active or user.role not in ('trusted', 'admin'):
+    if not user.active:
         raise DomainError('需要受信任用户权限', 403)
+    require_trusted(user)
     if level == 'high' and user.role != 'admin':
         raise DomainError('高权限连接需要管理员权限', 403)
 

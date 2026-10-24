@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { NButton, NInput, NModal, NCheckbox } from "naive-ui";
-import { request } from "../api/client";
+import { warehouse } from "../api/warehouse";
 import type { Sku } from "../api/warehouse";
 import AccountLabel from "../components/AccountLabel.vue";
 const props = defineProps<{ items: Sku[]; editable: boolean }>(),
@@ -28,17 +28,12 @@ function edit(s?: Sku) {
 async function save() {
   busy.value = true;
   try {
-    await request(
-      "/skus" + (id.value ? "/" + id.value : ""),
-      id.value ? "PATCH" : "POST",
-      {
-        name: name.value,
-        specification: specification.value,
-        unit: unit.value,
-        avatar_url: avatar.value.trim() || null,
-        active: active.value,
-      },
-    );
+    const body = {
+      name: name.value, specification: specification.value, unit: unit.value,
+      avatar_url: avatar.value.trim() || null, active: active.value,
+    };
+    if (id.value) await warehouse.updateSku(id.value, body);
+    else await warehouse.createSku(body);
     show.value = false;
     emit("changed");
   } catch (e) {

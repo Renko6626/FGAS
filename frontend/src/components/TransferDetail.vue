@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { NButton, NInput, NModal } from "naive-ui";
-import { fundsApi, money, statuses, type Transfer } from "../api/funds";
-import { approvalLabel } from "../api/audit";
+import { fundsApi, type Transfer } from "../api/funds";
+import { money, statuses } from "../presentation/funds";
+import { approvalLabel, actionNames } from "../presentation/audit";
 import { type Account } from "../api/accounts";
 import AccountRoute from "./AccountRoute.vue";
 defineProps<{
@@ -17,23 +18,10 @@ const emit = defineEmits<{
 }>();
 const detail = ref<Transfer | null>(null), error = ref(""), reason = ref(""), busy = ref(false);
 const processing = ref<"reject" | "reverse" | null>(null);
-type AuditEvent = {
-  actor_id: string;
-  agent_credential_id?: string | null;
-  agent_credential_name?: string | null;
-  action: string;
-  detail: string;
-  created_at: string;
-};
-const audit = computed(() => (detail.value?.audit || []) as AuditEvent[]);
+const audit = computed(() => detail.value?.audit || []);
 const approvalAgent = computed(() =>
   audit.value.find(event => event.action === "posted" && event.agent_credential_id),
 );
-const actionNames: Record<string, string> = {
-  submitted: "提交",
-  posted: "批准并过账",
-  rejected: "拒绝",
-};
 async function open(item: Transfer) {
   error.value = "";
   emit("error", "");

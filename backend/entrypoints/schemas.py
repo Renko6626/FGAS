@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from typing import Literal
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import AwareDatetime, BaseModel, Field, ConfigDict, field_validator
 class Input(BaseModel):
     model_config = ConfigDict(extra='forbid')
     @field_validator('tags',check_fields=False)
@@ -98,3 +98,17 @@ class StocktakeCreate(Input):
     description: str = ''
 class StocktakePatch(Input):
     description: str
+
+
+# Human credential management; secrets and ownership are server managed.
+class CredentialCreate(Input):
+    name: str = Field(min_length=1, max_length=200)
+    level: Literal['low', 'high'] = 'low'
+    expires_at: AwareDatetime | None = None
+
+
+class CredentialPatch(Input):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    level: Literal['low', 'high'] | None = None
+    active: bool | None = None
+    expires_at: AwareDatetime | None = None

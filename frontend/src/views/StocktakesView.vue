@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch, onMounted } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef, watch, onMounted } from "vue";
 import { NButton, NInput, NModal } from "naive-ui";
 import type { Account, StockAccount } from "../api/accounts";
 import type { Sku } from "../api/warehouse";
-import type { Transfer, TransferInput } from "../api/funds";
+import type { TransferInput } from "../api/funds";
 import type { Member } from "../api/members";
-import type { StockTransfer } from "../api/warehouse";
 import {
   stocktakesApi,
   type StocktakeKind,
@@ -29,7 +28,7 @@ const props = defineProps<{
 const emit = defineEmits<{ changed: []; notice: [string] }>();
 const kind = ref<StocktakeKind>("fund"),
   items = ref<Stocktake[]>([]),
-  detail = ref<StocktakeDetail | null>(null);
+  detail = shallowRef<StocktakeDetail | null>(null);
 const busy = ref(false),
   error = ref(""),
   search = ref(""),
@@ -337,9 +336,9 @@ onMounted(load);
       </div>
     </div>
     <StocktakeFundRecords
-      v-if="kind === 'fund'"
+      v-if="detail.kind === 'fund'"
       :key="detail.stocktake.id"
-      :items="detail.transfers as Transfer[]"
+      :items="detail.transfers"
       :accounts="accounts"
       :trusted="trusted"
       @changed="changed"
@@ -348,7 +347,7 @@ onMounted(load);
     <StocktakeStockRecords
       v-else
       :key="detail.stocktake.id"
-      :items="detail.transfers as StockTransfer[]"
+      :items="detail.transfers"
       :locations="locations"
       :trusted="trusted"
       :skus="skus"

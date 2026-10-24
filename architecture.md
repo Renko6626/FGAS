@@ -61,7 +61,7 @@ Vue / 人工 HTTP       Agent / MCP
 
 数据库迁移以 Alembic 为唯一 schema 演进路径，`backend/migrations/versions/0001_baseline_schema.py` 是当前基线；模型变更必须新增 revision，不能回到 `create_all` 或手写升级 SQL。在线迁移使用独立 advisory lock，避免并发执行；测试在独立临时库验证 upgrade/check/downgrade。历史 `scripts/upgrade-*.sql` 只用于收养基线前旧库：备份、执行、校验后 `alembic stamp 0001`。
 
-工作流在版本标签或手动触发时构建，通过容器启动与反向代理检查后发布。配置服务器凭据并启用后可经 SSH 自动更新；不新增发布服务、队列或自动回滚。开发用 npm run dev 保持原有行为，PM2 方案保留备用。操作说明见 [deploy/README.md](deploy/README.md)。
+工作流在版本标签或手动触发时构建，通过容器启动与反向代理检查后发布。配置服务器凭据并启用后可经 SSH 自动更新；不新增发布服务、队列或自动回滚。开发用 npm run dev 保持原有行为。Compose 为新部署首选；明确不使用 Docker 时，可采用 `deploy/*.service` 提供的 systemd 原生方式；PM2 仅作为兼容备选保留。各路线的定位以 [deploy/README.md 的对照表](deploy/README.md)为准，原生操作见 [deploy/README.native.md](deploy/README.native.md)。
 
 ## 4 数据结构
 

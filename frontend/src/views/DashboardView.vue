@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { NButton } from "naive-ui";
-import { money, statuses } from "../api/funds";
-import { stockStatuses } from "../api/warehouse";
+import { money, statuses } from "../presentation/funds";
+import { stockStatuses } from "../presentation/warehouse";
 import type { Dashboard } from "../api/dashboard";
 import AccountAvatar from "../components/AccountAvatar.vue";
 

@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from backend.application import agent_access, agent_operations as ops, agent_queries as queries
 from backend.entrypoints.agent_schemas import AccountPatchOperation
 from backend.entrypoints import agent_catalog as catalog
-from backend.entrypoints.http import app
+from backend.entrypoints.http import create_app
 from backend.infrastructure.database import Session
 from backend.infrastructure.models import AgentCredential, JournalLine, StockMove, StockTransfer, Transfer, User
 from backend.kernel.accounting import DomainError
@@ -205,6 +205,30 @@ def test_queries_support_disambiguation_and_submission_lookup(client):
         assert first['items'][0]['amount_minor'] == 12050 and first['items'][0]['amount'] == '120.50'
 
 
+def test_independent_apps_start_on_separate_event_loops(client):
+    connection = issue(client)
+
+    async def query_accounts():
+        app = create_app()
+        async with app.router.lifespan_context(app):
+            async with httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=app),
+                base_url='http://127.0.0.1:10622',
+                headers={'Authorization': f"Bearer {connection['secret']}"},
+            ) as http:
+                async with streamable_http_client('http://127.0.0.1:10622/mcp', http_client=http) as streams:
+                    async with ClientSession(streams[0], streams[1]) as session:
+                        await session.initialize()
+                        assert 'fgas_query' in {tool.name for tool in (await session.list_tools()).tools}
+                        result = await session.call_tool('fgas_query', {'resource': 'fund_accounts'})
+                        assert not result.is_error
+                        return result.structured_content['data']['items']
+
+    first = asyncio.run(query_accounts())
+    second = asyncio.run(query_accounts())
+    assert first and second == first
+
+
 def test_mcp_auth_discovery_and_structured_results(client):
     connection = issue(client)
     stock = stock_data(client)
@@ -217,6 +241,7 @@ def test_mcp_auth_discovery_and_structured_results(client):
         assert client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}, headers=headers).status_code == 401
 
     async def exercise():
+        app = create_app()
         async with app.router.lifespan_context(app):
             async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:10622', headers={'Authorization': f"Bearer {connection['secret']}"}) as http:
                 async with streamable_http_client('http://127.0.0.1:10622/mcp', http_client=http) as streams:
@@ -319,6 +344,7 @@ def test_mcp_high_execution_uses_real_business_services(client):
     payload = stock_data(client)
 
     async def exercise():
+        app = create_app()
         async with app.router.lifespan_context(app):
             async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:10622', headers={'Authorization': f"Bearer {connection['secret']}"}) as http:
                 async with streamable_http_client('http://127.0.0.1:10622/mcp', http_client=http) as streams:

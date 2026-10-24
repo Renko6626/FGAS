@@ -3,7 +3,8 @@ import { computed, h, ref } from "vue";
 import { NSelect, NCheckbox, type SelectOption } from "naive-ui";
 import AccountLabel from "./AccountLabel.vue";
 import { matchesAccountFilters } from "../composables/accountFilters";
-import { kinds, type AccountBase } from "../api/accounts";
+import { type AccountBase } from "../api/accounts";
+import { kinds } from "../presentation/accounts";
 const props = defineProps<{
   accounts: AccountBase[];
   modelValue: string;

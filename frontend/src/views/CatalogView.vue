@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { NButton, NInput, NModal, NSelect, NCheckbox } from "naive-ui";
-import { request } from "../api/client";
-import {
-  kinds,
-  type Account,
-  type StockAccount,
-  type AccountBase,
-  type AccountKind,
-} from "../api/accounts";
-import { money } from "../api/funds";
+import { accountsApi } from "../api/accounts";
+import { type Account, type StockAccount, type AccountBase, type AccountKind } from "../api/accounts";
+import { kinds } from "../presentation/accounts";
+import { money } from "../presentation/funds";
 import type { Member } from "../api/members";
 import AccountAvatar from "../components/AccountAvatar.vue";
 import TagInput from "../components/TagInput.vue";
@@ -77,18 +72,17 @@ async function save() {
   busy.value = true;
   error.value = "";
   try {
-    await request(
-      `/${props.mode}${id.value ? "/" + id.value : ""}`,
-      id.value ? "PATCH" : "POST",
-      {
-        name: name.value,
-        member_id: member.value,
-        avatar_url: avatar.value || null,
-        tags: tags.value,
-        active: active.value,
-        ...(!id.value ? { kind: kind.value } : {}),
-      },
-    );
+    const body = {
+      name: name.value, member_id: member.value,
+      avatar_url: avatar.value || null, tags: tags.value, active: active.value,
+    };
+    if (props.mode === "accounts") {
+      if (id.value) await accountsApi.update(id.value, body);
+      else await accountsApi.create({ ...body, kind: kind.value });
+    } else {
+      if (id.value) await accountsApi.updateStock(id.value, body);
+      else await accountsApi.createStock({ ...body, kind: kind.value });
+    }
     show.value = false;
     emit("changed");
   } catch (e) {
@@ -110,9 +104,7 @@ async function saveCustody() {
   if (busy.value) return;
   busy.value = true;
   try {
-    await request(`/stock-accounts/${custodyId.value}/custody`, "POST", {
-      member_id: custodian.value,
-    });
+    await accountsApi.setCustody(custodyId.value, custodian.value);
     custodyShow.value = false;
     emit("changed");
   } catch (e) {

@@ -3,7 +3,7 @@ import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 import { NButton, NSelect, NModal, NConfigProvider, zhCN } from "naive-ui";
 import { workspaceTheme } from "./theme";
 import DashboardView from "./views/DashboardView.vue";
-import { money } from "./api/funds";
+import { money } from "./presentation/funds";
 import { useSession } from "./composables/useSession";
 import { useWorkspace } from "./composables/useWorkspace";
 import StocktakesView from "./views/StocktakesView.vue";
@@ -391,7 +391,7 @@ onMounted(async () => {
             />
             <InventoryView
               v-else-if="tab === 'inventory'"
-              :key="`${user.id}:${identityEpoch}:${revision}`"
+              :key="`${user.id}:${identityEpoch}`"
               :locations="locations"
               :skus="skus"
               :members="members"

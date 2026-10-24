@@ -5,7 +5,9 @@ FGAS 的 schema 只通过 Alembic 演进。`backend/migrations/versions/0001_bas
 ## 本地命令
 
 ```bash
-export DATABASE_URL='postgresql+psycopg2://fgas@/fgas?host=/data/sunyunbo/www/FGAS/.runtime&port=55438'
+# 从项目根目录执行，使用已配置的 DATABASE_URL。
+# 如需手动传入，以下为本地 socket 示例，按实际主机、端口和库名调整：
+export DATABASE_URL="postgresql+psycopg2://fgas@/fgas?host=$PWD/.runtime&port=55438"
 
 # 升级到最新
 .venv/bin/python -m alembic -c alembic.ini upgrade head
@@ -19,6 +21,8 @@ export DATABASE_URL='postgresql+psycopg2://fgas@/fgas?host=/data/sunyunbo/www/FG
 # 生成新 revision（先改模型）
 .venv/bin/python -m alembic -c alembic.ini revision --autogenerate -m "describe change"
 ```
+
+`scripts/local-db.sh` 默认使用 TCP `127.0.0.1:55432`，与 `scripts/run-backend.sh` 的默认连接一致。本机历史配置使用 `.runtime` socket 和 `55438`，不是脚本默认值；使用前核对实际配置，并通过 `FGAS_PG_PORT`、`FGAS_PG_SOCKET`、`FGAS_PG_HOST` 与 `DATABASE_URL` 保持一致。不要为迁就示例重启或重建已有数据库。
 
 `alembic.ini` 不保存数据库连接；`backend/migrations/env.py` 依次读取调用方传入的 `db_url`、`-x db_url=...` 和 `DATABASE_URL`。
 

@@ -2,6 +2,17 @@
 
 推荐使用 Docker Compose。服务器只需 Docker Engine、Compose 插件和 SSH，不需要安装 Python、Node、uv、PM2，也不用手工维护虚拟环境。前端镜像已经包含 Nginx，网页、API 和 MCP 共用一个入口。
 
+部署路线的定位如下，其他文档沿用此表：
+
+| 路线 | 定位 | 适用情况 |
+| --- | --- | --- |
+| Docker Compose | 首选 | 新部署，统一管理数据库、后端和前端；按本文发布 |
+| systemd 原生部署 | 替代 | 明确不使用 Docker，按 [原生部署说明](README.native.md)维护主机依赖和服务 |
+| PM2 | 保留的兼容备选 | 继续维护既有 PM2 环境；新原生部署优先 systemd |
+| Coolify 专用接入 | 已撤回 | 本项目不沿用旧接入流程 |
+
+`scripts/push-acr.sh` 是保留的手动镜像上传工具，不是第四套部署流程；当前自动发布使用 GHCR。不要同时用 Compose、systemd 或 PM2 启动同一实例。
+
 有两种交付方式，启动和配置完全相同：
 
 | 方式 | 在哪里构建 | 怎么送到服务器 |

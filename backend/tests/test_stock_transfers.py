@@ -1,7 +1,7 @@
 """Real stock submission/approval paths; isolated PostgreSQL fixture only."""
 from fastapi.testclient import TestClient
 from sqlalchemy import select, func
-from backend.entrypoints.http import app
+from backend.entrypoints.http import create_app
 from backend.infrastructure.database import Session
 from backend.infrastructure.models import StockTransfer, StockTransferLine, JournalLine
 
@@ -48,7 +48,7 @@ def test_stock_submission_and_approval(client):
     assert cancelled['status'] == 'cancelled'
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
     pending2 = client.post('/api/stock-transfers', json=pending_payload).json()
-    with TestClient(app) as actor:
+    with TestClient(create_app()) as actor:
         actor.post('/api/auth/login', json={'user_id': 'trusted'})
         client.post('/api/auth/login', json={'user_id': 'admin'})
         assert client.patch('/api/users/trusted', json={'role': 'untrusted'}).status_code == 200

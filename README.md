@@ -32,7 +32,7 @@ npm run dev
 - 手动发布：本机构建完整镜像，打包后通过 SSH 传到服务器加载。
 - 自动发布：GitHub Actions 构建镜像并推送 GHCR，服务器拉取后更新。
 
-首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。不依赖 Docker 时，可用 [systemd 原生方式](deploy/README.native.md)（含 PM2 备选）。首次部署和普通更新都会先备份数据库、再通过 Compose 一次性 `migrate` 服务执行 Alembic；迁移失败时 API 不启动。
+首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。不依赖 Docker 时，可用 [systemd 原生方式](deploy/README.native.md)（含 PM2 备选）。Compose 发布脚本在首次部署和普通更新时先备份数据库、再通过一次性 `migrate` 服务执行 Alembic；迁移失败时 API 不启动。原生部署按其文档执行备份与迁移。部署路线定位见[部署说明中的对照表](deploy/README.md)。
 
 Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应用并填写回调地址、client id/secret 和初始管理员。默认只监听服务器本机的 8080 端口；HTTPS 站点必须设置 `COOKIE_SECURE=true`。真实 Casdoor 联调、域名和 HTTPS 验收尚未完成，部署脚本不代表正式上线已验收。
 

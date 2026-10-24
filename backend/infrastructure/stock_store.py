@@ -4,7 +4,6 @@ from sqlalchemy import select, or_, cast, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import aliased
 from backend.infrastructure.models import Base, Sku, StockAccountCustody
-from backend.infrastructure import store
 
 
 def get_sku(db, identifier): return db.get(Sku, identifier)

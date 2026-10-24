@@ -5,7 +5,8 @@ import type { StockAccount } from "../api/accounts";
 import type { Sku } from "../api/warehouse";
 import AccountRoute from "./AccountRoute.vue";
 import AccountLabel from "./AccountLabel.vue";
-import { warehouse, today, type StockTransfer } from "../api/warehouse";
+import { warehouse, type StockTransfer } from "../api/warehouse";
+import { today } from "../presentation/warehouse";
 const props = defineProps<{
   item: StockTransfer;
   trusted: boolean;

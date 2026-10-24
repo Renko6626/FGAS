@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { NButton } from "naive-ui";
-import { money, statuses as fundStatuses } from "../api/funds";
+import { money, statuses as fundStatuses } from "../presentation/funds";
 import { type StockAccount, type Account } from "../api/accounts";
 import { type Sku } from "../api/warehouse";
-import { stockStatuses, type StockTransfer } from "../api/warehouse";
+import { type StockTransfer } from "../api/warehouse";
+import { stockStatuses } from "../presentation/warehouse";
 import AccountRoute from "./AccountRoute.vue";
 import AccountLabel from "./AccountLabel.vue";
 import StockTransferDetail from "./StockTransferDetail.vue";

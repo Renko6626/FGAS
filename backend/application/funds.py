@@ -20,7 +20,8 @@ def validate(db, source, destination, amount):
 
 def post(db, item, user, mode, *, access=None):
     require_operator(user, access)
-    if not user.active or user.role not in ('admin', 'trusted'): raise DomainError('无过账权限', 403)
+    if not user.active: raise DomainError('无过账权限', 403)
+    require_trusted(user)
     if item.status != 'pending': raise DomainError('流水已处理', 409)
     if not all(store.get_account(db, aid) for aid in (item.source_account_id, item.destination_account_id)):
         raise DomainError('记账对象不存在', 404)

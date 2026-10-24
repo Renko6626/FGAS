@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { NButton, NCheckbox, NInput, NModal, NSelect } from "naive-ui";
-import { fundsApi, statuses, type TransferInput } from "../api/funds";
-import { kinds, type Account } from "../api/accounts";
+import { fundsApi, type TransferInput } from "../api/funds";
+import { statuses } from "../presentation/funds";
+import { type Account } from "../api/accounts";
+import { kinds } from "../presentation/accounts";
 import AccountAvatar from "./AccountAvatar.vue";
 import TagInput from "./TagInput.vue";
 import { matchesAccountFilters } from "../composables/accountFilters";

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, h, ref, watch } from "vue";
+import { computed, h, onBeforeUnmount, ref, watch } from "vue";
 import { NButton, NSelect, type SelectOption } from "naive-ui";
-import { money, statuses } from "../api/funds";
+import { money, statuses } from "../presentation/funds";
 import type { Account } from "../api/accounts";
 import { settlementsApi, type SettlementOverview } from "../api/settlements";
 import AccountLabel from "../components/AccountLabel.vue";
@@ -67,24 +67,31 @@ const originalItems = computed(
       ].map((item) => [item.transfer.id, item.transfer]),
     ),
 );
+let requestSequence = 0;
 async function load() {
+  const sequence = ++requestSequence;
   detail.value = null;
-  if (!selected.value) return;
-  busy.value = true;
   error.value = "";
-  try {
-    detail.value = await settlementsApi.overview(selected.value);
-  } catch (e) {
-    error.value = (e as Error).message;
-  } finally {
+  if (!selected.value) {
     busy.value = false;
+    return;
+  }
+  busy.value = true;
+  try {
+    const result = await settlementsApi.overview(selected.value);
+    if (sequence === requestSequence) detail.value = result;
+  } catch (e) {
+    if (sequence === requestSequence) error.value = (e as Error).message;
+  } finally {
+    if (sequence === requestSequence) busy.value = false;
   }
 }
 watch(selected, () => {
   activeTab.value = "expense";
   show.value = false;
   void load();
-});
+}, { flush: "sync" });
+onBeforeUnmount(() => { ++requestSequence; });
 async function changed() {
   emit("changed");
   await load();

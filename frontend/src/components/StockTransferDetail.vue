@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, shallowRef, computed, onMounted } from "vue";
 import { NButton, NInput, NModal, NSelect } from "naive-ui";
-import { money, statuses as fundStatuses } from "../api/funds";
-import { approvalLabel } from "../api/audit";
+import { money, statuses as fundStatuses } from "../presentation/funds";
+import { approvalLabel } from "../presentation/audit";
 import { type StockAccount, type Account } from "../api/accounts";
 import { type Sku } from "../api/warehouse";
-import { warehouse, stockStatuses, type StockTransfer } from "../api/warehouse";
+import { warehouse, type StockTransfer } from "../api/warehouse";
+import { stockStatuses } from "../presentation/warehouse";
 import { useFundTransferOptions } from "../composables/useFundTransferOptions";
 import AccountRoute from "./AccountRoute.vue";
 import AccountLabel from "./AccountLabel.vue";
@@ -29,7 +30,7 @@ const {
   search: searchFunds,
 } = useFundTransferOptions(() => fund.value ? [fund.value] : [], true);
 onMounted(() => searchFunds(""));
-const detailShow = ref(false), detail = ref<StockTransfer | null>(null), busy = ref(false), error = ref(""), reason = ref("");
+const detailShow = ref(false), detail = shallowRef<StockTransfer | null>(null), busy = ref(false), error = ref(""), reason = ref("");
 const approvalAgent = computed(() =>
   detail.value?.audit.find(event =>
     ["approve", "automatic_approval"].includes(event.action) && event.agent_credential_id,

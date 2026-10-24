@@ -1,5 +1,4 @@
 """Stocktakes organize ordinary Transfers through dedicated endpoints."""
-from sqlalchemy import text
 from backend.infrastructure import store, stocktake_store
 from backend.application import catalogs, funds, warehouse
 from backend.application.identity import authorize_write
@@ -46,7 +45,7 @@ def create_stocktake(db, user, kind, data):
 def get_stocktake(db, kind, identifier):
     with store.read_snapshot(db) as snapshot:
         item = require_stocktake(snapshot, kind, identifier)
-        timestamp = snapshot.scalar(text('SELECT transaction_timestamp()'))
+        timestamp = store.snapshot_timestamp(snapshot)
         view = funds.transfer_view if kind == 'fund' else warehouse.transfer_view
         transfers = [view(snapshot, transfer) for transfer in stocktake_store.transfers(snapshot, kind, item)]
         if kind == 'stock': transfers = [value | dict(snapshot_at=timestamp) for value in transfers]
