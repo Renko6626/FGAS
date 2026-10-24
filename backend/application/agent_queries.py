@@ -1,7 +1,7 @@
 """Shared low/high business reads. Query conditions never confer authorization."""
 from datetime import datetime, timedelta, timezone
 from backend.application.agent_access import AgentAccess
-from backend.application import funds, warehouse, stocktakes, settlements
+from backend.application import directory_views, funds, warehouse, stocktakes, settlements
 from backend.infrastructure import store, stock_store, agent_store
 from backend.infrastructure.models import Transfer, StockTransfer
 from backend.kernel.accounting import DomainError
@@ -81,13 +81,9 @@ def _accounts(db, filters, stock=False):
     for item in getter(db, filters.get('tag'), filters.get('kind'), filters.get('member_id')):
         if filters.get('q') is not None and filters['q'].casefold() not in item.name.casefold(): continue
         if 'active' in filters and item.active != filters['active']: continue
-        member = store.get_member(db, item.member_id) if item.member_id else None
-        row = {key: getattr(item, key) for key in ('id','name','kind','member_id','tags','active')} | dict(member_name=member.name if member else None)
+        row = directory_views.account_view(db, item)
         if stock:
-            custody = stock_store.current_custody(db, item.id)
-            custodian = store.get_member(db, custody.member_id) if custody else None
-            row['current_custody'] = (dict(id=custody.id, member_id=custody.member_id, member_name=custodian.name,
-                                          valid_from=custody.valid_from, actor_id=custody.actor_id) if custody else None)
+            row['current_custody'] = directory_views.current_custody_view(db, item.id)
         result.append(row)
     return sorted(result, key=lambda row: (row['name'], row['id']))
 
@@ -104,13 +100,13 @@ def list_stock_accounts(db, access: AgentAccess, filters: dict) -> dict:
 
 def list_skus(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
-    rows = [{key: getattr(item, key) for key in ('id','name','specification','unit','active')} for item in stock_store.skus(db) if ('q' not in filters or filters['q'].casefold() in item.name.casefold()) and ('active' not in filters or filters['active'] == item.active)]
+    rows = [directory_views.sku_view(item) for item in stock_store.skus(db) if ('q' not in filters or filters['q'].casefold() in item.name.casefold()) and ('active' not in filters or filters['active'] == item.active)]
     return _page(rows, filters)
 
 
 def list_members(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
-    return _page([dict(id=item.id, name=item.name, note=item.note) for item in store.members(db) if 'q' not in filters or filters['q'].casefold() in item.name.casefold()], filters)
+    return _page([directory_views.member_view(item) for item in store.members(db) if 'q' not in filters or filters['q'].casefold() in item.name.casefold()], filters)
 
 
 def get_fund_balances(db, access: AgentAccess, filters: dict) -> dict:

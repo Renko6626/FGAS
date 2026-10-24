@@ -1,7 +1,8 @@
 """Stocktakes organize ordinary Transfers through dedicated endpoints."""
 from sqlalchemy import text
 from backend.infrastructure import store, stocktake_store
-from backend.application import catalogs, funds, warehouse, warehouse_catalogs
+from backend.application import catalogs, funds, warehouse
+from backend.application.identity import authorize_write
 from backend.kernel.accounting import DomainError
 
 
@@ -28,7 +29,7 @@ def require_stocktake(db, kind, identifier):
     return item
 
 def create_stocktake(db, user, kind, data):
-    warehouse_catalogs.authorize_write(db, user)
+    authorize_write(db, user)
     name = data['name'].strip()
     if not name: raise DomainError('盘点名称不能为空')
     endpoints = {}
@@ -52,7 +53,7 @@ def get_stocktake(db, kind, identifier):
         return dict(stocktake=stocktake_view(snapshot, kind, item), transfers=transfers)
 
 def update_description(db, user, kind, identifier, description):
-    warehouse_catalogs.authorize_write(db, user)
+    authorize_write(db, user)
     item = require_stocktake(db, kind, identifier)
     store.refresh(db, item)
     item.description = description
@@ -60,7 +61,7 @@ def update_description(db, user, kind, identifier, description):
     return stocktake_view(db, kind, item)
 
 def end_stocktake(db, user, kind, identifier):
-    warehouse_catalogs.authorize_write(db, user)
+    authorize_write(db, user)
     item = require_stocktake(db, kind, identifier)
     store.refresh(db, item)
     item.status = 'ended'

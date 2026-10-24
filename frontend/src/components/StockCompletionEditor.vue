@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { NButton, NModal } from "naive-ui";
-import type { StockAccount, Sku } from "../api/funds";
+import type { StockAccount } from "../api/accounts";
+import type { Sku } from "../api/warehouse";
 import AccountRoute from "./AccountRoute.vue";
 import AccountLabel from "./AccountLabel.vue";
 import { warehouse, today, type StockTransfer } from "../api/warehouse";

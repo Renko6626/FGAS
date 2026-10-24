@@ -4,13 +4,13 @@ import { NButton, NInput, NModal, NSelect, NCheckbox } from "naive-ui";
 import { request } from "../api/client";
 import {
   kinds,
-  money,
   type Account,
   type StockAccount,
-  type Member,
   type AccountBase,
   type AccountKind,
-} from "../api/funds";
+} from "../api/accounts";
+import { money } from "../api/funds";
+import type { Member } from "../api/members";
 import AccountAvatar from "../components/AccountAvatar.vue";
 import TagInput from "../components/TagInput.vue";
 const props = defineProps<{

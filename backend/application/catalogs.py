@@ -1,7 +1,6 @@
 from backend.infrastructure import store, stocktake_store
-from backend.application import warehouse_catalogs
-from backend.application.funds import account_view
-from backend.application.members import authorize_write
+from backend.application import directory_views, funds, warehouse_catalogs
+from backend.application.identity import authorize_write
 from backend.kernel.accounting import DomainError
 
 def normalize_tags(tags): return list(dict.fromkeys(t.strip() for t in tags if t.strip()))
@@ -13,8 +12,9 @@ def validate_account(db,values):
     if 'avatar_url' in values: values['avatar_url']=(values['avatar_url'] or '').strip() or None
 
 def catalog_account_view(db,item):
-    member=store.get_member(db,item.member_id) if item.member_id else None
-    return account_view(db,item) | dict(member_name=member.name if member else None,stocktake=stocktake_store.endpoint_metadata(db,'fund',item.id))
+    return directory_views.account_view(db, item) | dict(
+        avatar_url=item.avatar_url, balance_minor=funds.balance(db, item),
+        stocktake=stocktake_store.endpoint_metadata(db, 'fund', item.id))
 def accounts(db,tag=None,kind=None,member_id=None): return [catalog_account_view(db,a) for a in store.accounts(db,tag,kind,member_id)]
 def stock_accounts(db,tag=None,kind=None,member_id=None): return [warehouse_catalogs.account_view(db,a) for a in store.stock_accounts(db,tag,kind,member_id)]
 def create_account(db,user,values):

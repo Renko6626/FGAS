@@ -3,15 +3,9 @@ import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 import { NButton, NSelect, NModal, NConfigProvider, zhCN } from "naive-ui";
 import { workspaceTheme } from "./theme";
 import DashboardView from "./views/DashboardView.vue";
-import { dashboardApi, type Dashboard } from "./api/dashboard";
-import {
-  api,
-  money,
-  type AuthMode,
-  type User,
-  type Account,
-  type StockAccount,
-} from "./api/funds";
+import { money } from "./api/funds";
+import { useSession } from "./composables/useSession";
+import { useWorkspace } from "./composables/useWorkspace";
 import StocktakesView from "./views/StocktakesView.vue";
 import CatalogView from "./views/CatalogView.vue";
 import TransfersView from "./views/TransfersView.vue";
@@ -19,50 +13,48 @@ import SettlementsView from "./views/SettlementsView.vue";
 import MembersView from "./views/MembersView.vue";
 import UsersView from "./views/UsersView.vue";
 import AgentConnectionsView from "./views/AgentConnectionsView.vue";
-import { warehouse } from "./api/warehouse";
-import { membersApi } from "./api/members";
-import type { Sku, Member } from "./api/funds";
 import SkusView from "./views/SkusView.vue";
 import InventoryView from "./views/InventoryView.vue";
 import StockTransfersView from "./views/StockTransfersView.vue";
 import StockTransferEditor from "./components/StockTransferEditor.vue";
 import TransferEditor from "./components/TransferEditor.vue";
 import AccountAvatar from "./components/AccountAvatar.vue";
-const user = ref<User | null>(null),
-  mode = ref<AuthMode | null>(null),
-  users = ref<User[]>([]),
-  selected = ref<string | null>(null),
-  accounts = ref<Account[]>([]),
-  locations = ref<StockAccount[]>([]),
-  dashboard = ref<Dashboard | null>(null),
-  counts = ref({ pendingFunds: 0, pendingStock: 0, inTransit: 0 }),
-  total = ref(0),
-  tab = ref("home"),
-  error = ref(""),
-  notice = ref(""),
-  busy = ref(false),
-  showTransfer = ref(false),
-  opening = ref(false);
-const switching = ref(false);
-const skus = ref<Sku[]>([]),
-  members = ref<Member[]>([]),
-  revision = ref(0);
-const identityEpoch = ref(0);
-
+const tab = ref("home");
+const error = ref("");
+const notice = ref("");
+const busy = ref(false);
+const showTransfer = ref(false);
+const opening = ref(false);
+const mobileNav = ref(false);
+const showIdentity = ref(false);
+const approvalType = ref("funds");
+const {
+  user, mode, users, selected, switching, identityEpoch,
+  initialize, login, logout, permissionChanged,
+} = useSession({
+  busy,
+  error,
+  notice,
+  clearWorkspace: () => workspace.clear(),
+  refresh: () => workspace.refresh(),
+  closeTransfer: () => { showTransfer.value = false; },
+  onLogin: () => {
+    tab.value = "home";
+    window.location.hash = "home";
+    showIdentity.value = false;
+    mobileNav.value = false;
+  },
+  onExpired: () => { showIdentity.value = false; },
+  onPermissionsResolved: () => {
+    if (!nav.value.some((n) => n.value === tab.value)) navigate("home");
+  },
+});
+const workspace = useWorkspace(user, identityEpoch, busy, error);
+const { accounts, locations, dashboard, counts, total, skus, members, revision, refresh } = workspace;
 const trusted = computed(
   () => user.value?.role === "trusted" || user.value?.role === "admin",
 );
 const roles = { admin: "管理员", trusted: "受信任用户", untrusted: "普通用户" };
-const ssoErrors: Record<string, string> = {
-  invalid_state: "登录状态已失效，请重新登录",
-  access_denied: "登录已取消或未获授权",
-  idp_unavailable: "身份服务暂时不可用，请稍后重试",
-  user_disabled: "账号已停用，请联系管理员",
-  login_failed: "登录失败，请重试",
-};
-const mobileNav = ref(false),
-  showIdentity = ref(false),
-  approvalType = ref("funds");
 const stockEditor = ref<InstanceType<typeof StockTransferEditor> | null>(null);
 const pages: Record<string, { title: string }> = {
   home: { title: "工作首页" },
@@ -139,151 +131,17 @@ function readPageHash() {
 }
 onBeforeUnmount(() => {
   window.removeEventListener("hashchange", readPageHash);
-  window.removeEventListener("fgas-session-expired", sessionExpired);
 });
 function createStock() {
   stockEditor.value?.open();
-}
-function readSsoError() {
-  const url = new URL(window.location.href);
-  const code = url.searchParams.get("sso_error");
-  if (!code) return;
-  error.value = ssoErrors[code] || ssoErrors.login_failed!;
-  url.searchParams.delete("sso_error");
-  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-}
-function sessionExpired() {
-  if (!user.value) return;
-  identityEpoch.value++;
-  user.value = null;
-  selected.value = null;
-  showTransfer.value = false;
-  showIdentity.value = false;
-  accounts.value = [];
-  locations.value = [];
-  dashboard.value = null;
-  counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
-  skus.value = [];
-  members.value = [];
-  error.value = "登录状态已失效，请重新登录";
-}
-
-async function refresh() {
-  if (!user.value) return;
-  const epoch = identityEpoch.value,
-    actor = user.value.id;
-  busy.value = true;
-  error.value = "";
-  try {
-    const [a, l, overview, k, m] = await Promise.all([
-      api.accounts(),
-      api.stockAccounts(),
-      dashboardApi.overview(),
-      warehouse.skus(),
-      membersApi.list(),
-    ]);
-    if (epoch !== identityEpoch.value || actor !== user.value?.id) return;
-    accounts.value = a;
-    locations.value = l;
-    total.value = overview.funds.total_minor;
-    skus.value = k;
-    members.value = m;
-    dashboard.value = overview;
-    counts.value = overview.counts;
-    revision.value++;
-  } catch (e) {
-    error.value = (e as Error).message;
-  } finally {
-    busy.value = false;
-  }
-}
-async function identities() {
-  if (mode.value === "development") users.value = await api.users();
-}
-async function login() {
-  if (mode.value === "casdoor") {
-    window.location.assign("/api/auth/casdoor/login");
-    return;
-  }
-  if (!selected.value || switching.value) return;
-  switching.value = true;
-  busy.value = true;
-  error.value = "";
-  try {
-    showTransfer.value = false;
-    identityEpoch.value++;
-    await api.login(selected.value);
-    user.value = await api.me();
-    identityEpoch.value++;
-    tab.value = "home";
-    window.location.hash = "home";
-    showIdentity.value = false;
-    mobileNav.value = false;
-    notice.value = "开发账号已切换";
-    await refresh();
-  } catch (e) {
-    user.value = null;
-    skus.value = [];
-    members.value = [];
-    accounts.value = [];
-    locations.value = [];
-    dashboard.value = null;
-    counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
-    error.value = (e as Error).message;
-  } finally {
-    busy.value = false;
-    switching.value = false;
-  }
-}
-async function logout() {
-  if (switching.value) return;
-  switching.value = true;
-  try {
-    showTransfer.value = false;
-    identityEpoch.value++;
-    await api.logout();
-    user.value = null;
-    dashboard.value = null;
-    counts.value = { pendingFunds: 0, pendingStock: 0, inTransit: 0 };
-    skus.value = [];
-    members.value = [];
-    accounts.value = [];
-    locations.value = [];
-    notice.value = "已退出";
-  } catch (e) {
-    error.value = (e as Error).message;
-  } finally {
-    switching.value = false;
-  }
-}
-async function permissionChanged() {
-  identityEpoch.value++;
-  await identities();
-  try {
-    user.value = await api.me();
-    if (!nav.value.some((n) => n.value === tab.value)) navigate("home");
-    await refresh();
-  } catch (e) {
-    user.value = null;
-    error.value = (e as Error).message;
-  }
 }
 function create(isOpening = false) {
   opening.value = isOpening;
   showTransfer.value = true;
 }
 onMounted(async () => {
-  window.addEventListener("fgas-session-expired", sessionExpired);
-  readSsoError();
   try {
-    mode.value = (await api.authConfig()).mode;
-    if (mode.value === "development") await identities();
-    try {
-      user.value = await api.me();
-      selected.value = user.value.id;
-    } catch {
-      user.value = null;
-    }
+    await initialize();
     readPageHash();
     window.addEventListener("hashchange", readPageHash);
     if (user.value) await refresh();

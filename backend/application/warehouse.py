@@ -5,18 +5,11 @@ from backend.application.agent_access import AgentAccess, auto_apply, require_op
 from sqlalchemy import text
 from backend.infrastructure import store, stock_store
 from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit, now
-from backend.application.funds import require_trusted
+from backend.application.identity import authorize_write
 from backend.kernel.accounting import DomainError
 from backend.kernel.stock import parse_quantity, quantity_string
 from backend.modules.warehouse.plans import build_moves
 from backend.infrastructure.models import StockConfirmation, StockMove
-
-
-def authorize(db, user, trusted=False):
-    store.lock(db)
-    store.refresh(db, user)
-    if not user.active: raise DomainError('用户已停用', 403)
-    if trusted: require_trusted(user)
 
 
 def get_transfer(db, identifier):
@@ -89,7 +82,7 @@ def approve(db, item, user, mode, *, access=None):
 
 
 def submit_transfer(db, user, data, *, access: AgentAccess | None = None, submit_mode: Literal['propose', 'direct'] | None = None):
-    authorize(db, user)
+    authorize_write(db, user, trusted=False)
     apply = auto_apply(user, access=access, submit_mode=submit_mode)
     lines = validate(db, data)
     values = {key: data.get(key) for key in ('source_account_id','destination_account_id','description','tags','source_reference','related_transfer_id')}
@@ -106,7 +99,7 @@ def submit_transfer(db, user, data, *, access: AgentAccess | None = None, submit
 
 
 def lifecycle(db, user, identifier, data, action, *, access=None):
-    authorize(db, user, trusted=True)
+    authorize_write(db, user)
     require_operator(user, access)
     item = get_transfer(db, identifier)
     store.refresh(db, item)
@@ -170,7 +163,7 @@ def post_completion(db, user, item, confirmation, *, access=None, mode=None):
 
 
 def request_completion(db, user, identifier, data, *, access: AgentAccess | None = None, submit_mode: Literal['propose', 'direct'] | None = None):
-    authorize(db, user)
+    authorize_write(db, user, trusted=False)
     apply = auto_apply(user, access=access, submit_mode=submit_mode)
     item = get_transfer(db, identifier)
     store.refresh(db, item)
@@ -183,7 +176,7 @@ def request_completion(db, user, identifier, data, *, access: AgentAccess | None
 
 
 def decide_completion(db, user, identifier, data, rejection=False, *, access=None):
-    authorize(db, user, trusted=True)
+    authorize_write(db, user)
     require_operator(user, access)
     action = 'reject_completion' if rejection else 'approve_completion'
     confirmation = db.get(StockConfirmation, identifier)
@@ -233,7 +226,7 @@ def business_data(db, item):
 
 
 def add_fund_reference(db, user, identifier, data, *, access=None):
-    authorize(db, user, trusted=True)
+    authorize_write(db, user)
     require_operator(user, access)
     item = get_transfer(db, identifier)
     fund_id = data['fund_transfer_id']

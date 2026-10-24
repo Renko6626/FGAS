@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from "vue";
 import { NButton, NInput, NModal, NSelect, type SelectOption } from "naive-ui";
-import { money, type Account } from "../api/funds";
+import { money } from "../api/funds";
+import { type Account } from "../api/accounts";
 import {
   settlementsApi,
   type SettlementItem,

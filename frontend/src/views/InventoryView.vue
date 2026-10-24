@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import { NButton, NSelect } from "naive-ui";
-import type { StockAccount, Sku } from "../api/funds";
-import type { Member } from "../api/funds";
-import { warehouse, type InventoryRow } from "../api/warehouse";
+import type { StockAccount } from "../api/accounts";
+import type { Member } from "../api/members";
+import { warehouse, type InventoryRow, type Sku } from "../api/warehouse";
 import AccountLabel from "../components/AccountLabel.vue";
 import PaginationBar from "../components/PaginationBar.vue";
 const props = defineProps<{

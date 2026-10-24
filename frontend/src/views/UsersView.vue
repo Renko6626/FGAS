@@ -1,24 +1,24 @@
 <script setup lang="ts">
 import {onMounted,ref} from 'vue'
 import {NButton,NSelect,NCheckbox,NPopconfirm} from 'naive-ui'
-import {api,type AdminUser} from '../api/funds'
+import {usersApi,type AdminUser} from '../api/users'
 const props=defineProps<{currentUserId:string}>()
 const emit=defineEmits<{changed:[]}>()
 const users=ref<AdminUser[]>([]),error=ref(''),notice=ref(''),busy=ref('')
 const roles=[{label:'管理员',value:'admin'},{label:'受信任用户',value:'trusted'},{label:'普通用户',value:'untrusted'}]
-async function load(){try{users.value=await api.adminUsers()}catch(e){error.value=(e as Error).message}}
+async function load(){try{users.value=await usersApi.adminUsers()}catch(e){error.value=(e as Error).message}}
 onMounted(load)
 function date(value:string|null){return value?new Date(value).toLocaleString('zh-CN'):'从未登录'}
 function short(value:string|null){return value?(value.length>18?value.slice(0,18)+'…':value):'—'}
 async function save(user:AdminUser){
   busy.value=user.id;error.value='';notice.value=''
-  try{await api.saveUser(user);notice.value='已保存';emit('changed');await load()}
+  try{await usersApi.saveUser(user);notice.value='已保存';emit('changed');await load()}
   catch(e){error.value=(e as Error).message;if((e as {status?:number}).status===409)await load()}
   finally{busy.value=''}
 }
 async function force(user:AdminUser){
   busy.value='force:'+user.id;error.value='';notice.value=''
-  try{const result=await api.forceLogout(user.id);notice.value=`已撤销 ${user.display_name} 的 ${result.revoked} 个网页会话`;emit('changed')}
+  try{const result=await usersApi.forceLogout(user.id);notice.value=`已撤销 ${user.display_name} 的 ${result.revoked} 个网页会话`;emit('changed')}
   catch(e){error.value=(e as Error).message}
   finally{busy.value=''}
 }

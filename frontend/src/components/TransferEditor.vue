@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { NButton, NCheckbox, NInput, NModal, NSelect } from "naive-ui";
-import {
-  api,
-  kinds,
-  statuses,
-  type Account,
-  type TransferInput,
-} from "../api/funds";
+import { fundsApi, statuses, type TransferInput } from "../api/funds";
+import { kinds, type Account } from "../api/accounts";
 import AccountAvatar from "./AccountAvatar.vue";
 import TagInput from "./TagInput.vue";
+import { matchesAccountFilters } from "../composables/accountFilters";
 
 const props = defineProps<{
   show: boolean;
@@ -56,20 +52,9 @@ const tagOptions = computed(() =>
     ...new Set(props.accounts.filter((a) => a.active).flatMap((a) => a.tags)),
   ].map((value) => ({ label: value, value })),
 );
-const options = computed(() => {
-  const query = search.value.trim().toLocaleLowerCase();
-  return props.accounts.filter(
-    (a) =>
-      a.active &&
-      (showEnded.value || a.stocktake?.status !== "ended") &&
-      (!category.value || a.kind === category.value) &&
-      (!tag.value || a.tags.includes(tag.value)) &&
-      (!query ||
-        [a.name, a.member_name || "", ...a.tags].some((value) =>
-          value.toLocaleLowerCase().includes(query),
-        )),
-  );
-});
+const options = computed(() => props.accounts.filter(account => matchesAccountFilters(account, {
+  showEnded: showEnded.value, category: category.value, tag: tag.value, search: search.value,
+})));
 const ready = computed(
   () =>
     !!source.value &&
@@ -108,7 +93,7 @@ async function submit() {
   busy.value = true;
   error.value = "";
   try {
-    const result = await api.submit({
+    const result = await fundsApi.submit({
       ...form.value,
       tags: [...form.value.tags],
     });

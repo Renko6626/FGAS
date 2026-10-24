@@ -1,13 +1,9 @@
 from backend.infrastructure import store
-from backend.application.funds import require_trusted
+from backend.application.identity import authorize_write
+from backend.application.directory_views import member_view
 from backend.kernel.accounting import DomainError
 
-def member_view(item): return dict(id=item.id,name=item.name,note=item.note)
 def list_members(db): return [member_view(item) for item in store.members(db)]
-def authorize_write(db,user):
-    store.lock(db); store.refresh(db,user)
-    if not user.active: raise DomainError('用户已停用',403)
-    require_trusted(user)
 def create_member(db,user,data):
     authorize_write(db,user)
     if not data['name'].strip(): raise DomainError('姓名不能为空')

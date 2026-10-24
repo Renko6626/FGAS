@@ -2,7 +2,8 @@
 import { computed, h, ref } from "vue";
 import { NSelect, NCheckbox, type SelectOption } from "naive-ui";
 import AccountLabel from "./AccountLabel.vue";
-import { kinds, type AccountBase } from "../api/funds";
+import { matchesAccountFilters } from "../composables/accountFilters";
+import { kinds, type AccountBase } from "../api/accounts";
 const props = defineProps<{
   accounts: AccountBase[];
   modelValue: string;
@@ -24,10 +25,7 @@ const options = computed(() =>
     .filter(
       (a) =>
         a.id === props.modelValue ||
-        (a.active &&
-          (showEnded.value || a.stocktake?.status !== "ended") &&
-          (!category.value || a.kind === category.value) &&
-          (!tag.value || a.tags.includes(tag.value))),
+        matchesAccountFilters(a, { showEnded: showEnded.value, category: category.value, tag: tag.value }),
     )
     .map((a) => ({ label: a.name, value: a.id })),
 );

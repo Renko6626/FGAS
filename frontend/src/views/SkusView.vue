@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { NButton, NInput, NModal, NCheckbox } from "naive-ui";
 import { request } from "../api/client";
-import type { Sku } from "../api/funds";
+import type { Sku } from "../api/warehouse";
 import AccountLabel from "../components/AccountLabel.vue";
 const props = defineProps<{ items: Sku[]; editable: boolean }>(),
   emit = defineEmits<{ changed: [] }>();

@@ -1,5 +1,5 @@
 import {request, query, type Page} from './client'
-import type {Transfer} from './funds'
+import type { Transfer } from "./funds";
 import type {StockTransfer} from './warehouse'
 export type StocktakeKind='fund'|'stock'
 interface BaseStocktake{id:string;name:string;description:string;status:'in_progress'|'ended';created_by:string;created_at:string}

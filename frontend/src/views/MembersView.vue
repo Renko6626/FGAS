@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import {ref} from 'vue'
 import {NButton,NInput,NModal} from 'naive-ui'
-import type {Member,Account,StockAccount} from '../api/funds'
-import {membersApi} from '../api/members'
+import type {Account,StockAccount} from '../api/accounts'
+import {membersApi,type Member} from '../api/members'
 const props=defineProps<{members:Member[];accounts:Account[];locations:StockAccount[];trusted:boolean}>()
 const emit=defineEmits<{changed:[]}>()
 const show=ref(false),id=ref(''),name=ref(''),note=ref(''),error=ref(''),busy=ref(false)

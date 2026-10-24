@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { AccountBase } from "../api/funds";
+import type { AccountBase } from "../api/accounts";
 import AccountLabel from "./AccountLabel.vue";
 const props = defineProps<{
   accounts: AccountBase[];

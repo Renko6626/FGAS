@@ -1,13 +1,12 @@
 from typing import Literal
 from backend.application.agent_access import AgentAccess, auto_apply, require_operator, source_fields
+from backend.application.identity import require_trusted
 from backend.infrastructure import store
 from backend.infrastructure.models import now
 from backend.kernel.accounting import DomainError, balanced_transfer
 from backend.modules.funds.plans import transfer_plan
 
 
-def require_trusted(user):
-    if user.role not in ('admin', 'trusted'): raise DomainError('需要受信任用户权限', 403)
 def get_transfer(db, identifier):
     item = store.get_transfer(db, identifier)
     if not item: raise DomainError('流水不存在', 404)
@@ -80,9 +79,6 @@ def decide(db, user, identifier, version, rejection=None, *, access=None):
 
 def balance(db, account, *, as_of=None, basis='posted'):
     return store.balance_delta(db, account.id, as_of=as_of, basis=basis)
-
-def account_view(db, account):
-    return {key:getattr(account,key) for key in ('id','name','kind','member_id','avatar_url','tags','active')} | dict(balance_minor=balance(db,account))
 
 def transfer_view(db, item, detail=False):
     value = {key: getattr(item, key) for key in ('id', 'source_account_id', 'destination_account_id', 'amount_minor', 'effective_date', 'description', 'tags', 'counterparty', 'actor_id', 'approved_by', 'approval_mode', 'status', 'version', 'reversal_of', 'reason', 'created_at', 'posted_at', 'submitted_credential_id', 'submitted_credential_name')}

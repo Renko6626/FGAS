@@ -3,7 +3,7 @@ from backend.infrastructure import store, settlement_store
 from backend.infrastructure.models import SettlementMatch
 from backend.application import funds
 from backend.application.agent_access import require_operator
-from backend.application.members import authorize_write
+from backend.application.identity import authorize_write
 from backend.kernel.accounting import DomainError, yuan_to_minor
 
 def settlement_account(db,transfer):

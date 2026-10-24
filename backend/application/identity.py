@@ -15,6 +15,23 @@ def resolve(db, token):
 
 def require_admin(user):
     if user.role != 'admin': raise DomainError('需要管理员权限', 403)
+
+
+def require_trusted(user):
+    if user.role not in ('admin', 'trusted'):
+        raise DomainError('需要受信任用户权限', 403)
+
+
+def authorize_write(db, user, *, trusted=True):
+    """Refresh the actor under the existing write lock before checking access."""
+    store.lock(db)
+    store.refresh(db, user)
+    if not user.active:
+        raise DomainError('用户已停用', 403)
+    if trusted:
+        require_trusted(user)
+
+
 def login_users(db): return [user_view(u) for u in store.users(db, active_only=True)]
 def login(db, identifier):
     user = store.get_user(db, identifier)

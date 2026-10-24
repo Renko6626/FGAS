@@ -27,6 +27,8 @@ Vue / 人工 HTTP       Agent / MCP
 | 代码 | 职责 |
 | --- | --- |
 | `entrypoints` | 人工 HTTP 与 MCP 协议适配、Schema 校验和身份解析，调用应用服务 |
+| `application/identity.py` | 人工身份与会话、用户管理，以及共用的可信角色和目录写入授权检查 |
+| `application/directory_views.py` | 联系人、账户、SKU 与保管信息的基础视图；人工和 Agent 查询保留各自的输出字段 |
 | `application/agent_access.py` | 独立连接凭据、真实所属用户解析与 low/high 固定授权 |
 | `application/agent_queries.py`、`agent_operations.py` | 共同业务查询及明确命名的业务操作，复用原服务 |
 | `application/funds.py` | 普通资金提交、审批、过账与冲销，无垫付标记判断 |
@@ -37,6 +39,9 @@ Vue / 人工 HTTP       Agent / MCP
 | `application/catalogs.py`、`members.py`、`warehouse_catalogs.py` | 账户、联系人、SKU、保管目录 |
 | `kernel`、`modules` | 通用金额/数量和流水方案，不依赖 FastAPI 或具体业务表单 |
 | `infrastructure` | 持久化、快照查询、事务与已有简单写锁，不独立决定业务策略 |
+| `infrastructure/inventory_queries.py` | 库存 SQL、筛选、分页与汇总查询；应用层组织数量格式及返回结果 |
+
+前端按数据加载与记录展示分工：`App.vue` 保留工作台壳、导航和全局编辑入口，会话及工作台资料加载由 composable 组织；API 类型和调用按身份、账户、成员、资金与货物等现有业务归属存放。资金和货物列表页面负责远程筛选与分页，盘点详情使用本地记录容器，两者共用记录展示和详情操作组件。资金关联搜索与账户筛选只复用已有简单逻辑，不增加通用查询框架或状态管理依赖。
 
 ## 3 技术与实例边界
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { NButton, NCheckbox, NInput, NModal, NSelect } from 'naive-ui'
-import type { User } from '../api/funds'
+import type { User } from '../api/auth'
 import { agentConnections, type AgentConnection, type ConnectionInput } from '../api/agentConnections'
 const props = defineProps<{user:User}>()
 const items=ref<AgentConnection[]>([]), busy=ref(false), error=ref(''), notice=ref('')

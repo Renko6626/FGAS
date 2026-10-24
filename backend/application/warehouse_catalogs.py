@@ -1,18 +1,12 @@
 from backend.infrastructure import store, stock_store, stocktake_store
 from backend.infrastructure.models import Sku, StockAccountCustody, now
-from backend.application.funds import require_trusted
+from backend.application import directory_views
+from backend.application.identity import authorize_write
 from backend.kernel.accounting import DomainError
 
 
-def authorize_write(db, user):
-    store.lock(db)
-    store.refresh(db, user)
-    if not user.active: raise DomainError('用户已停用', 403)
-    require_trusted(user)
-
-
 def sku_view(item):
-    return {key: getattr(item, key) for key in ('id', 'name', 'specification', 'unit', 'avatar_url', 'active')}
+    return directory_views.sku_view(item) | dict(avatar_url=item.avatar_url)
 def skus(db): return [sku_view(item) for item in stock_store.skus(db)]
 def validate_sku(values):
     for key in ('name', 'unit'):
@@ -35,12 +29,9 @@ def update_sku(db, user, identifier, data):
 
 
 def account_view(db,item):
-    custody=stock_store.current_custody(db,item.id)
-    member=store.get_member(db,custody.member_id) if custody else None
-    contact=store.get_member(db,item.member_id) if item.member_id else None
-    return {key:getattr(item,key) for key in ('id','name','kind','member_id','avatar_url','tags','active')} | dict(
-        member_name=contact.name if contact else None,stocktake=stocktake_store.endpoint_metadata(db,'stock',item.id),
-        current_custody=dict(id=custody.id,member_id=member.id,member_name=member.name,valid_from=custody.valid_from,actor_id=custody.actor_id) if custody else None)
+    return directory_views.account_view(db, item) | dict(
+        avatar_url=item.avatar_url, stocktake=stocktake_store.endpoint_metadata(db, 'stock', item.id),
+        current_custody=directory_views.current_custody_view(db, item.id))
 
 def set_custody(db,user,account_id,member_id):
     authorize_write(db,user)

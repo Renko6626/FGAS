@@ -1,14 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch, onMounted } from "vue";
 import { NButton, NInput, NModal } from "naive-ui";
-import type {
-  Account,
-  StockAccount,
-  Sku,
-  Transfer,
-  TransferInput,
-  Member,
-} from "../api/funds";
+import type { Account, StockAccount } from "../api/accounts";
+import type { Sku } from "../api/warehouse";
+import type { Transfer, TransferInput } from "../api/funds";
+import type { Member } from "../api/members";
 import type { StockTransfer } from "../api/warehouse";
 import {
   stocktakesApi,
@@ -18,8 +14,8 @@ import {
 } from "../api/stocktakes";
 import AccountLabel from "../components/AccountLabel.vue";
 import PaginationBar from "../components/PaginationBar.vue";
-import TransfersView from "./TransfersView.vue";
-import StockTransfersView from "./StockTransfersView.vue";
+import StocktakeFundRecords from "../components/StocktakeFundRecords.vue";
+import StocktakeStockRecords from "../components/StocktakeStockRecords.vue";
 import TransferEditor from "../components/TransferEditor.vue";
 import StockTransferEditor from "../components/StockTransferEditor.vue";
 
@@ -340,18 +336,16 @@ onMounted(load);
         >
       </div>
     </div>
-    <TransfersView
+    <StocktakeFundRecords
       v-if="kind === 'fund'"
       :key="detail.stocktake.id"
       :items="detail.transfers as Transfer[]"
       :accounts="accounts"
-      :approvals="false"
       :trusted="trusted"
-      hide-create
       @changed="changed"
       @notice="emit('notice', $event)"
     />
-    <StockTransfersView
+    <StocktakeStockRecords
       v-else
       :key="detail.stocktake.id"
       :items="detail.transfers as StockTransfer[]"

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, ref } from "vue";
+import { h, ref } from "vue";
 import { NButton, NInput, NModal, NSelect, type SelectOption } from "naive-ui";
-import type { StockAccount, Sku, Account } from "../api/funds";
-import { api, statuses as fundStatuses } from "../api/funds";
+import type { StockAccount, Account } from "../api/accounts";
+import type { Sku } from "../api/warehouse";
+import { useFundTransferOptions } from "../composables/useFundTransferOptions";
 import { warehouse, today, type StockInput } from "../api/warehouse";
 import StockAccountSelector from "./StockAccountSelector.vue";
 import EndpointSelector from "./EndpointSelector.vue";
@@ -17,34 +18,6 @@ const props = defineProps<{
   initial?: Partial<StockInput>;
 }>();
 const emit = defineEmits<{ saved: [] }>();
-const fundResults = ref<SelectOption[]>([]), fundCache = ref<Record<string, string>>({}),
-  fundLoading = ref(false);
-let fundTimer: number | undefined;
-async function searchFunds(query: string) {
-  window.clearTimeout(fundTimer);
-  fundTimer = window.setTimeout(async () => {
-    fundLoading.value = true;
-    try {
-      const result = await api.transfers({ q: query.trim() || undefined, limit: 20 });
-      fundResults.value = result.items.map((f) => {
-        const label = `${f.description || f.id}（${fundStatuses[f.status] || f.status}）`;
-        fundCache.value[f.id] = label;
-        return { label, value: f.id };
-      });
-    } catch {
-      fundResults.value = [];
-    } finally {
-      fundLoading.value = false;
-    }
-  }, 200);
-}
-const fundOptions = computed(() => {
-  const options = [...fundResults.value];
-  for (const id of refs.value)
-    if (!options.some((option) => option.value === id))
-      options.push({ label: fundCache.value[id] || id, value: id });
-  return options;
-});
 const show = ref(false),
   busy = ref(false),
   error = ref(""),
@@ -57,6 +30,7 @@ const show = ref(false),
   related = ref(""),
   refs = ref<string[]>([]),
   lines = ref([{ sku_id: "", quantity: "" }]);
+const { options: fundOptions, loading: fundLoading, search: searchFunds } = useFundTransferOptions(() => refs.value);
 const moneyMode = ref("none"),
   moneySource = ref(""),
   moneyDestination = ref(""),
@@ -93,7 +67,6 @@ function renderSkuLabel(option: SelectOption) {
   ]);
 }
 defineExpose({ open });
-onBeforeUnmount(() => window.clearTimeout(fundTimer));
 async function save() {
   if (busy.value) return;
   busy.value = true;

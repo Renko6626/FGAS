@@ -1,5 +1,6 @@
 import {request} from './client'
-import type {Account,Transfer,TransferInput} from './funds'
+import type { Account } from './accounts'
+import type { Transfer, TransferInput } from "./funds";
 export interface SettlementItem{transfer:Transfer;settled_minor:number;outstanding_minor:number}
 export interface Match{item_transfer_id:string;amount_minor:number;effective:boolean}
 export interface SettlementPayment{transfer:Transfer;matched_minor:number;unmatched_minor:number;matches:Match[]}
