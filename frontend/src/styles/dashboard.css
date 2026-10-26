@@ -1,6 +1,22 @@
 .dashboard-overview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 .dashboard-overview span { font-family: inherit; }
 .dashboard-overview .overview-panel, .dashboard-overview .home-records { padding: 16px 20px; }
+.dashboard-overview .member-balances { grid-column: 1 / -1; min-width: 0; padding: 16px 20px; background: #fff9ed; }
+.member-balances .overview-heading h2 { color: #8c4c12; }
+.member-balances-note { margin: 6px 0 10px; font-size: 12px; color: #744d29; }
+.member-balances-summary { display: flex; flex-wrap: wrap; gap: 8px 30px; padding-bottom: 10px; border-bottom: 1px solid #ddc9ad; }
+.member-balances-summary > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.member-balances-summary span { font-size: 12px; }
+.member-balances-summary strong { font-size: 20px; font-weight: 500; overflow-wrap: anywhere; }
+.member-balances-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; list-style: none; margin: 4px 0 0; padding: 0; }
+.member-balances-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 16px; min-width: 0; padding: 8px 0; border-bottom: 1px solid #eadfcf; font-size: 12px; }
+.member-balance-account { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; overflow-wrap: anywhere; }
+.member-balance-account strong { font-weight: 500; }
+.member-balance-account small { padding: 0 4px; border: 1px solid #b9ad9c; color: #70604f; font-size: 10px; white-space: nowrap; }
+.member-balance-amount { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px 8px; text-align: right; }
+.member-balance-amount span { font-size: 11px; white-space: nowrap; }
+.member-balance-amount strong { font-weight: 500; overflow-wrap: anywhere; }
+.member-balances-summary, .member-balance-amount { font-variant-numeric: tabular-nums; }
 .overview-caption { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 7px; }
 .overview-caption small { font-size: 11px; }
 .overview-caption small:last-child { text-align: right; }
@@ -78,6 +94,10 @@
 @media (max-width: 600px) {
   .dashboard-overview { gap: 12px; }
   .dashboard-overview .fantasy_guide_div_1 { padding: 14px; }
+  .member-balances .overview-heading { align-items: flex-start; flex-wrap: wrap; gap: 8px; }
+  .member-balances-list { grid-template-columns: minmax(0, 1fr); }
+  .member-balances-summary { gap: 6px 20px; }
+  .member-balances-summary strong { font-size: 18px; }
   .overview-caption { align-items: flex-start; }
   .overview-caption small { font-size: 10px; }
   .fund-balance strong { font-size: 32px; }

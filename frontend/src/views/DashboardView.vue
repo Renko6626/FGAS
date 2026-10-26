@@ -4,9 +4,10 @@ import { NButton } from "naive-ui";
 import { money, statuses } from "../presentation/funds";
 import { stockStatuses } from "../presentation/warehouse";
 import type { Dashboard } from "../api/dashboard";
+import type { Account } from "../api/accounts";
 import AccountAvatar from "../components/AccountAvatar.vue";
 
-const props = defineProps<{ data: Dashboard | null; loading: boolean; trusted: boolean }>();
+const props = defineProps<{ data: Dashboard | null; accounts: Account[]; loading: boolean; trusted: boolean }>();
 const emit = defineEmits<{
   navigate: [string, ("funds" | "stock")?];
   create: [];
@@ -17,6 +18,9 @@ const filters = [{ value: "all", label: "全部" }, { value: "funds", label: "�
 const operations = computed(() => props.data?.operations[filter.value] ?? []);
 const stockedKinds = computed(() => props.data?.stock.skus.filter(row => BigInt(row.quantity) > 0n).length ?? 0);
 const featuredSkus = computed(() => props.data?.stock.skus.slice(0, 4) ?? []);
+const unsettledAccounts = computed(() => props.accounts.filter(account => account.kind === "private" && account.balance_minor !== 0));
+const memberReceivable = computed(() => unsettledAccounts.value.reduce((total, account) => total + Math.max(account.balance_minor, 0), 0));
+const memberPayable = computed(() => unsettledAccounts.value.reduce((total, account) => total + Math.max(-account.balance_minor, 0), 0));
 function signedMoney(value: number) { return `${value > 0 ? "+" : ""}${money(value)}`; }
 function signedQuantity(value: string) { return `${BigInt(value) > 0n ? "+" : ""}${value}`; }
 function tone(value: string | number) { return BigInt(value) > 0n ? "increase" : BigInt(value) < 0n ? "decrease" : "unchanged"; }
@@ -34,6 +38,23 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
 
 <template>
   <div class="dashboard dashboard-overview" :aria-busy="loading">
+    <section v-if="unsettledAccounts.length" class="member-balances fantasy_guide_div_1" aria-labelledby="member-balances-heading">
+      <div class="overview-heading">
+        <h2 id="member-balances-heading">成员往来待结清</h2>
+        <NButton class="overview-link" type="primary" size="small" @click="emit('navigate', 'settlements')">查看私账结算</NButton>
+      </div>
+      <p class="member-balances-note">{{ unsettledAccounts.length }} 个成员私账余额非零，请及时核对处理，尽量结清归零。</p>
+      <div class="member-balances-summary">
+        <div><span>成员应交回</span><strong>¥ {{ money(memberReceivable) }}</strong></div>
+        <div><span>社团应偿还</span><strong>¥ {{ money(memberPayable) }}</strong></div>
+      </div>
+      <ul class="member-balances-list">
+        <li v-for="account in unsettledAccounts" :key="account.id">
+          <div class="member-balance-account"><strong>{{ account.name }}</strong><small v-if="!account.active">已停用</small></div>
+          <div class="member-balance-amount"><span>{{ account.balance_minor > 0 ? '成员应交回' : '社团应偿还' }}</span><strong>¥ {{ money(Math.abs(account.balance_minor)) }}</strong></div>
+        </li>
+      </ul>
+    </section>
     <template v-if="data">
       <div class="overview-caption">
         <small>近 7 天按实际入账统计</small>

@@ -270,6 +270,7 @@ onMounted(async () => {
           <DashboardView
             v-if="tab === 'home'"
             :data="dashboard"
+            :accounts="accounts"
             :loading="busy"
             :trusted="trusted"
             @navigate="navigate"
