@@ -2,11 +2,13 @@
 
 2026-10-14 建立自由账户与 Transfer 架构，当前状态核对至 2026-10-25。模块化单体，单社团、人民币、独立实例。业务定义见 [Transfer 模型](docs/transfer-model.md)，实施边界见 [实施计划](docs/superpowers/plans/2026-10-14-flexible-transfer-core-plan.md)，验证与运行状态见 [阶段记录](docs/prototype-status.md)。旧阶段设计文件保留当时方案，新代码以本文及当前 Transfer 模型为准。
 
+2026-10-27 范围收敛：薄盘点暂时停用，网页不显示入口，HTTP 路由拒绝访问并从 OpenAPI 隐藏，MCP 不发现或接受盘点资源。盘点代码与表保留，下文盘点结构为休眠实现。恢复由现有盘点模块的 `ENABLED` 与 `frontend/src/features.ts` 的常量控制，不增加运行时开关平台。货物在途及整笔完成流程保留；历史余额／库存查询默认实际入账时间，业务日期作为明确指定的备选。货物账户统一为 internal/external；完整内容快照删除，审计仅保留操作信息，前端不显示原始 JSON。本轮开发数据按用户授权备份后重建。
+
 ## 1 核心目标与第一阶段范围
 
 记录钱和货如何变化、当前账面余额及数量、各私账原收支结清多少、谁发起批准和完成，以及如何留痕更正。核心业务覆盖资金收付、内部转账、成员报销与代收交回、采购到货、销售赠送、调拨退回、损耗、期初与阶段盘点。
 
-社团成员私人完整余额不纳入系统，私账只记录其与社团的往来。公私货物账户均保存社团货物，外部账户表达边界，不管理商家或客户真实库存。货物按数量记录，第一阶段不估值，不推算成本或利润。
+社团成员私人完整余额不纳入系统，私账只记录其与社团的往来。货物账户仅分 `internal` 实际保管和 `external` 外部，实际保管含社团仓库及成员长期代管；外部账户表达边界，不管理商家或客户真实库存。货物按数量记录，第一阶段不估值，不推算成本或利润。
 
 ## 2 层次与依赖
 
@@ -69,7 +71,7 @@ Vue / 人工 HTTP       Agent / MCP
 
 ### 账户与成员
 
-`FundAccount/fund_accounts` 与 `StockAccount/stock_accounts` 共用 `id/name/kind/avatar_url/tags/active`。资金账户保存可空 member_id 联系人；货物账户不保存独立联系人列，返回的 member_id/member_name 来自当前负责人历史记录。`kind` 为公账、私账、外部，创建后不可变。可选成员关联表示对应人/联系人，独立于类型；名称、联系人、头像、标签和启用状态可修改。
+`FundAccount/fund_accounts` 与 `StockAccount/stock_accounts` 共用 `id/name/kind/avatar_url/tags/active`。资金账户保存可空 member_id 联系人，`kind` 为 `public/private/external`；货物账户为 `internal/external`，不保存独立联系人列，返回的 member_id/member_name 来自当前负责人历史记录。两类账户的 kind 创建后不可变。可选成员关联表示对应人/联系人，独立于类型；名称、联系人、头像、标签和启用状态可修改。
 
 SKU 保存名称、规格、单位、启用状态及可空 `avatar_url`，缩略图只用于目录和货物显示，不影响库存规则；已被引用的单位仍固定。货物账户和 SKU 的图片 URL 可修改或清空。文字头像按名称生成稳定配色，不增加颜色存储字段。
 
@@ -82,6 +84,8 @@ SKU 保存名称、规格、单位、启用状态及可空 `avatar_url`，缩略
 资金 `Transfer/transfers` 保留两端、金额分、日期、可选说明/往来方、标签、状态、发起审批、版本、冲销引用及创建时间；`JournalLine/journal_lines` 是正式平衡分录。
 
 货物 `StockTransfer/stock_transfers` 使用账户两端、日期、可选说明/标签/原单引用/原始单据引用、状态及审批记录，明细可含多 SKU，数量为正整数。`StockConfirmation` 保存额外整笔完成申请，`StockMove` 是唯一正式数量流水。不保存父批次、部分完成、预留或虚拟在途库存。
+
+货物不保存批准或执行的完整内容快照。`StockAudit.detail` 仅保存操作原因、状态、批准方式及必要的申请／资金引用编号，操作人、时间和 Agent 来源沿用审计自身字段；不复制账户、SKU 或单据内容。前端通过对应完成审计展示批准方式和连接。2026-10-27 用户明确授权直接同步 `0001` 基线、备份并重建开发 FGAS 表，本轮不新增 migration、回填或兼容。
 
 原单引用用于追溯，只要求存在且非自身，不匹配用途、状态、地点或 SKU。关联不能替代结算计算关系，也不扩展通用关系表。
 
@@ -137,7 +141,7 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具。所有原有业务能力通过固定 resource/action 组合保留，列表与详情共用 query。MCP 适配层的 agent_catalog 契约表共用于帮助、精确参数校验与固定函数分派，应用层不反向依赖它。公开 Schema 只声明小型外壳，具体操作的 help 默认只返回说明、精确输入 Schema 和示例，`include_output_schema=true` 才附完整输出 Schema；服务端仍按选中的输入/输出模型校验。状态分别按资金/货物枚举校验，help 的 resource/action 也从固定契约表声明枚举。propose 对两档始终待审，execute 及其应用函数均校验 high。返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/ID排序、业务按创建时间/ID倒序，page/limit/has_more 标明分页；库存和货物流水直接使用数据库分页与总数，库存 totals 汇总全部筛选结果，货物列表仅读取列表所需资料；联系人提供 note，货物账户通过 member_id/member_name 提供负责人，identifier 详情含 responsibility_history；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。事件列表（资金单、货物单、货物流水）默认最近 30 天按 `created_at` 录入时间，`all_time=true` 或显式时间条件才查更早/全量；`identifier` 详情不受窗口影响。`fund_balances` 和 `inventory` 支持 `as_of`/`basis`：默认按 `transfers.posted_at` 或 `stock_moves.created_at` 的过账时间，`basis=effective_date` 按业务日期；库存 as-of 只计算 on-hand，历史在途不可用。
 
-三种 propose 对管理员所属 high 也固定待审。资金 direct 过账、货物 direct 在途、完成 direct 才写 StockMove。`submit_mode` 仅服务内部参数，客户端不能指定。资金和货物主单、完成申请记录 `submitted_credential_id/name`；审计记录实际操作者 `agent_credential_id/name`，审批/执行快照保留连接。`approval_mode` 区分 `agent_direct`、`agent_approval` 及人工既有 automatic/manual，改连接名称不覆盖历史快照。原历史字段为空时仍按人工记录解释。
+三种 propose 对管理员所属 high 也固定待审。资金 direct 过账、货物 direct 在途、完成 direct 才写 StockMove。`submit_mode` 仅服务内部参数，客户端不能指定。资金和货物主单、完成申请记录 `submitted_credential_id/name`；审计记录实际操作者 `agent_credential_id/name`。主单 `approval_mode` 及完成审计的 mode 区分 `agent_direct`、`agent_approval` 及人工既有 automatic/manual，连接改名不覆盖已保存的来源名称。
 
 结果使用 `api_version='2'`，写入明确 resource_type、业务 ID、status、ledger_effect_applied、approval_required；完成同时给 confirmation_id 和 stock_transfer_id。金额保留整数分并配元字符串；Patch 省略保留，仅允许清空的字段接受 null。输入错误返回 validation_error、字段位置及可调用的帮助参数；业务错误保留 permission_denied、not_found、state_conflict，服务端错误为 internal_error。pending 是普通成功，无自动重试、幂等回放、恢复队列或 OAuth 服务。
 

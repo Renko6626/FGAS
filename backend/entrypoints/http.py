@@ -110,13 +110,13 @@ def create_account(data: AccountCreate, user=Depends(identity), db=database_depe
 def patch_account(identifier: str, data: AccountPatch, user=Depends(identity), db=database_dependency):
     return catalogs.update_account(db, user, identifier, data.model_dump(exclude_unset=True))
 @router.get('/api/stock-accounts')
-def stock_accounts(tag: str | None=None, kind: str | None=None, member_id: str | None=None, user=Depends(identity), db=database_dependency):
+def stock_accounts(tag: str | None=None, kind: Literal['internal', 'external'] | None=None, member_id: str | None=None, user=Depends(identity), db=database_dependency):
     return catalogs.stock_accounts(db, tag, kind, member_id)
 @router.get('/api/stock-accounts/{identifier}')
 def stock_account_detail(identifier: str, user=Depends(identity), db=database_dependency):
     return warehouse_catalogs.account_detail(db, identifier)
 @router.post('/api/stock-accounts', status_code=201)
-def create_location(data: AccountCreate, user=Depends(identity), db=database_dependency):
+def create_location(data: StockAccountCreate, user=Depends(identity), db=database_dependency):
     return catalogs.create_stock_account(db, user, data.model_dump())
 @router.patch('/api/stock-accounts/{identifier}')
 def patch_location(identifier: str, data: AccountPatch, user=Depends(identity), db=database_dependency):
@@ -246,41 +246,51 @@ def submit_stock_operation(data: StockOperationInput, user=Depends(identity), db
 
 from backend.application import stocktakes
 
-@router.get('/api/fund-stocktakes')
+def require_stocktakes_enabled():
+    if not stocktakes.ENABLED:
+        raise DomainError('盘点功能已暂停', 404)
+
+stocktake_router = APIRouter(dependencies=[Depends(require_stocktakes_enabled)],
+                           include_in_schema=stocktakes.ENABLED)
+
+@stocktake_router.get('/api/fund-stocktakes')
 def list_fund_stocktakes(status: Literal['in_progress', 'ended'] | None=None, q: str | None=None,
                          page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
                          user=Depends(identity), db=database_dependency):
     return stocktakes.list_stocktakes_page(db, 'fund', status, q, page, limit)
-@router.post('/api/fund-stocktakes', status_code=201)
+@stocktake_router.post('/api/fund-stocktakes', status_code=201)
 def create_fund_stocktake(data: StocktakeCreate, user=Depends(identity), db=database_dependency):
     return stocktakes.create_stocktake(db, user, 'fund', data.model_dump())
-@router.get('/api/fund-stocktakes/{identifier}')
+@stocktake_router.get('/api/fund-stocktakes/{identifier}')
 def get_fund_stocktake(identifier: str, user=Depends(identity), db=database_dependency):
     return stocktakes.get_stocktake(db, 'fund', identifier)
-@router.patch('/api/fund-stocktakes/{identifier}')
+@stocktake_router.patch('/api/fund-stocktakes/{identifier}')
 def patch_fund_stocktake(identifier: str, data: StocktakePatch, user=Depends(identity), db=database_dependency):
     return stocktakes.update_description(db, user, 'fund', identifier, data.description)
-@router.post('/api/fund-stocktakes/{identifier}/end')
+@stocktake_router.post('/api/fund-stocktakes/{identifier}/end')
 def end_fund_stocktake(identifier: str, user=Depends(identity), db=database_dependency):
     return stocktakes.end_stocktake(db, user, 'fund', identifier)
 
-@router.get('/api/stock-stocktakes')
+@stocktake_router.get('/api/stock-stocktakes')
 def list_stock_stocktakes(status: Literal['in_progress', 'ended'] | None=None, q: str | None=None,
                           page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
                           user=Depends(identity), db=database_dependency):
     return stocktakes.list_stocktakes_page(db, 'stock', status, q, page, limit)
-@router.post('/api/stock-stocktakes', status_code=201)
+@stocktake_router.post('/api/stock-stocktakes', status_code=201)
 def create_stock_stocktake(data: StocktakeCreate, user=Depends(identity), db=database_dependency):
     return stocktakes.create_stocktake(db, user, 'stock', data.model_dump())
-@router.get('/api/stock-stocktakes/{identifier}')
+@stocktake_router.get('/api/stock-stocktakes/{identifier}')
 def get_stock_stocktake(identifier: str, user=Depends(identity), db=database_dependency):
     return stocktakes.get_stocktake(db, 'stock', identifier)
-@router.patch('/api/stock-stocktakes/{identifier}')
+@stocktake_router.patch('/api/stock-stocktakes/{identifier}')
 def patch_stock_stocktake(identifier: str, data: StocktakePatch, user=Depends(identity), db=database_dependency):
     return stocktakes.update_description(db, user, 'stock', identifier, data.description)
-@router.post('/api/stock-stocktakes/{identifier}/end')
+@stocktake_router.post('/api/stock-stocktakes/{identifier}/end')
 def end_stock_stocktake(identifier: str, user=Depends(identity), db=database_dependency):
     return stocktakes.end_stocktake(db, user, 'stock', identifier)
+
+
+router.include_router(stocktake_router)
 
 
 def create_app():

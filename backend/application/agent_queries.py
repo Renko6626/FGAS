@@ -202,6 +202,6 @@ def get_fund_stocktake(db, access: AgentAccess, identifier: str) -> dict:
 def get_stock_stocktake(db, access: AgentAccess, identifier: str) -> dict:
     value = stocktakes.get_stocktake(db, 'stock', identifier)
     for row in value['transfers']:
-        for key in ('audit','approval_snapshot','confirmations','related_transfers','fund_references'):
+        for key in ('audit','confirmations','related_transfers','fund_references'):
             row.pop(key, None)
     return _result(value)

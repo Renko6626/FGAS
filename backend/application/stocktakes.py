@@ -1,4 +1,7 @@
 """Stocktakes organize ordinary Transfers through dedicated endpoints."""
+# Temporarily disabled at HTTP/MCP entrypoints; retain the implementation and data.
+ENABLED = False
+
 from backend.infrastructure import store, stocktake_store
 from backend.application import catalogs, funds, warehouse
 from backend.application.identity import authorize_write

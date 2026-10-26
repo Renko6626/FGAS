@@ -1,6 +1,6 @@
 # FGAS Agent 业务与操作指南
 
-guide_version：2026-10-27-v3，api_version：2。入门见 [核心模型](overview.md)。接口处于开发阶段，客户端验证范围见项目阶段记录。
+guide_version：2026-10-27-v5，api_version：2。入门见 [核心模型](overview.md)。接口处于开发阶段，客户端验证范围见项目阶段记录。
 
 ## 1. 先把用户的话还原成账本事实
 
@@ -14,8 +14,9 @@ guide_version：2026-10-27-v3，api_version：2。入门见 [核心模型](overv
 
 | 类型 | 资金 | 货物 |
 | --- | --- | --- |
-| public | 社团公账，计入公账合计 | 计入组织库存 |
-| private | 与社团往来：流入减流出为正应交回，为负应偿还 | 仍计入组织库存 |
+| public | 社团公账，计入公账合计 | 不使用此分类 |
+| private | 与社团往来：流入减流出为正应交回，为负应偿还 | 不使用此分类 |
+| internal | 不使用此分类 | 实际保管，含成员长期代管，计入组织库存 |
 | external | 外部收支、期初、盈亏端点 | 组织外部端点，不计入组织库存 |
 
 kind 创建后固定。成员与联系人是业务人员资料，登录用户决定权限；资金账户关联联系人，货物账户只维护一名负责人，member_id/member_name 为当前负责人。更换人员自动保留负责人历史，不转移钱货、债务或权限。创建联系人不创建登录用户，也不自动开私账；同一联系人的多个私账分别结算。
@@ -52,7 +53,7 @@ item 的 remaining 是原收支未结金额，payment 的 remaining 是已有结
 
 ## 5. 盘点、期初与更正
 
-盘点保存名称、说明、整理状态和专属盈亏账户。账面100本、实点97本时，用仓库→本次盘亏账户的3本转移调整，完成后才改变库存。创建或结束盘点均不调整账目，也不证明差异已结清。
+盘点功能暂时停用，网页、HTTP 和 MCP 均不提供盘点操作；原有代码、表与历史记录保留。需要登记盈亏时，仍使用普通资金或货物转移表达实际调整，货物完成后才改变库存。
 
 期初同样用外部端点与组织账户间的转移。已生效错误保留原单：资金用冲销，货物新增更正转移。普通关联不替代结算匹配；不能直接改余额或库存。
 
@@ -61,13 +62,13 @@ item 的 remaining 是原收支未结金额，payment 的 remaining 是已有结
 | 工具 | 参数与用途 |
 | --- | --- |
 | fgas_help | 默认看模型和权限；topic=query/propose/execute，加 resource，execute 可加 action 查具体用法；topic=guide 读本文 |
-| fgas_query | resource 选对象；filters 查列表；货物账户、转移和盘点可用 identifier 查详情，详情不能附非空 filters |
+| fgas_query | resource 选对象；filters 查列表；货物账户和转移可用 identifier 查详情，详情不能附非空 filters |
 | fgas_propose | resource + data；仅资金、货物、整笔完成三种申请，high 也固定待审 |
 | fgas_execute | resource + action + data；仅 high 直接办理 |
 
 **默认使用 low。** low/high 读取范围相同，沿用有效网页登录用户可读的业务范围。所有启用用户（含普通用户）均可在网页按需创建自己的 low，默认名称为“某某的 AI”；管理员可额外创建自己的 high。连接属于真实用户，不创建独立 AI 用户、业务联系人或资金账户。low 只可查询和提交三种待审申请，不继承所属用户的人工自动批准权限；没有审批、直接记账或目录维护能力。low 缺少所需账户或 SKU 时，报告具体缺项，请人工准备，不自行升级连接。
 
-连接后用 `fgas_help()` 的 level 核实当前权限。high 增加直接办理、审批和目录维护能力，但不表示用户已授权任意操作；用户要求送审时，high 也用 propose。不要为绕过审批、解决客户端错误或完成测试而索取 high。申请沿用原有审批流程，用户和连接来源用于追溯。所属用户、凭据和等级每次调用重新校验；停用用户阻断其所有连接，high 始终要求所属用户为管理员。用户、角色、凭据由人工管理。query 的目录、转移、盘点资源名用复数，propose/execute 用单数，以各入口的 resource 枚举为准。
+连接后用 `fgas_help()` 的 level 核实当前权限。high 增加直接办理、审批和目录维护能力，但不表示用户已授权任意操作；用户要求送审时，high 也用 propose。不要为绕过审批、解决客户端错误或完成测试而索取 high。申请沿用原有审批流程，用户和连接来源用于追溯。所属用户、凭据和等级每次调用重新校验；停用用户阻断其所有连接，high 始终要求所属用户为管理员。用户、角色、凭据由人工管理。query 的目录和转移资源名用复数，propose/execute 用单数，以各入口的 resource 枚举为准。
 
 首次提交资金可先查 `fgas_help({"topic":"propose","resource":"fund_transfer"})`，再按返回示例填写真实端点、金额和业务日期。示例 ID 与日期不能直接用于登记；熟悉参数后无需反复读帮助。
 
@@ -83,8 +84,8 @@ stock_transfer/complete 和 stock_completion 提议的 data.identifier 是父货
 - 业务日期 YYYY-MM-DD。不默认今天就是业务日期；用户已明确的信息不重复确认，缺少或矛盾的关键事实集中询问。
 - Patch 只传要改的字段。省略保留原值，明确清空且 Schema 允许才传 null。状态等枚举必须使用帮助中的合法值。
 - 列表 page 默认1、limit 默认20，上限100；has_more=true 继续翻页。资金/货物转移和货物流水按录入时间倒序，目录按名称/ID排序。
-- 事件列表默认近30天录入记录；all_time=true 或任一 created_at_*/effective_date_*/posted_at_* 条件关闭默认窗口。详情、目录、余额、库存、盘点、结算不套此窗口。业务日期区间含两端，录入/过账时间须带时区且左闭右开。
-- fund_balances/inventory 的 as_of 是带时区时间。basis=posted 按实际过账时点，basis=effective_date 按业务日期。资金保留原单和冲销分录；历史库存只给 on-hand，在途量为 null。货物流水 posted_at 等于 created_at。
+- 事件列表默认近30天录入记录；all_time=true 或任一 created_at_*/effective_date_*/posted_at_* 条件关闭默认窗口。详情、目录、余额、库存、结算不套此窗口。业务日期区间含两端，录入/过账时间须带时区且左闭右开。
+- fund_balances/inventory 的 as_of 是带时区时间。默认 basis=posted，按实际入账时间核对；只有用户明确要求按业务日期核对时才选 basis=effective_date。资金保留原单和冲销分录；历史库存只给 on-hand，在途量为 null。货物流水 posted_at 等于 created_at。
 - fund_balances.total 始终是全部公账合计，不随 items 筛选改变；inventory.totals 汇总全部筛选结果，不限于当前页。
 - 货物账户和 inventory 的 member_id 均筛选当前负责人，返回行 member_id/member_name 含义一致。high 用 stock_account/create、update 的 member_id 设置或更换负责人，省略保留、null 清空，重复设置同一人不新增历史。旧 set_custody 动作、custodian_id 筛选与 current_custody 返回字段已移除，请刷新契约；负责人变更不改变库存。
 - submitted_by_current_connection=true 查本连接提交的记录；货物还包括本连接申请完成的父单。进入详情按 confirmation_id 分辨申请状态；此筛选不提供去重或会话记忆。

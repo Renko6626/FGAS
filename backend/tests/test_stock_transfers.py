@@ -22,7 +22,7 @@ def test_sku_thumbnail_url(client):
 
 def test_stock_submission_and_approval(client):
     source = client.post('/api/stock-accounts', json=dict(name='商家', kind='external')).json()['id']
-    target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='public')).json()['id']
+    target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='internal')).json()['id']
     skus = [client.post('/api/skus', json=dict(name=name, unit=unit)).json()['id'] for name, unit in [('书', '本'), ('材料', '件')]]
     payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', source_reference='receipt:A', lines=[dict(sku_id=skus[0], quantity='2'), dict(sku_id=skus[1], quantity='125')])
     trusted = client.post('/api/stock-transfers', json=payload)
@@ -30,13 +30,12 @@ def test_stock_submission_and_approval(client):
     trusted = trusted.json()
     assert trusted['status'] == 'in_transit' and trusted['approval_mode'] == 'automatic'
     assert {line['sku_id']: line['quantity'] for line in trusted['lines']} == {skus[0]: '2', skus[1]: '125'}
-    assert trusted['approval_snapshot']['lines'] == trusted['lines']
     assert client.patch(f'/api/skus/{skus[0]}', json={'unit': '套'}).status_code == 409
     assert client.patch(f'/api/skus/{skus[1]}', json={'quantity_scale': 2}).status_code == 422
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
     pending_payload = payload
     pending = client.post('/api/stock-transfers', json=pending_payload).json()
-    assert pending['status'] == 'pending' and pending['approval_snapshot'] is None
+    assert pending['status'] == 'pending'
     versions = dict()
     path = f"/api/stock-transfers/{pending['id']}/approve"
     assert client.post(path, json=versions).status_code == 403
@@ -65,7 +64,7 @@ def test_stock_submission_and_approval(client):
 
 def stock_setup(client):
     opening = client.post('/api/stock-accounts', json=dict(name='期初', kind='external')).json()['id']
-    a, b = [client.post('/api/stock-accounts', json=dict(name=name, kind='public')).json()['id'] for name in ('A', 'B')]
+    a, b = [client.post('/api/stock-accounts', json=dict(name=name, kind='internal')).json()['id'] for name in ('A', 'B')]
     skus = [client.post('/api/skus', json=dict(name=name, unit='本')).json()['id'] for name in ('书', '册')]
     return (opening, a, b, skus)
 
@@ -227,7 +226,7 @@ def test_stock_responsible_history_and_inventory(client):
     opening, a, b, skus = stock_setup(client)
     people = [client.post('/api/members', json={'name': name}).json() for name in ('小王', '小李')]
     account = client.post('/api/stock-accounts', json={
-        'name': '成员代管处', 'kind': 'private', 'member_id': people[0]['id'],
+        'name': '成员代管处', 'kind': 'internal', 'member_id': people[0]['id'],
     }).json()
     path = '/api/stock-accounts/' + account['id']
     response = client.get(path)
@@ -283,7 +282,7 @@ def test_under_shipped_independent_endpoint_adjustments(client):
 
 def operation_payload(client):
     source = client.post('/api/stock-accounts', json=dict(name='供应商', kind='external')).json()['id']
-    target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='public')).json()['id']
+    target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='internal')).json()['id']
     sku = client.post('/api/skus', json=dict(name='书', unit='本')).json()['id']
     return dict(stock=dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', lines=[dict(sku_id=sku, quantity='100')]), money=dict(source_account_id='fund_pool', destination_account_id='expense', amount='1000', effective_date='2026-10-13'))
 
@@ -332,8 +331,10 @@ def test_combined_operation_database_failures_leave_no_halves(client):
                 db.execute(text('DROP FUNCTION fail_combined()'))
     assert client.post('/api/stock-operations', json=payload).status_code == 201
 
-def test_stock_stocktake_ordinary_completion_and_end(client):
-    target = client.post('/api/stock-accounts', json={'name': '书库', 'kind': 'public'}).json()['id']
+def test_stock_stocktake_ordinary_completion_and_end(client, monkeypatch):
+    from backend.application import stocktakes
+    monkeypatch.setattr(stocktakes, 'ENABLED', True)
+    target = client.post('/api/stock-accounts', json={'name': '书库', 'kind': 'internal'}).json()['id']
     sku = client.post('/api/skus', json={'name': '书', 'unit': '本'}).json()['id']
     response = client.post('/api/stock-stocktakes', json={'name': '期末盘点'})
     assert response.status_code == 201
@@ -396,7 +397,7 @@ def test_stock_invalid_quantity_and_empty_or_duplicate_lines(client):
 
 def test_stock_list_pagination_search_and_attention(client):
     source = client.post('/api/stock-accounts', json=dict(name='商家', kind='external')).json()['id']
-    target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='public')).json()['id']
+    target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='internal')).json()['id']
     sku = client.post('/api/skus', json=dict(name='书', unit='本')).json()['id']
     payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13',
                    lines=[dict(sku_id=sku, quantity='1')])

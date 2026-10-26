@@ -4,7 +4,7 @@ from pydantic import AwareDatetime, Field
 from backend.entrypoints.schemas import Input
 
 
-# Shared read contracts. Dynamic audit snapshots alone retain free-form contents.
+# Shared read contracts. Stock audit details contain operation metadata only.
 from datetime import date, datetime
 from typing import Any, Generic, TypeVar
 from pydantic import BaseModel
@@ -28,6 +28,9 @@ class AccountFilters(SkuFilters):
     member_id: str | None = None
     tag: str | None = None
 
+class StockAccountFilters(AccountFilters):
+    kind: Literal['internal', 'external'] | None = None
+
 
 class WindowFilters(PageFilters):
     created_at_from: AwareDatetime | None = None
@@ -38,7 +41,7 @@ class WindowFilters(PageFilters):
 class BalanceFilters(AccountFilters):
     account_id: str | None = None
     as_of: AwareDatetime | None = None
-    basis: Literal['posted', 'effective_date'] = 'posted'
+    basis: Literal['posted', 'effective_date'] = Field(default='posted', description='默认按实际入账时间；仅用户明确要求按业务日期核对时选 effective_date。')
 
 
 class TransferFilters(WindowFilters):
@@ -66,7 +69,7 @@ class InventoryFilters(PageFilters):
     sku_id: str | None = None
     member_id: str | None = Field(default=None, description='按当前负责人筛选；返回行的 member_id/member_name 也是此负责人。')
     as_of: AwareDatetime | None = None
-    basis: Literal['posted', 'effective_date'] = 'posted'
+    basis: Literal['posted', 'effective_date'] = Field(default='posted', description='默认按实际入账时间；仅用户明确要求按业务日期核对时选 effective_date。')
 
 
 class StockMoveFilters(WindowFilters):
@@ -127,7 +130,8 @@ class ResponsibilityRow(BaseModel):
     ended_by_name: str | None
 
 
-class StockAccountRow(AccountRow): pass
+class StockAccountRow(AccountRow):
+    kind: Literal['internal', 'external']
 
 
 class SkuRow(MemberRow):
@@ -221,7 +225,6 @@ class ConfirmationRow(SubmissionSource):
     effective_date: date
     status: str
     approved_by: str | None
-    execution_snapshot: dict[str, Any] | None
     created_at: datetime
 
 
@@ -251,14 +254,13 @@ class StockAuditRow(BaseModel):
     id: str
     actor_id: str
     action: str
-    snapshot: dict[str, Any]
+    detail: dict[str, Any]
     created_at: datetime
     agent_credential_id: str | None
     agent_credential_name: str | None
 
 
 class StockTransferDetail(StockTransferRow):
-    approval_snapshot: dict[str, Any] | None
     confirmations: list[ConfirmationRow]
     fund_references: list[FundReference]
     related_transfers: list[RelatedTransfer]
@@ -427,7 +429,7 @@ class SettlementOutstandingData(PageData[SettlementOutstandingRow, SettlementOut
 
 QUERY_OUTPUT_SCHEMAS = {
     'list_fund_accounts': QueryResult[PageData[AccountRow, AccountFilters]],
-    'list_stock_accounts': QueryResult[PageData[StockAccountRow, AccountFilters]],
+    'list_stock_accounts': QueryResult[PageData[StockAccountRow, StockAccountFilters]],
     'get_stock_account': QueryResult[StockAccountDetail],
     'list_skus': QueryResult[PageData[SkuRow, SkuFilters]],
     'list_members': QueryResult[PageData[SavedMember, DirectoryFilters]],
@@ -447,7 +449,7 @@ QUERY_OUTPUT_SCHEMAS = {
 }
 
 QUERY_INPUT_SCHEMAS = {
-    'list_fund_accounts': AccountFilters, 'list_stock_accounts': AccountFilters,
+    'list_fund_accounts': AccountFilters, 'list_stock_accounts': StockAccountFilters,
     'get_stock_account': IdentifierInput,
     'list_skus': SkuFilters, 'list_members': DirectoryFilters,
     'get_fund_balances': BalanceFilters, 'list_fund_transfers': FundTransferFilters,
@@ -540,7 +542,8 @@ class SavedFundAccount(SavedAccount):
     balance: str
 
 
-class SavedStockAccount(SavedAccount): pass
+class SavedStockAccount(SavedAccount):
+    kind: Literal['internal', 'external']
 
 
 class SavedSku(SkuRow):
@@ -607,7 +610,7 @@ OPERATION_INPUT_SCHEMAS = {
     'complete_stock_transfer': CompletionOperation,
     'create_fund_account': business.AccountCreate,
     'update_fund_account': AccountPatchOperation,
-    'create_stock_account': business.AccountCreate,
+    'create_stock_account': business.StockAccountCreate,
     'update_stock_account': AccountPatchOperation,
     'create_sku': business.SkuCreate,
     'update_sku': SkuPatchOperation,

@@ -21,6 +21,8 @@ class AccountPatch(Input):
     avatar_url: str | None = None
     tags: list[str] | None = None
     active: bool | None = None
+class StockAccountCreate(AccountCreate):
+    kind: Literal['internal','external']
 class SkuCreate(Input):
     name: str = Field(min_length=1, max_length=200)
     specification: str = ''

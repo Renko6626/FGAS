@@ -169,7 +169,7 @@ def seed_development(admin_id, admin_name):
             if not get_user(db, identifier): db.add(User(id=identifier, display_name=name, role=role, active=True))
         for identifier,name,kind in [('fund_pool','社团资金池','public'),('income','销售收款','external'),('expense','日常支出','external'),('opening','期初','external')]:
             if not get_account(db, identifier): db.add(FundAccount(id=identifier,name=name,kind=kind,tags=['示例']))
-        if not get_stock_account(db,'main'): db.add(StockAccount(id='main',name='主存放处',kind='public',tags=['示例']))
+        if not get_stock_account(db,'main'): db.add(StockAccount(id='main',name='主存放处',kind='internal',tags=['示例']))
 
 def get_member(db, identifier): return db.get(Member, identifier)
 def members(db): return list(db.scalars(select(Member).order_by(Member.name,Member.id)))

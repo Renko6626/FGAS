@@ -2,8 +2,8 @@
 import { computed, ref } from "vue";
 import { NButton, NInput, NModal, NSelect, NCheckbox } from "naive-ui";
 import { accountsApi } from "../api/accounts";
-import { type Account, type StockAccount, type AccountBase, type AccountKind, type ResponsibilityHistory } from "../api/accounts";
-import { kinds } from "../presentation/accounts";
+import { type Account, type StockAccount, type AccountBase, type AccountKind, type StockAccountKind, type ResponsibilityHistory } from "../api/accounts";
+import { kinds, stockKinds } from "../presentation/accounts";
 import { money } from "../presentation/funds";
 import type { Member } from "../api/members";
 import AccountAvatar from "../components/AccountAvatar.vue";
@@ -19,7 +19,7 @@ const emit = defineEmits<{ changed: [] }>();
 const show = ref(false),
   id = ref(""),
   name = ref(""),
-  kind = ref<AccountKind>("public"),
+  kind = ref<AccountKind | StockAccountKind>("public"),
   member = ref<string | null>(null),
   avatar = ref(""),
   tags = ref<string[]>([]),
@@ -33,6 +33,7 @@ const filterKind = ref<string | null>(null),
 const all = computed<AccountBase[]>(() =>
   props.mode === "accounts" ? props.accounts : props.locations,
 );
+const kindLabels = computed(() => props.mode === "accounts" ? kinds : stockKinds);
 const rows = computed(() =>
   all.value.filter(
     (a) =>
@@ -59,7 +60,7 @@ const memberOptions = computed(() =>
 function edit(a?: AccountBase) {
   id.value = a?.id || "";
   name.value = a?.name || "";
-  kind.value = a?.kind || "public";
+  kind.value = a?.kind || (props.mode === "accounts" ? "public" : "internal");
   member.value = a?.member_id || null;
   avatar.value = a?.avatar_url || "";
   tags.value = [...(a?.tags || [])];
@@ -78,10 +79,10 @@ async function save() {
     };
     if (props.mode === "accounts") {
       if (id.value) await accountsApi.update(id.value, body);
-      else await accountsApi.create({ ...body, kind: kind.value });
+      else await accountsApi.create({ ...body, kind: kind.value as AccountKind });
     } else {
       if (id.value) await accountsApi.updateStock(id.value, body);
-      else await accountsApi.createStock({ ...body, kind: kind.value });
+      else await accountsApi.createStock({ ...body, kind: kind.value as StockAccountKind });
     }
     show.value = false;
     emit("changed");
@@ -146,7 +147,7 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
       clearable
       placeholder="所有类型"
       :options="
-        Object.entries(kinds).map(([value, label]) => ({ value, label }))
+        Object.entries(kindLabels).map(([value, label]) => ({ value, label }))
       "
     />
     <NSelect
@@ -167,7 +168,7 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
     <h3>{{ all.length ? "没有符合条件的账户" : "还没有账户" }}</h3>
     <p>
       {{
-        all.length ? "试试其他分类或清空筛选。" : "可新建公账、私账或外部账户。"
+        all.length ? "试试其他分类或清空筛选。" : mode === "accounts" ? "可新建公账、私账或外部账户。" : "可新建实际保管或外部账户，成员长期代管也属于实际保管。"
       }}
     </p>
     <NButton
@@ -199,7 +200,7 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
           <td class="account-name">
             <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}
           </td>
-          <td>{{ kinds[a.kind] }}</td>
+          <td>{{ kindLabels[a.kind] }}</td>
           <td>{{ a.member_name || "—" }}</td>
           <td class="numeric">{{ money((a as Account).balance_minor) }}</td>
           <td>
@@ -239,7 +240,7 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
           <td>
             <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}
           </td>
-          <td>{{ kinds[a.kind] }}</td>
+          <td>{{ kindLabels[a.kind] }}</td>
           <td>{{ a.member_name || "未指定" }}</td>
           <td>{{ a.tags.join("，") || "—" }}</td>
           <td>
@@ -272,7 +273,7 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
         v-model:value="kind"
         :disabled="!!id"
         :options="
-          Object.entries(kinds).map(([value, label]) => ({ value, label }))
+          Object.entries(kindLabels).map(([value, label]) => ({ value, label }))
         "
     /></label>
     <p v-if="id" class="muted">类型创建后固定，需要其他类型时请新建账户。</p>

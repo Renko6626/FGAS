@@ -91,7 +91,7 @@ def upgrade() -> None:
     sa.Column('avatar_url', sa.String(), nullable=True),
     sa.Column('tags', sa.JSON(), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
-    sa.CheckConstraint("kind IN ('public','private','external')", name=op.f('ck_stock_accounts_kind_valid')),
+    sa.CheckConstraint("kind IN ('internal','external')", name=op.f('ck_stock_accounts_kind_valid')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_stock_accounts'))
     )
     op.create_table('fund_stocktakes',
@@ -161,7 +161,6 @@ def upgrade() -> None:
     sa.Column('status', sa.String(), nullable=False),
     sa.Column('approved_by', sa.String(), nullable=True),
     sa.Column('approval_mode', sa.String(), nullable=True),
-    sa.Column('approval_snapshot', sa.JSON(), nullable=True),
     sa.Column('reason', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('submitted_credential_id', sa.String(), nullable=True),
@@ -248,7 +247,7 @@ def upgrade() -> None:
     sa.Column('stock_transfer_id', sa.String(), nullable=False),
     sa.Column('actor_id', sa.String(), nullable=False),
     sa.Column('action', sa.String(), nullable=False),
-    sa.Column('snapshot', sa.JSON(), nullable=False),
+    sa.Column('detail', sa.JSON(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('agent_credential_id', sa.String(), nullable=True),
     sa.Column('agent_credential_name', sa.String(), nullable=True),
@@ -264,7 +263,6 @@ def upgrade() -> None:
     sa.Column('effective_date', sa.Date(), nullable=False),
     sa.Column('status', sa.String(), nullable=False),
     sa.Column('approved_by', sa.String(), nullable=True),
-    sa.Column('execution_snapshot', sa.JSON(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('submitted_credential_id', sa.String(), nullable=True),
     sa.Column('submitted_credential_name', sa.String(), nullable=True),

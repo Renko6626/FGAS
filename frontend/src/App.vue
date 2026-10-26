@@ -19,6 +19,7 @@ import StockTransfersView from "./views/StockTransfersView.vue";
 import StockTransferEditor from "./components/StockTransferEditor.vue";
 import TransferEditor from "./components/TransferEditor.vue";
 import AccountAvatar from "./components/AccountAvatar.vue";
+import { stocktakesEnabled } from "./features";
 const tab = ref("home");
 const error = ref("");
 const notice = ref("");
@@ -96,10 +97,10 @@ const groups = computed(() => [
       { value: "skus", label: "货物目录" },
     ],
   },
-  {
+  ...(stocktakesEnabled ? [{
     label: "盘点",
     items: [{ value: "stocktakes", label: "阶段盘点" }],
-  },
+  }] : []),
   {
     label: "基础资料",
     items: [
@@ -380,7 +381,7 @@ onMounted(async () => {
               @changed="refresh"
             />
             <StocktakesView
-              v-else-if="tab === 'stocktakes'"
+              v-else-if="stocktakesEnabled && tab === 'stocktakes'"
               :key="`${user.id}:${identityEpoch}`"
               :accounts="accounts"
               :locations="locations"

@@ -5,11 +5,13 @@ import AccountLabel from "./AccountLabel.vue";
 import { matchesAccountFilters } from "../composables/accountFilters";
 import { type AccountBase } from "../api/accounts";
 import { kinds } from "../presentation/accounts";
+import { stocktakesEnabled } from "../features";
 const props = defineProps<{
   accounts: AccountBase[];
   modelValue: string;
   label: string;
   disabled?: boolean;
+  kindLabels?: Record<string, string>;
 }>();
 const emit = defineEmits<{ "update:modelValue": [string] }>();
 const showEnded = ref(false),
@@ -59,7 +61,7 @@ function renderLabel(option: SelectOption) {
           clearable
           placeholder="所有类型"
           :options="
-            Object.entries(kinds).map(([value, label]) => ({ value, label }))
+            Object.entries(kindLabels || kinds).map(([value, label]) => ({ value, label }))
           "
         /><NSelect
           v-model:value="tag"
@@ -69,7 +71,7 @@ function renderLabel(option: SelectOption) {
           :options="tags"
         />
       </div>
-      <NCheckbox v-model:checked="showEnded" :disabled="disabled"
+      <NCheckbox v-if="stocktakesEnabled" v-model:checked="showEnded" :disabled="disabled"
         >显示已结束盘点账户</NCheckbox
       >
     </details>

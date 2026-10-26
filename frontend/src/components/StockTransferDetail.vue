@@ -2,7 +2,7 @@
 import { ref, shallowRef, computed, onMounted } from "vue";
 import { NButton, NInput, NModal, NSelect } from "naive-ui";
 import { money, statuses as fundStatuses } from "../presentation/funds";
-import { approvalLabel } from "../presentation/audit";
+import { approvalLabel, actionNames } from "../presentation/audit";
 import { type StockAccount, type Account } from "../api/accounts";
 import { type Sku } from "../api/warehouse";
 import { warehouse, type StockTransfer } from "../api/warehouse";
@@ -36,6 +36,11 @@ const approvalAgent = computed(() =>
     ["approve", "automatic_approval"].includes(event.action) && event.agent_credential_id,
   ),
 );
+function completionAudit(confirmationId: string) {
+  return detail.value?.audit.find(event =>
+    event.action === 'completed' && event.detail.confirmation_id === confirmationId,
+  );
+}
 async function open(id: string) {
   if (busy.value)
     return;
@@ -350,17 +355,12 @@ defineExpose({ open, busy });
               stockStatuses[c.status] || fundStatuses[c.status] || c.status
             }}</span>
             <p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template>；完成日期 {{ c.effective_date }}</p>
-            <p v-if="c.approved_by">{{ approvalLabel(c.execution_snapshot?.mode || "manual") }}<template v-if="c.execution_snapshot?.agent_credential_id">（{{ c.execution_snapshot.agent_credential_name || c.execution_snapshot.agent_credential_id }}）</template>，审批人 {{ c.approved_by }}</p>
+            <p v-if="c.approved_by">{{ approvalLabel(completionAudit(c.id)?.detail.mode) }}<template v-if="completionAudit(c.id)?.agent_credential_id">（{{ completionAudit(c.id)?.agent_credential_name || completionAudit(c.id)?.agent_credential_id }}）</template>，审批人 {{ c.approved_by }}</p>
           </div>
         </details>
         <details class="stock-secondary">
-          <summary>原批准范围与资金快照</summary>
-          <pre>{{ JSON.stringify(detail.approval_snapshot, null, 2) }}</pre>
-        </details>
-        <details class="stock-secondary">
           <summary>操作追溯</summary>
-          <p v-for="event in detail.audit" :key="event.created_at + event.action">{{ event.actor_id }}<template v-if="event.agent_credential_id">，通过连接 {{ event.agent_credential_name || event.agent_credential_id }}</template>：{{ event.action }}（{{ new Date(event.created_at).toLocaleString("zh-CN") }}）</p>
-          <pre>{{ JSON.stringify(detail.audit, null, 2) }}</pre>
+          <p v-for="event in detail.audit" :key="event.created_at + event.action">{{ event.actor_id }}<template v-if="event.agent_credential_id">，通过连接 {{ event.agent_credential_name || event.agent_credential_id }}</template>：{{ actionNames[event.action] || event.action }}（{{ new Date(event.created_at).toLocaleString("zh-CN") }}）<span v-if="event.detail.reason">，原因：{{ event.detail.reason }}</span></p>
         </details>
       </section>
     </template>
@@ -423,10 +423,6 @@ defineExpose({ open, busy });
 }
 .confirmation-state {
   margin-top: 8px;
-}
-pre {
-  overflow: auto;
-  max-height: 320px;
 }
 @media (max-width: 650px) {
   .stock-meta {

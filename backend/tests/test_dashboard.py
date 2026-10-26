@@ -54,8 +54,8 @@ def test_dashboard_fund_postings_window_and_reversal(client):
 
 def test_dashboard_owned_stock_and_mixed_activity(client):
     external = client.post('/api/stock-accounts', json={'name': '商家', 'kind': 'external'}).json()['id']
-    public = client.post('/api/stock-accounts', json={'name': '社团仓库', 'kind': 'public'}).json()['id']
-    private = client.post('/api/stock-accounts', json={'name': '成员代管', 'kind': 'private'}).json()['id']
+    public = client.post('/api/stock-accounts', json={'name': '社团仓库', 'kind': 'internal'}).json()['id']
+    private = client.post('/api/stock-accounts', json={'name': '成员代管', 'kind': 'internal'}).json()['id']
     book = client.post('/api/skus', json={'name': '甲刊物', 'unit': '本'}).json()['id']
     card = client.post('/api/skus', json={'name': '乙卡片', 'unit': '张'}).json()['id']
 

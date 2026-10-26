@@ -15,8 +15,8 @@ WITH changes AS (
 STOCK_CHANGES = '''
 WITH changes AS (
  SELECT m.*, c.transfer_id,
-   ((CASE WHEN d.kind IN ('public','private') THEN 1 ELSE 0 END)
-    -(CASE WHEN s.kind IN ('public','private') THEN 1 ELSE 0 END))*m.quantity AS delta
+   ((CASE WHEN d.kind='internal' THEN 1 ELSE 0 END)
+    -(CASE WHEN s.kind='internal' THEN 1 ELSE 0 END))*m.quantity AS delta
  FROM stock_moves m
  JOIN stock_accounts s ON s.id=m.source_account_id
  JOIN stock_accounts d ON d.id=m.destination_account_id

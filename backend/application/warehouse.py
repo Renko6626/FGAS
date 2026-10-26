@@ -39,7 +39,7 @@ def validate(db,data,existing=False):
     return lines
 
 def transfer_view(db, item, *, detail=True):
-    value = {key: getattr(item, key) for key in ('id','source_account_id','destination_account_id','effective_date','description','tags','source_reference','actor_id','status','related_transfer_id','approved_by','approval_mode','approval_snapshot','reason','created_at','submitted_credential_id','submitted_credential_name')}
+    value = {key: getattr(item, key) for key in ('id','source_account_id','destination_account_id','effective_date','description','tags','source_reference','actor_id','status','related_transfer_id','approved_by','approval_mode','reason','created_at','submitted_credential_id','submitted_credential_name')}
     for side in ('source', 'destination'):
         account = store.get_stock_account(db, getattr(item, side + '_account_id'))
         value[side + '_account_name'] = account.name
@@ -50,7 +50,6 @@ def transfer_view(db, item, *, detail=True):
         value['lines'].append(dict(id=line.id, sku_id=sku.id, sku_name=sku.name, specification=sku.specification, unit=sku.unit, quantity=quantity_string(line.quantity)))
     value['snapshot_at'] = now()
     if not detail:
-        value.pop('approval_snapshot')
         return value
     value['confirmations'] = [confirmation_view(c) for c in stock_store.confirmations(db, item.id)]
     value['fund_references'] = []
@@ -59,23 +58,17 @@ def transfer_view(db, item, *, detail=True):
         value['fund_references'].append(dict(id=fund.id,status=fund.status,description=fund.description,amount_minor=fund.amount_minor,reversal_of=fund.reversal_of,source_account_id=fund.source_account_id,destination_account_id=fund.destination_account_id))
     value['related_transfers']=[dict(id=a.id,status=a.status,source_account_id=a.source_account_id,destination_account_id=a.destination_account_id,
         lines=[dict(sku_id=l.sku_id,quantity=quantity_string(l.quantity)) for l in stock_store.lines(db,a.id)]) for a in stock_store.related_transfers(db,item.id)]
-    value['audit'] = [dict(id=a.id, actor_id=a.actor_id, action=a.action, snapshot=a.snapshot, created_at=a.created_at, agent_credential_id=a.agent_credential_id, agent_credential_name=a.agent_credential_name) for a in stock_store.audit_events(db, item.id)]
+    value['audit'] = [dict(id=a.id, actor_id=a.actor_id, action=a.action, detail=a.detail, created_at=a.created_at, agent_credential_id=a.agent_credential_id, agent_credential_name=a.agent_credential_name) for a in stock_store.audit_events(db, item.id)]
     return value
 
 
-def content_snapshot(db, item):
-    view = transfer_view(db, item)
-    return {key: view[key] for key in ('source_account_id','destination_account_id','source_account_name','destination_account_name','source_kind','destination_kind','description','tags','source_reference','lines','fund_references','related_transfer_id')} | {'effective_date': item.effective_date.isoformat()}
-
-
-def audit(db, item, user, action, snapshot, *, access=None):
-    stock_store.create(db, StockAudit, dict(stock_transfer_id=item.id, actor_id=user.id, action=action, snapshot=snapshot) | operation_fields(access))
+def audit(db, item, user, action, detail, *, access=None):
+    stock_store.create(db, StockAudit, dict(stock_transfer_id=item.id, actor_id=user.id, action=action, detail=detail) | operation_fields(access))
 
 
 def approve(db, item, user, mode, *, access=None):
     require_operator(user, access)
     validate(db, business_data(db, item),existing=True)
-    item.approval_snapshot = content_snapshot(db, item) | dict(actor_id=user.id, role=user.role, mode=mode, approved_at=now().isoformat()) | operation_fields(access)
     item.approved_by, item.approval_mode = user.id, mode
     item.status = 'in_transit'
 
@@ -90,10 +83,10 @@ def submit_transfer(db, user, data, *, access: AgentAccess | None = None, submit
     item = stock_store.create(db, StockTransfer, values | dict(effective_date=date.fromisoformat(data['effective_date']), actor_id=user.id, status='pending') | source_fields(access))
     for line in lines: stock_store.create(db, StockTransferLine, line | dict(transfer_id=item.id))
     for identifier in data.get('fund_transfer_ids', []): stock_store.create(db, StockTransferFundReference, dict(stock_transfer_id=item.id, fund_transfer_id=identifier))
-    audit(db, item, user, 'submitted', content_snapshot(db, item), access=access)
+    audit(db, item, user, 'submitted', {}, access=access)
     if apply:
         approve(db, item, user, 'agent_direct' if access else 'automatic', access=access)
-        audit(db, item, user, 'automatic_approval', item.approval_snapshot, access=access)
+        audit(db, item, user, 'automatic_approval', dict(mode=item.approval_mode), access=access)
     return transfer_view(db, item)
 
 
@@ -112,8 +105,7 @@ def lifecycle(db, user, identifier, data, action, *, access=None):
                 if confirmation.status == 'pending': confirmation.status = 'invalidated'
         item.status = 'cancelled' if action == 'cancel' else 'rejected'
         item.reason = data['reason']
-    snapshot = dict(status=item.status, reason=item.reason, approval=item.approval_snapshot)
-    audit(db, item, user, action, snapshot, access=access)
+    audit(db, item, user, action, dict(status=item.status, reason=item.reason, mode=item.approval_mode), access=access)
     return transfer_view(db, item)
 
 
@@ -140,7 +132,7 @@ def list_transfers(db, status=None, filters=None, page=1, limit=20):
 
 
 def confirmation_view(item):
-    return {key: getattr(item, key) for key in ('id','transfer_id','actor_id','effective_date','status','approved_by','execution_snapshot','created_at','submitted_credential_id','submitted_credential_name')}
+    return {key: getattr(item, key) for key in ('id','transfer_id','actor_id','effective_date','status','approved_by','created_at','submitted_credential_id','submitted_credential_name')}
 
 
 def post_completion(db, user, item, confirmation, *, access=None, mode=None):
@@ -156,9 +148,8 @@ def post_completion(db, user, item, confirmation, *, access=None, mode=None):
     for move in plan:
         stock_store.create(db, StockMove, move | dict(confirmation_id=confirmation.id, effective_date=confirmation.effective_date))
     confirmation.status, confirmation.approved_by = 'completed', user.id
-    confirmation.execution_snapshot = content_snapshot(db, item) | dict(confirmation_id=confirmation.id, applicant_id=confirmation.actor_id, executor_id=user.id, role=user.role, effective_date=confirmation.effective_date.isoformat(), executed_at=now().isoformat(), mode=mode) | operation_fields(access)
     item.status = 'completed'
-    audit(db, item, user, 'completed', confirmation.execution_snapshot, access=access)
+    audit(db, item, user, 'completed', dict(confirmation_id=confirmation.id, effective_date=confirmation.effective_date.isoformat(), mode=mode), access=access)
 
 
 def request_completion(db, user, identifier, data, *, access: AgentAccess | None = None, submit_mode: Literal['propose', 'direct'] | None = None):

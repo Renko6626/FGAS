@@ -5,6 +5,7 @@ from typing import Any, Callable, Literal
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from backend.application import agent_operations as ops, agent_queries as queries
+from backend.application import stocktakes
 from backend.entrypoints import agent_schemas as schemas
 from backend.entrypoints.schemas import Input
 from backend.kernel.accounting import DomainError
@@ -66,7 +67,7 @@ EXECUTIONS = {
         'update': contract(ops.update_fund_account, '修改指定字段；省略保留原值，允许清空的字段才可传 null。', {'identifier': 'account-id', 'name': '新的账户名称'}),
     },
     'stock_account': {
-        'create': contract(ops.create_stock_account, '创建货物账户，member_id 可指定负责人并记录历史，不改变库存。', {'name': '主仓库', 'kind': 'public'}),
+        'create': contract(ops.create_stock_account, '创建货物账户：internal 实际保管、external 外部；member_id 可指定负责人并记录历史，不改变库存。', {'name': '主仓库', 'kind': 'internal'}),
         'update': contract(ops.update_stock_account, '修改货物资料或负责人；member_id 省略保留、null 清空，变更自动留历史，不改变库存。', {'identifier': 'stock-account-id', 'member_id': 'member-id'}),
     },
     'sku': {
@@ -115,6 +116,12 @@ EXECUTIONS = {
 }
 
 
+# Keep the dormant contracts above so stocktakes can be restored with their code.
+if not stocktakes.ENABLED:
+    QUERIES = {key: value for key, value in QUERIES.items() if key not in ('fund_stocktakes', 'stock_stocktakes')}
+    DETAILS = {key: value for key, value in DETAILS.items() if key not in ('fund_stocktakes', 'stock_stocktakes')}
+    EXECUTIONS = {key: value for key, value in EXECUTIONS.items() if key not in ('fund_stocktake', 'stock_stocktake')}
+
 Resource = Literal[tuple(dict.fromkeys([*QUERIES, *PROPOSALS, *EXECUTIONS]))]
 Action = Literal[tuple(sorted({action for actions in EXECUTIONS.values() for action in actions}))]
 
@@ -128,7 +135,7 @@ class HelpInput(Input):
 
 QueryInput = create_model('QueryInput', __base__=Input,
     resource=(Literal[tuple(QUERIES)], Field(description='要查询的业务对象；参数不确定时用 fgas_help(topic=query, resource=...)。')),
-    identifier=(str | None, Field(default=None, min_length=1, description='货物账户、转移、盘点支持详情；详情不能附非空 filters。')),
+    identifier=(str | None, Field(default=None, min_length=1, description='货物账户和转移支持详情；详情不能附非空 filters。')),
     filters=(dict[str, Any], Field(default_factory=dict, description='该对象实际支持的过滤字段；事件列表默认最近30天，全量传 all_time=true；余额/库存支持 as_of/basis；按需查 help，不支持的字段会被拒绝。')))
 ProposeInput = create_model('ProposeInput', __base__=Input,
     resource=(Literal[tuple(PROPOSALS)], ...),

@@ -57,7 +57,7 @@ class FundAccount(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 class StockAccount(Base):
     __tablename__ = 'stock_accounts'
-    __table_args__ = (CheckConstraint("kind IN ('public','private','external')", name='kind_valid'),)
+    __table_args__ = (CheckConstraint("kind IN ('internal','external')", name='kind_valid'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
@@ -161,7 +161,6 @@ class StockTransfer(Base):
     status: Mapped[str] = mapped_column(String)
     approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
     approval_mode: Mapped[str | None] = mapped_column(String, nullable=True)
-    approval_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     submitted_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
@@ -187,7 +186,7 @@ class StockAudit(Base):
     stock_transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     action: Mapped[str] = mapped_column(String)
-    snapshot: Mapped[dict] = mapped_column(JSON)
+    detail: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     agent_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
     agent_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -206,7 +205,6 @@ class StockConfirmation(Base):
     effective_date: Mapped[object] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String)
     approved_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
-    execution_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     submitted_credential_id: Mapped[str | None] = mapped_column(ForeignKey('agent_credentials.id'), nullable=True)
     submitted_credential_name: Mapped[str | None] = mapped_column(String, nullable=True)

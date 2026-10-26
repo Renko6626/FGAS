@@ -62,7 +62,9 @@ def test_formal_write_failure_rolls_back(client):
             db.execute(text('DROP FUNCTION fail_journal()'))
 
 
-def test_fund_stocktake_transfers_and_reversal(client):
+def test_fund_stocktake_transfers_and_reversal(client, monkeypatch):
+    from backend.application import stocktakes
+    monkeypatch.setattr(stocktakes, 'ENABLED', True)
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
     assert client.post('/api/fund-stocktakes', json={'name': '期末核对'}).status_code == 403
     client.post('/api/auth/login', json={'user_id': 'trusted'})
@@ -93,7 +95,9 @@ def test_fund_stocktake_transfers_and_reversal(client):
     assert [s['id'] for s in client.get('/api/fund-stocktakes?status=ended').json()['items']] == [item['id']]
 
 
-def test_fund_stocktake_endpoint_failure_rolls_back(client):
+def test_fund_stocktake_endpoint_failure_rolls_back(client, monkeypatch):
+    from backend.application import stocktakes
+    monkeypatch.setattr(stocktakes, 'ENABLED', True)
     with engine.begin() as db:
         db.execute(text("CREATE OR REPLACE FUNCTION fail_stocktake_endpoint() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.name = '失败核对（资金盘亏）' THEN RAISE EXCEPTION 'induced endpoint failure'; END IF; RETURN NEW; END $$"))
         db.execute(text('CREATE TRIGGER fail_stocktake_endpoint BEFORE INSERT ON fund_accounts FOR EACH ROW EXECUTE FUNCTION fail_stocktake_endpoint()'))

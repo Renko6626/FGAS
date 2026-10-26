@@ -13,4 +13,3 @@ export interface AgentAudit {
 export interface FundAuditEvent extends AgentAudit {
   detail: string;
 }
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };

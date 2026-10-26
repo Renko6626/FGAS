@@ -32,7 +32,7 @@ def fund_data(source='opening', destination='fund_pool', amount='120.50', date='
 
 def stock_data(client):
     source = client.post('/api/stock-accounts', json={'name': '商家', 'kind': 'external'}).json()['id']
-    target = client.post('/api/stock-accounts', json={'name': '仓库', 'kind': 'public'}).json()['id']
+    target = client.post('/api/stock-accounts', json={'name': '仓库', 'kind': 'internal'}).json()['id']
     sku = client.post('/api/skus', json={'name': '书', 'unit': '本'}).json()['id']
     return dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_id': sku, 'quantity': '2'}])
 
@@ -172,7 +172,7 @@ def test_high_direct_business_and_source(client):
     with Session() as db:
         access = agent_access.resolve(db, connection['secret'])
         source = ops.create_stock_account(db, access, {'name': 'Agent商家', 'kind': 'external'})['data']['account_id']
-        target = ops.create_stock_account(db, access, {'name': 'Agent仓库', 'kind': 'public'})['data']['account_id']
+        target = ops.create_stock_account(db, access, {'name': 'Agent仓库', 'kind': 'internal'})['data']['account_id']
         sku = ops.create_sku(db, access, {'name': 'Agent书', 'unit': '本'})['data']['sku_id']
         assert queries.list_skus(db, access, {'q': 'Agent书'})['data']['items'][0]['id'] == sku
         payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_id': sku, 'quantity': '2'}])

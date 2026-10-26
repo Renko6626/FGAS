@@ -1,6 +1,6 @@
 import { request, query, type Page } from './client';
 import type { TransferInput } from "./funds";
-import type { AgentSource, AgentAudit, JsonValue } from './audit';
+import type { AgentSource, AgentAudit } from './audit';
 export interface Sku {
   id: string;
   name: string;
@@ -22,11 +22,6 @@ export interface Confirmation extends AgentSource {
   actor_id: string;
   effective_date: string;
   approved_by: string | null;
-  execution_snapshot: {
-    mode?: string;
-    agent_credential_id?: string | null;
-    agent_credential_name?: string | null;
-  } | null;
 }
 export interface RelatedTransfer {
   id: string;
@@ -55,7 +50,6 @@ export interface StockTransfer extends AgentSource {
   status: string;
   related_transfer_id: string | null;
   related_transfers: RelatedTransfer[];
-  approval_snapshot: StockApprovalSnapshot | null;
   lines: StockLine[];
   confirmations: Confirmation[];
   fund_references: {
@@ -68,29 +62,15 @@ export interface StockTransfer extends AgentSource {
     destination_account_id: string;
   }[];
   audit: (AgentAudit & {
-    snapshot: JsonValue;
+    detail: {
+      confirmation_id?: string;
+      fund_transfer_id?: string;
+      effective_date?: string;
+      status?: string;
+      reason?: string | null;
+      mode?: string | null;
+    };
   })[];
-}
-export interface StockApprovalSnapshot {
-  source_account_id: string;
-  destination_account_id: string;
-  source_account_name: string;
-  destination_account_name: string;
-  source_kind: string;
-  destination_kind: string;
-  description: string;
-  tags: string[];
-  source_reference: string | null;
-  lines: StockLine[];
-  fund_references: StockTransfer["fund_references"];
-  related_transfer_id: string | null;
-  effective_date: string;
-  actor_id: string;
-  role: string;
-  mode: string;
-  approved_at: string;
-  agent_credential_id?: string | null;
-  agent_credential_name?: string | null;
 }
 export interface SkuCreateInput {
   name: string;

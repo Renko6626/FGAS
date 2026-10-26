@@ -8,6 +8,7 @@ import { kinds } from "../presentation/accounts";
 import AccountAvatar from "./AccountAvatar.vue";
 import TagInput from "./TagInput.vue";
 import { matchesAccountFilters } from "../composables/accountFilters";
+import { stocktakesEnabled } from "../features";
 
 const props = defineProps<{
   show: boolean;
@@ -316,7 +317,7 @@ async function submit() {
     <p v-else class="picker-empty">
       没有符合条件的账户，试试其他分类或清空筛选。
     </p>
-    <NCheckbox v-model:checked="showEnded" class="picker-ended"
+    <NCheckbox v-if="stocktakesEnabled" v-model:checked="showEnded" class="picker-ended"
       >显示已结束盘点账户</NCheckbox
     >
   </NModal>
