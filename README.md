@@ -44,7 +44,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 
 资金表 `fund_accounts`、货物表 `stock_accounts` 共用 `id/name/kind/member_id/avatar_url/tags/active`。类型 `public/private/external` 创建后固定；联系人可空，公私分类不由联系人决定。图片为空或加载失败时显示名称首字，按名称生成稳定的浅背景、深文字配色。SKU 也保存可空 `avatar_url`，可在货物目录中维护缩略图 URL；货物账户复用同名字段。
 
-资金公账合计只计 `public`；私账正数应交回、负数社团应偿还。货物 `public/private` 均计组织库存，外部账户不计入。联系人与实际保管人分别记录，保管交接保留历史。
+资金公账合计只计 `public`；私账正数应交回、负数社团应偿还。货物 `public/private` 均计组织库存，外部账户不计入。资金账户可关联联系人；货物账户只维护一名负责人，变更自动保留历史。
 
 标签由常用下拉选项加自定义输入组成，保存为 JSON 字符串数组，用于账户和流水筛选，不决定业务准入。停用阻止新建，不阻止已有转移处理。
 
@@ -65,13 +65,14 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 | `/members`、`/members/{id}` | 联系人目录，列表/创建/修改；不自动建账 |
 | `/accounts`、`/accounts/{id}` | 资金账户列表/创建/修改 |
 | `/stock-accounts`、`/stock-accounts/{id}` | 货物账户列表/创建/修改 |
-| `/stock-accounts/{id}/custody` | 当前保管成员维护，`{member_id:null}` 结束保管 |
+| `/stock-accounts/{id}` | 货物账户详情含负责人历史；编辑 member_id 更改负责人，null 清空 |
 | `/skus`、`/skus/{id}` | SKU 目录，已引用后单位固定 |
 | `/transfers/preview`、`/transfers`、`/transfers/{id}` | 资金转移预览/提交/列表/详情 |
 | `/transfers/{id}/approve`、`reject`、`reverse` | 资金审批、拒绝、冲销 |
 | `/funds/summary` | 公账合计 |
 | `/dashboard` | 首页汇总：公账余额、组织库存、按实际入账时间统计的近 7 天变化、近期转移和待办计数 |
 | `/accounts/{id}/settlement-overview` | 私账净余额、原收支及逐笔结算情况 |
+| `/settlement-outstanding` | 全局已过账未匹配明细；按 account_id、direction=expense/receipt、kind=item/payment 筛选并分页，不限近30天 |
 | `/settlements` | 创建普通结算付款并匹配，`{transfer,allocations:[{item_transfer_id,amount}]}` |
 | `/transfers/{id}/settlement-matches` | 向已有付款追加上述匹配 |
 | `/stock-transfers`、`/stock-transfers/{id}` | 多 SKU 货物转移创建/列表/详情 |
@@ -80,7 +81,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 | `/stock-confirmations/{id}/approve`、`reject` | 完成申请审批 |
 | `/stock-transfers/{id}/fund-references` | 补充已有资金引用 |
 | `/stock-operations` | `{stock,money}` 一次事务创建货物和普通资金转移 |
-| `/inventory`、`/stock-moves` | 正式数量查询；库存支持账户、SKU、联系人、保管人筛选 |
+| `/inventory`、`/stock-moves` | 正式数量查询；库存支持账户、SKU、负责人筛选 |
 | `/fund-stocktakes`、`/stock-stocktakes` | 薄盘点列表/创建 |
 | 上述盘点路径加 `/{id}`、`/{id}/end` | 详情/修改说明/结束 |
 

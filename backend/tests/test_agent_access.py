@@ -223,7 +223,7 @@ def test_queries_support_disambiguation_and_submission_lookup(client):
     for kind in ('public', 'private'):
         client.post('/api/accounts', json={'name': '同名', 'kind': kind, 'member_id': member})
     payload = stock_data(client)
-    custody = client.post(f"/api/stock-accounts/{payload['destination_account_id']}/custody", json={'member_id': member})
+    custody = client.patch(f"/api/stock-accounts/{payload['destination_account_id']}", json={'member_id': member})
     assert custody.status_code == 200
     parent = client.post('/api/stock-transfers', json=payload).json()
     start = datetime(2026, 10, 15, tzinfo=timezone.utc)
@@ -235,8 +235,8 @@ def test_queries_support_disambiguation_and_submission_lookup(client):
         assert [(row.id, row.note) for row in contacts] == [(member, '负责教材采购')]
         selected, values = catalog.prepare_call('fgas_query', {'resource': 'stock_accounts', 'filters': {'q': '仓库'}})
         accounts = selected.output_model.model_validate(selected.handler(db, access, values)).data.items
-        assert accounts[0].current_custody.member_id == member
-        assert accounts[0].current_custody.member_name == '联系人'
+        assert accounts[0].member_id == member
+        assert accounts[0].member_name == '联系人'
         candidates = queries.list_fund_accounts(db, access, {'q': '同名'})['data']['items']
         assert {row['kind'] for row in candidates} == {'public', 'private'}
         assert all(row['member_name'] == '联系人' and row['active'] for row in candidates)
@@ -295,11 +295,16 @@ def test_independent_apps_start_on_separate_event_loops(client):
 
 def test_mcp_auth_discovery_and_structured_results(client):
     stock = stock_data(client)
+    responsible = client.post('/api/members', json={'name': '仓库负责人'}).json()['id']
+    assert client.patch('/api/stock-accounts/' + stock['destination_account_id'], json={'member_id': responsible}).status_code == 200
     sku_ids = {stock['lines'][0]['sku_id']}
     for index in range(20):
         response = client.post('/api/skus', json={'name': f'分页货物{index:02}', 'unit': '件'})
         assert response.status_code == 201
         sku_ids.add(response.json()['id'])
+    private_id = client.post('/api/accounts', json={'name': '待匹配私账', 'kind': 'private'}).json()['id']
+    expense = client.post('/api/transfers', json=fund_data(private_id, 'expense', '2')).json()
+    payment = client.post('/api/transfers', json=fund_data('fund_pool', private_id, '2')).json()
     connection = issue(client, owner='untrusted')
     for headers in ({}, {'Authorization': 'Bearer invalid'}, {'Cookie': '; '.join(f'{k}={v}' for k, v in client.cookies.items())}):
         assert client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}, headers=headers).status_code == 401
@@ -320,8 +325,32 @@ def test_mcp_auth_discovery_and_structured_results(client):
                         read = await session.call_tool('fgas_query', {'resource': 'fund_accounts'})
                         assert not read.is_error and read.structured_content['api_version'] == '2'
                         assert read.structured_content['data']['items']
+                        stock_account = await session.call_tool('fgas_query', {'resource': 'stock_accounts', 'identifier': stock['destination_account_id']})
+                        assert not stock_account.is_error
+                        assert stock_account.structured_content['data']['member_id'] == responsible
+                        assert stock_account.structured_content['data']['responsibility_history'][0]['member_id'] == responsible
                         windowed = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'filters': {'all_time': True}})
                         assert not windowed.is_error
+                        unmatched = []
+                        for page in (1, 2):
+                            result = await session.call_tool('fgas_query', {'resource': 'settlement_outstanding', 'filters': {'page': page, 'limit': 1}})
+                            assert not result.is_error, result.structured_content
+                            data = result.structured_content['data']
+                            assert data['total'] == 2 and data['has_more'] == (page == 1)
+                            assert data['items'][0]['remaining'] == '2.00'
+                            unmatched.extend(row['transfer_id'] for row in data['items'])
+                        assert unmatched == [payment['id'], expense['id']]
+                        contract = await session.call_tool('fgas_help', {
+                            'topic': 'query', 'resource': 'settlement_outstanding', 'include_output_schema': True,
+                        })
+                        assert not contract.is_error
+                        Draft202012Validator(contract.structured_content['data']['list']['output_schema']).validate(result.structured_content)
+                        denied_match = await session.call_tool('fgas_execute', {
+                            'resource': 'settlement', 'action': 'match', 'data': {
+                                'identifier': payment['id'], 'allocations': [{'item_transfer_id': expense['id'], 'amount': '2'}],
+                            },
+                        })
+                        assert denied_match.is_error and denied_match.structured_content['code'] == 'permission_denied'
                         as_of = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {'as_of': '2026-10-01T00:00:00+08:00'}})
                         assert not as_of.is_error and as_of.structured_content['data']['basis'] == 'posted'
                         assert all(row['in_transit_planned_quantity'] is None for row in as_of.structured_content['data']['items'])
@@ -421,6 +450,11 @@ def test_mcp_high_execution_uses_real_business_services(client):
                             assert not result.is_error, result.structured_content
                             return result.structured_content['data']
 
+                        responsible = await execute('member', 'create', {'name': 'MCP负责人'})
+                        assigned = await execute('stock_account', 'update', {'identifier': payload['destination_account_id'], 'member_id': responsible['member_id']})
+                        assert assigned['object']['member_id'] == responsible['member_id']
+                        history = await session.call_tool('fgas_query', {'resource': 'stock_accounts', 'identifier': payload['destination_account_id']})
+                        assert not history.is_error and len(history.structured_content['data']['responsibility_history']) == 1
                         account = await execute('fund_account', 'create', {'name': 'MCP私账', 'kind': 'private', 'avatar_url': 'https://example.test/avatar.png'})
                         account_id = account['account_id']
                         renamed = await execute('fund_account', 'update', {'identifier': account_id, 'name': '改名私账'})
@@ -432,6 +466,8 @@ def test_mcp_high_execution_uses_real_business_services(client):
                         payment = await execute('fund_transfer', 'create', fund_data('fund_pool', account_id, '2'))
                         matched = await execute('settlement', 'match', {'identifier': payment['transfer_id'], 'allocations': [{'item_transfer_id': expense['transfer_id'], 'amount': '2'}]})
                         assert not matched['ledger_effect_applied'] and matched['matches'][0]['amount'] == '2.00'
+                        remaining = await session.call_tool('fgas_query', {'resource': 'settlement_outstanding'})
+                        assert not remaining.is_error and remaining.structured_content['data']['items'] == []
                         proposal = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': fund_data()})
                         assert proposal.structured_content['data']['status'] == 'pending'
                         stock = await execute('stock_transfer', 'create', payload)

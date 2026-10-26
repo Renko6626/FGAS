@@ -24,7 +24,7 @@ WITH moves AS (
  FROM stock_accounts l
  CROSS JOIN skus s LEFT JOIN stock_account_custodies c ON c.account_id=l.id AND c.valid_to IS NULL LEFT JOIN members m ON m.id=c.member_id
  LEFT JOIN balances b ON b.account_id=l.id AND b.sku_id=s.id LEFT JOIN plans p ON p.account_id=l.id AND p.sku_id=s.id
- WHERE l.kind IN ('public','private') AND (CAST(:account_id AS text) IS NULL OR l.id=:account_id) AND (CAST(:sku_id AS text) IS NULL OR s.id=:sku_id) AND (CAST(:member_id AS text) IS NULL OR l.member_id=:member_id) AND (CAST(:custodian_id AS text) IS NULL OR c.member_id=:custodian_id)
+ WHERE l.kind IN ('public','private') AND (CAST(:account_id AS text) IS NULL OR l.id=:account_id) AND (CAST(:sku_id AS text) IS NULL OR s.id=:sku_id) AND (CAST(:member_id AS text) IS NULL OR c.member_id=:member_id)
 )
 '''
 

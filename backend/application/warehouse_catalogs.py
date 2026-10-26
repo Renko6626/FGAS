@@ -29,21 +29,33 @@ def update_sku(db, user, identifier, data):
 
 
 def account_view(db,item):
-    return directory_views.account_view(db, item) | dict(
-        avatar_url=item.avatar_url, stocktake=stocktake_store.endpoint_metadata(db, 'stock', item.id),
-        current_custody=directory_views.current_custody_view(db, item.id))
+    return directory_views.account_view(db, item, stock=True) | dict(
+        avatar_url=item.avatar_url, stocktake=stocktake_store.endpoint_metadata(db, 'stock', item.id))
 
-def set_custody(db,user,account_id,member_id):
+def set_responsible(db,user,account_id,member_id):
     authorize_write(db,user)
     item=store.get_stock_account(db,account_id)
     if item is None: raise DomainError('账户不存在',404)
-    if item.kind=='external': raise DomainError('外部账户不管理社团货物保管关系',409)
     if member_id is not None and store.get_member(db,member_id) is None: raise DomainError('成员不存在',404)
     current=stock_store.current_custody(db,account_id)
-    if (current.member_id if current else None)==member_id: return account_view(db,item)
+    if (current.member_id if current else None)==member_id: return
     timestamp=now()
     if current:
         current.valid_to=timestamp; current.ended_by=user.id; db.flush()
     if member_id is not None:
         stock_store.create(db,StockAccountCustody,dict(account_id=account_id,member_id=member_id,valid_from=timestamp,actor_id=user.id))
-    return account_view(db,item)
+
+
+def account_detail(db, identifier):
+    with store.read_snapshot(db) as snapshot:
+        item = store.get_stock_account(snapshot, identifier)
+        if item is None: raise DomainError('账户不存在', 404)
+        history = []
+        for row in stock_store.responsibility_history(snapshot, identifier):
+            history.append(dict(id=row.id, member_id=row.member_id,
+                member_name=store.get_member(snapshot, row.member_id).name,
+                valid_from=row.valid_from, valid_to=row.valid_to,
+                actor_id=row.actor_id, actor_name=store.get_user(snapshot, row.actor_id).display_name,
+                ended_by=row.ended_by,
+                ended_by_name=store.get_user(snapshot, row.ended_by).display_name if row.ended_by else None))
+        return account_view(snapshot, item) | dict(responsibility_history=history)

@@ -75,6 +75,49 @@ def add_matches(db,user,transfer_id,allocations, *, access=None):
     require_operator(user, access)
     return record_matches(db,user,funds.get_transfer(db,transfer_id),allocations, access=access)
 
+
+def outstanding(db, account_id=None, direction=None, kind=None, page=1, limit=20):
+    with store.read_snapshot(db) as snapshot:
+        if account_id is not None:
+            account = store.get_account(snapshot, account_id)
+            if not account: raise DomainError('账户不存在', 404)
+            if account.kind != 'private': raise DomainError('请选择私账账户')
+        matches, endpoints = settlement_store.matches_with_endpoints(snapshot)
+        by_item, by_settlement = matched_amounts(matches, endpoints)
+        transfers = sorted(store.transfers(snapshot, status='posted'),
+                           key=lambda item: (item.created_at, item.id), reverse=True)
+        rows = []
+        for transfer in transfers:
+            if transfer.reversal_of: continue
+            classification = item_account(snapshot, transfer)
+            if classification:
+                row_kind, matched = 'item', by_item.get(transfer.id, 0)
+            else:
+                try: classification = settlement_account(snapshot, transfer)
+                except DomainError: continue
+                row_kind, matched = 'payment', by_settlement.get(transfer.id, 0)
+            private_id, row_direction = classification
+            if account_id is not None and private_id != account_id: continue
+            if direction is not None and row_direction != direction: continue
+            if kind is not None and row_kind != kind: continue
+            remaining = transfer.amount_minor - matched
+            if remaining <= 0: continue
+            source = store.get_account(snapshot, transfer.source_account_id)
+            destination = store.get_account(snapshot, transfer.destination_account_id)
+            rows.append(dict(
+                account_id=private_id, account_name=store.get_account(snapshot, private_id).name,
+                kind=row_kind, direction=row_direction, transfer_id=transfer.id,
+                effective_date=transfer.effective_date, description=transfer.description,
+                counterparty=transfer.counterparty,
+                source_account_id=source.id, source_account_name=source.name,
+                destination_account_id=destination.id, destination_account_name=destination.name,
+                amount_minor=transfer.amount_minor, matched_minor=matched, remaining_minor=remaining,
+            ))
+        start = (page - 1) * limit
+        return dict(items=rows[start:start + limit], total=len(rows), page=page, limit=limit,
+                    snapshot_at=store.snapshot_timestamp(snapshot))
+
+
 def overview(db,account_id):
     from backend.application.catalogs import catalog_account_view
     with store.read_snapshot(db) as snapshot:

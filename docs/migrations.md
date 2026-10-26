@@ -26,6 +26,10 @@ export DATABASE_URL="postgresql+psycopg2://fgas@/fgas?host=$PWD/.runtime&port=55
 
 `alembic.ini` 不保存数据库连接；`backend/migrations/env.py` 依次读取调用方传入的 `db_url`、`-x db_url=...` 和 `DATABASE_URL`。
 
+## 本次开发基线例外
+
+2026-10-27 用户明确货物负责人统一无需处理旧数据迁移，开发阶段直接重建。0001基线已同步移除stock_accounts.member_id列，负责人只保存在既有历史表。现有同为0001的旧开发库不会通过 upgrade 自动转换该列，使用新结构前须按确认范围重建；本次只备份并重建fgas_test，未改日常fgas。没有新增旧数据回填或兼容逻辑。后续正式模型演进仍遵守下述新增revision规则。
+
 ## 新增模型变更
 
 1. 修改 `backend/infrastructure/models.py`。

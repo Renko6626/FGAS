@@ -20,14 +20,20 @@ export interface AccountBase {
 export interface Account extends AccountBase {
   balance_minor: number;
 }
-export interface StockAccount extends AccountBase {
-  current_custody: {
-    id: string;
-    member_id: string;
-    member_name: string;
-    valid_from: string;
-    actor_id: string;
-  } | null;
+export type StockAccount = AccountBase;
+export interface ResponsibilityHistory {
+  id: string;
+  member_id: string;
+  member_name: string;
+  valid_from: string;
+  valid_to: string | null;
+  actor_id: string;
+  actor_name: string;
+  ended_by: string | null;
+  ended_by_name: string | null;
+}
+export interface StockAccountDetail extends AccountBase {
+  responsibility_history: ResponsibilityHistory[];
 }
 
 export interface AccountUpdateInput {
@@ -46,7 +52,7 @@ export const accountsApi = {
   update: (id: string, body: AccountUpdateInput) => request<Account>(`/accounts/${id}`, "PATCH", body),
   createStock: (body: AccountCreateInput) => request<StockAccount>("/stock-accounts", "POST", body),
   updateStock: (id: string, body: AccountUpdateInput) => request<StockAccount>(`/stock-accounts/${id}`, "PATCH", body),
-  setCustody: (id: string, member_id: string | null) => request<StockAccount>(`/stock-accounts/${id}/custody`, "POST", { member_id }),
+  stockDetail: (id: string) => request<StockAccountDetail>(`/stock-accounts/${id}`),
   accounts: () => request<Account[]>("/accounts"),
   stockAccounts: () => request<StockAccount[]>("/stock-accounts"),
 };

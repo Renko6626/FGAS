@@ -88,3 +88,82 @@ def test_partial_payment_remainder_and_duplicate_match(client):
     current=overview(client,account)
     assert current['settlements'][0]['matched_minor']==15000
     assert current['settlements'][0]['unmatched_minor']==0
+
+
+def test_global_outstanding_filters_pagination_and_zero_balance(client):
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import func, select
+    from backend.infrastructure.database import Session
+    from backend.infrastructure.models import Audit, JournalLine, SettlementMatch, Transfer
+
+    first, second = private(client), private(client, '小李')
+    expense = transfer(client, first, 'expense', '100').json()
+    payment = transfer(client, 'fund_pool', first, '100').json()
+    other_expense = transfer(client, second, 'expense', '200').json()
+    other_payment = pay(client, 'fund_pool', second, '60', [(other_expense['id'], '40')])
+    assert other_payment.status_code == 201
+    other_payment = other_payment.json()['transfer']
+    receipt = transfer(client, 'income', second, '30').json()
+    returned = transfer(client, second, 'fund_pool', '10').json()
+    closed = transfer(client, first, 'expense', '5').json()
+    assert pay(client, 'fund_pool', first, '5', [(closed['id'], '5')]).status_code == 201
+    assert transfer(client, 'opening', 'fund_pool', '3').status_code == 201
+    client.post('/api/auth/login', json={'user_id': 'untrusted'})
+    assert transfer(client, second, 'expense', '7').json()['status'] == 'pending'
+    client.post('/api/auth/login', json={'user_id': 'trusted'})
+    assert client.patch(f'/api/accounts/{first}', json={'active': False}).status_code == 200
+    with Session.begin() as db:
+        db.get(Transfer, expense['id']).created_at = datetime.now(timezone.utc) - timedelta(days=45)
+
+    def counts():
+        with Session() as db:
+            return tuple(db.scalar(select(func.count()).select_from(model))
+                         for model in (Transfer, JournalLine, SettlementMatch, Audit))
+
+    before = counts()
+    response = client.get('/api/settlement-outstanding')
+    assert response.status_code == 200, response.text
+    data = response.json()
+    expected = [returned['id'], receipt['id'], other_payment['id'], other_expense['id'], payment['id'], expense['id']]
+    assert [row['transfer_id'] for row in data['items']] == expected
+    assert data['total'] == 6 and data['snapshot_at']
+    rows = {row['transfer_id']: row for row in data['items']}
+    assert rows[expense['id']]['remaining_minor'] == rows[payment['id']]['remaining_minor'] == 10000
+    assert rows[other_expense['id']]['remaining_minor'] == 16000
+    assert rows[other_payment['id']]['matched_minor'] == 4000
+    assert rows[other_payment['id']]['remaining_minor'] == 2000
+    assert rows[receipt['id']]['direction'] == rows[returned['id']]['direction'] == 'receipt'
+    assert overview(client, first)['account']['balance_minor'] == 0
+
+    pages = [client.get('/api/settlement-outstanding', params={'page': page, 'limit': 2}).json()
+             for page in (1, 2, 3, 4)]
+    assert [row['transfer_id'] for page in pages for row in page['items']] == expected
+    assert all(page['total'] == 6 for page in pages)
+    filtered = client.get('/api/settlement-outstanding', params={
+        'account_id': second, 'direction': 'expense', 'kind': 'payment',
+    }).json()
+    assert [row['transfer_id'] for row in filtered['items']] == [other_payment['id']]
+    assert client.get('/api/settlement-outstanding', params={'account_id': 'missing'}).status_code == 404
+    assert client.get('/api/settlement-outstanding', params={'account_id': 'fund_pool'}).status_code == 400
+    assert client.get('/api/settlement-outstanding', params={'direction': 'invalid'}).status_code == 422
+    assert client.get('/api/settlement-outstanding', params={'limit': 0}).status_code == 422
+    assert counts() == before
+
+
+def test_global_outstanding_ignores_reversed_matches(client):
+    account = private(client)
+    item = transfer(client, account, 'expense', '100').json()
+    payment = pay(client, 'fund_pool', account, '60', [(item['id'], '60')]).json()['transfer']
+    response = client.get('/api/settlement-outstanding').json()
+    assert [(row['transfer_id'], row['remaining_minor']) for row in response['items']] == [(item['id'], 4000)]
+
+    assert client.post(f"/api/transfers/{payment['id']}/reverse", json={'reason': '付款录错'}).status_code == 201
+    response = client.get('/api/settlement-outstanding').json()
+    assert [(row['transfer_id'], row['remaining_minor']) for row in response['items']] == [(item['id'], 10000)]
+    replacement = pay(client, 'fund_pool', account, '100', [(item['id'], '100')]).json()['transfer']
+    assert client.get('/api/settlement-outstanding').json()['items'] == []
+    assert client.post(f"/api/transfers/{item['id']}/reverse", json={'reason': '原支出录错'}).status_code == 201
+    response = client.get('/api/settlement-outstanding').json()
+    assert [(row['transfer_id'], row['kind'], row['remaining_minor']) for row in response['items']] == [
+        (replacement['id'], 'payment', 10000),
+    ]

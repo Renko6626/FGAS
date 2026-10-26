@@ -35,19 +35,21 @@ ALLOCATION = [dict(item_transfer_id='expense-or-receipt-id', amount='120.50')]
 
 QUERIES = {
     'fund_accounts': contract(queries.list_fund_accounts, '查资金账户及其公私分类、联系人和标签。', {'q': '公账', 'active': True}),
-    'stock_accounts': contract(queries.list_stock_accounts, '查货物账户、联系人和 current_custody 当前保管人。', {'q': '仓库', 'active': True}),
+    'stock_accounts': contract(queries.list_stock_accounts, '查货物账户及 member_id/member_name 当前负责人；按 member_id 筛选，identifier 详情含负责人历史。', {'q': '仓库', 'active': True}),
     'skus': contract(queries.list_skus, '查货物名称、规格和整数计量单位。', {'q': '书', 'active': True}),
     'members': contract(queries.list_members, '查业务联系人名称及 note 备注。', {'q': '小王'}),
     'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计；支持 as_of/basis 查截止时点。', {'kind': 'public', 'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'posted'}),
-    'inventory': contract(queries.get_inventory, '查正式库存和在途计划量；items.member_id/member_name 是当前保管人，totals 是全部筛选结果的 SKU 合计。as_of/basis 查历史库存，历史在途不可用，不提供估值。', {'account_id': 'stock-account-id', 'as_of': '2026-10-01T00:00:00+08:00'}),
+    'inventory': contract(queries.get_inventory, '查正式库存和在途计划量；member_id 筛选当前负责人，totals 是全部筛选结果的 SKU 合计。as_of/basis 查历史库存，历史在途不可用，不提供估值。', {'account_id': 'stock-account-id', 'as_of': '2026-10-01T00:00:00+08:00'}),
     'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；默认最近30天，全量传 all_time=true；支持 identifier 查详情。', {'status': 'pending'}),
     'stock_transfers': contract(queries.list_stock_transfers, '按条件查货物转移；默认最近30天，全量传 all_time=true；完成申请在父单详情中。', {'status': 'in_transit'}),
     'stock_moves': contract(queries.list_stock_moves, '查已经发生的正式数量流水；默认最近30天，全量传 all_time=true。', {'created_at_from': '2026-10-01T00:00:00+08:00'}),
     'settlement_overview': contract(queries.get_settlement_overview, '查一个私账的逐笔收支未结、付款及匹配；不从净余额推断。', {'account_id': 'private-account-id'}),
+    'settlement_outstanding': contract(queries.list_settlement_outstanding, '跨私账查全部已过账未匹配记录，不限30天；kind=item 原收支、payment 结算付款，direction=expense 报销、receipt 交回。两侧金额不可相加为待付款额；匹配仍仅 high。', {'direction': 'expense', 'page': 1, 'limit': 20}),
     'fund_stocktakes': contract(queries.list_fund_stocktakes, '查资金盘点；支持 identifier 查专属端点关联记录。', {'status': 'in_progress'}),
     'stock_stocktakes': contract(queries.list_stock_stocktakes, '查货物盘点；结束不表示账目已自动调整。', {'status': 'in_progress'}),
 }
 DETAILS = {
+    'stock_accounts': contract(queries.get_stock_account, '返回货物账户和 responsibility_history 负责人历史，含起止时间及操作人；负责人变化不改变库存。', {'identifier': 'stock-account-id'}),
     'fund_transfers': contract(queries.get_fund_transfer, '返回资金单、正式分录、审批及审计。', {'identifier': 'fund-transfer-id'}),
     'stock_transfers': contract(queries.get_stock_transfer, '返回货物单及 confirmations；按申请 ID 分辨各申请状态。', {'identifier': 'stock-transfer-id'}),
     'fund_stocktakes': contract(queries.get_fund_stocktake, '返回资金盘点及关联转移，包含更正和各状态。', {'identifier': 'fund-stocktake-id'}),
@@ -64,9 +66,8 @@ EXECUTIONS = {
         'update': contract(ops.update_fund_account, '修改指定字段；省略保留原值，允许清空的字段才可传 null。', {'identifier': 'account-id', 'name': '新的账户名称'}),
     },
     'stock_account': {
-        'create': contract(ops.create_stock_account, '创建货物账户，不改变库存。', {'name': '主仓库', 'kind': 'public'}),
-        'update': contract(ops.update_stock_account, '修改货物账户资料；不修改库存或保管关系。', {'identifier': 'stock-account-id', 'name': '新的仓库名称'}),
-        'set_custody': contract(ops.set_stock_custody, '设置实际保管人；member_id=null 结束保管，不转移库存。', {'identifier': 'stock-account-id', 'member_id': 'member-id'}),
+        'create': contract(ops.create_stock_account, '创建货物账户，member_id 可指定负责人并记录历史，不改变库存。', {'name': '主仓库', 'kind': 'public'}),
+        'update': contract(ops.update_stock_account, '修改货物资料或负责人；member_id 省略保留、null 清空，变更自动留历史，不改变库存。', {'identifier': 'stock-account-id', 'member_id': 'member-id'}),
     },
     'sku': {
         'create': contract(ops.create_sku, '创建货物规格与整数计量单位，不增加库存。', {'name': '纪念册', 'unit': '本'}),
@@ -127,7 +128,7 @@ class HelpInput(Input):
 
 QueryInput = create_model('QueryInput', __base__=Input,
     resource=(Literal[tuple(QUERIES)], Field(description='要查询的业务对象；参数不确定时用 fgas_help(topic=query, resource=...)。')),
-    identifier=(str | None, Field(default=None, min_length=1, description='仅转移/盘点支持详情；详情不能附非空 filters。')),
+    identifier=(str | None, Field(default=None, min_length=1, description='货物账户、转移、盘点支持详情；详情不能附非空 filters。')),
     filters=(dict[str, Any], Field(default_factory=dict, description='该对象实际支持的过滤字段；事件列表默认最近30天，全量传 all_time=true；余额/库存支持 as_of/basis；按需查 help，不支持的字段会被拒绝。')))
 ProposeInput = create_model('ProposeInput', __base__=Input,
     resource=(Literal[tuple(PROPOSALS)], ...),

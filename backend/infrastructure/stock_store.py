@@ -10,6 +10,9 @@ def get_sku(db, identifier): return db.get(Sku, identifier)
 def skus(db): return list(db.scalars(select(Sku).order_by(Sku.name, Sku.id)))
 def current_custody(db, identifier):
     return db.scalar(select(StockAccountCustody).where(StockAccountCustody.account_id == identifier, StockAccountCustody.valid_to.is_(None)))
+def responsibility_history(db, identifier):
+    return list(db.scalars(select(StockAccountCustody).where(StockAccountCustody.account_id == identifier)
+                           .order_by(StockAccountCustody.valid_from, StockAccountCustody.id)))
 def create(db, model, values):
     item = model(**values)
     db.add(item)

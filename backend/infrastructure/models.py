@@ -61,7 +61,6 @@ class StockAccount(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
-    member_id: Mapped[str | None] = mapped_column(ForeignKey('members.id'), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     tags: Mapped[list] = mapped_column(JSON, default=list)
     active: Mapped[bool] = mapped_column(Boolean, default=True)

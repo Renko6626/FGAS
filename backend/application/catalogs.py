@@ -28,10 +28,18 @@ def update_account(db,user,identifier,values):
     return catalog_account_view(db,item)
 def create_stock_account(db,user,values):
     authorize_write(db,user); validate_account(db,values)
-    return warehouse_catalogs.account_view(db,store.create_stock_account(db,values))
+    values = dict(values)
+    member_id = values.pop('member_id', None)
+    item = store.create_stock_account(db, values)
+    warehouse_catalogs.set_responsible(db, user, item.id, member_id)
+    return warehouse_catalogs.account_view(db, item)
 def update_stock_account(db,user,identifier,values):
     authorize_write(db,user)
     item=store.get_stock_account(db,identifier)
     if not item: raise DomainError('账户不存在',404)
-    validate_account(db,values); store.update(item,values); store.flush(db)
+    validate_account(db,values)
+    values = dict(values)
+    if 'member_id' in values:
+        warehouse_catalogs.set_responsible(db, user, item.id, values.pop('member_id'))
+    store.update(item,values); store.flush(db)
     return warehouse_catalogs.account_view(db,item)

@@ -9,8 +9,9 @@
 - 单社团、人民币，正式金额按整数分记录。
 - 资金预览、自动批准、人工审批、正式过账、冲销及追溯；同一单据只正式记账一次，不提供请求去重或自动重试。
 - 私账报销与代收交回匹配，支持部分、多笔结算；任一端冲销后匹配历史保留但失效。
+- 全局已过账未匹配明细：人工 `/api/settlement-outstanding` 和 MCP `settlement_outstanding`，跨全部私账和历史查询，可按方向、原收支/结算付款及私账筛选分页；MCP low/high均可读，保存匹配仍仅high。
 - 多 SKU 货物转移、审批、在途与整笔完成；正式 StockMove 记录库存，出库不得造成组织库存负数。
-- 联系人、资金与货物账户、SKU、保管历史、标签与筛选；资金和货物薄盘点。
+- 联系人、资金与货物账户、SKU、标签与筛选；货物账户统一负责人并保留起止时间和变更人历史；资金和货物薄盘点。
 - 首页公账余额、组织库存、近 7 天变化、近期转移及待办。
 - 管理员、受信任用户、普通用户三档权限；开发登录、Casdoor OIDC 登录与用户生命周期管理。
 - MCP v2 四入口及 low/high 凭据，人工 Cookie 与 Agent Bearer 分离。
@@ -28,7 +29,7 @@
 
 ## 集中验证与待验收项
 
-最新业务集中验证为 2026-10-26 的后端 71 passed；2026-10-27 阶段保存再次通过前端构建及差异检查。个人连接、登录修复和客户端实验的具体范围见下文对应日期记录。
+最新业务集中验证为 2026-10-27 的后端 74 passed；2026-10-27 阶段保存再次通过前端构建及差异检查。个人连接、登录修复和客户端实验的具体范围见下文对应日期记录。
 
 2026-10-25 对 `main` 的 `c643362` 进行现状检查：
 
@@ -427,3 +428,25 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 
 
 用户随后确认在总览开头补充概念说明，并强调简化复式资金账本：来源贷方、去向借方自动等额记账，一次转移不拆成两次提交；货物按数量记增减、与资金独立生效。概述同步用于初始化 instructions 和 help，guide_version 更新为2026-10-23-v5。此后 overview 为1364字符、guide4488字符，上文篇幅对比保留为此前精简阶段记录。一次性核对加载内容、版本和生产 balanced_transfer 借贷方向；提交前相关帮助检查8 passed、12 deselected，git diff --check通过。完整64项及真实模型体验仍以上述已执行记录为准，未因文案调整重复全量验证。
+
+
+### 2026-10-27：全局待结算匹配查询
+
+按用户确认增加人工 GET /api/settlement-outstanding 和现有 fgas_query 下的 settlement_outstanding resource，不新增顶层工具、存储或匹配送审。两入口共用 settlements.outstanding，复用只读快照、原收支/结算付款分类与仅两端posted才有效的匹配规则。只返回普通已过账且remaining>0的记录，含部分匹配、冲销后恢复的剩余额和停用私账历史；无默认30天限制。支持account_id、direction=expense/receipt、kind=item/payment和分页。两侧金额不汇总为待付款额，净余额0仍可有未匹配项。low/high均可查，MCP匹配仍仅high；人工写权限保持管理员/受信任用户。
+
+验证：先运行新增HTTP行为用例，旧路由缺失导致失败；实现后结算测试7 passed。既有原生MCP集成扩展验证low分页读取、元字符串、输出Schema、low匹配被拒绝，以及high实际匹配后清单为空：目标2 passed。集中运行显式fgas_test的 ./tools/run_tests.sh：73 passed in 30.48s，含已有迁移测试；git diff --check通过。一次独立只读审阅未发现重要问题。未新增前端页面，本轮未重复构建或执行浏览器交互；此前公开接入指南的构建结果沿用。未做本功能真实模型试用、公网联调或生产发布。
+
+本地服务更新后，另经前端回环代理验证人工HTTP查询200、原生MCP low读取新resource成功，返回指南版本2026-10-27-v2且仍为三个顶层工具；临时验证凭据已停用并退出人工会话。该检查无业务写入，不代表真实模型自主操作验收。
+
+
+### 2026-10-27：货物账户统一负责人
+
+用户确认货物账户只维护一名负责人，可更换/清空并保留历史；明确开发阶段直接重建库，不处理旧数据迁移。复用StockAccountCustody作为唯一人员关系，移除StockAccount.member_id列并同步0001基线。创建/编辑账户的member_id统一追加或结束负责人记录，同一人重复保存不新增历史，不改变StockMove或库存。组织和外部端点均可指定负责人。资金账户联系人保持原有语义。
+
+列表和库存的member_id/member_name统一表示当前负责人；新增 GET /api/stock-accounts/{id}，MCP stock_accounts的identifier详情同样按需返回responsibility_history（姓名、起止时间、设置/结束操作者）。页面只保留一个负责人编辑字段和只读历史入口。移除重复的current_custody字段、custodian_id筛选、POST custody路由及MCP set_custody动作，客户端需刷新契约；指南版本2026-10-27-v3。low能查询历史，high才能修改，未增加顶层工具或角色。
+
+已在停止试用后端前将fgas_test备份到 .runtime/backups/fgas_test-20261026T181415Z-pre-responsible.dump（0600），随后按用户授权重建专用测试库，日常fgas未修改；无数据回填、兼容、未知历史字段或新增revision。
+
+验证：新负责人真实HTTP用例先因缺失详情入口失败；实施后相关货物/Agent检查41 passed。显式fgas_test执行 ./tools/run_tests.sh：74 passed in 31.03s，含建库基线/模型一致性、迁移与原业务回归；npm run build 的vue-tsc/Vite通过（6.14s），保留既有主JS超过500kB提示；git diff --check通过。一次独立只读审阅无重要问题。未做浏览器自动点击/填表或本功能真实模型试用，未发布。首次记账身份确认功能仍为独立待实施方案。
+
+本地服务更新后另经5188前端代理验证页面和HTTP负责人详情可读，原生MCP low可读取同一历史、仍为三个工具、指南v3已加载。实际fgas_test的stock_accounts旧member_id列已移除，fund_accounts联系人列仍存在；临时验证凭据已停用，验证未写业务流水。

@@ -88,12 +88,10 @@ def upgrade() -> None:
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('kind', sa.String(), nullable=False),
-    sa.Column('member_id', sa.String(), nullable=True),
     sa.Column('avatar_url', sa.String(), nullable=True),
     sa.Column('tags', sa.JSON(), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.CheckConstraint("kind IN ('public','private','external')", name=op.f('ck_stock_accounts_kind_valid')),
-    sa.ForeignKeyConstraint(['member_id'], ['members.id'], name=op.f('fk_stock_accounts_member_id_members')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_stock_accounts'))
     )
     op.create_table('fund_stocktakes',

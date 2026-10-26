@@ -28,15 +28,15 @@ Vue / 人工 HTTP       Agent / MCP
 | --- | --- |
 | `entrypoints` | 人工 HTTP 与 MCP 协议适配、Schema 校验和身份解析，调用应用服务 |
 | `application/identity.py` | 人工身份与会话、用户管理，以及共用的可信角色和目录写入授权检查 |
-| `application/directory_views.py` | 联系人、账户、SKU 与保管信息的基础视图；人工和 Agent 查询保留各自的输出字段 |
+| `application/directory_views.py` | 联系人、账户、SKU 与负责人信息的基础视图；人工和 Agent 查询保留各自的输出字段 |
 | `application/agent_access.py` | 独立连接凭据、真实所属用户解析与 low/high 固定授权 |
 | `application/agent_queries.py`、`agent_operations.py` | 共同业务查询及明确命名的业务操作，复用原服务 |
 | `application/funds.py` | 普通资金提交、审批、过账与冲销，无垫付标记判断 |
-| `application/settlements.py` | 私账报销/交回匹配及未结查询，不另记付款 |
+| `application/settlements.py` | 私账报销/交回匹配、单私账详情及跨私账未匹配明细查询；匹配本身不另记付款 |
 | `application/warehouse.py` | 货物审批、整笔完成、当前库存和生命周期检查 |
 | `application/stock_workflows.py` | 钱货共同创建的事务编排，生命周期独立 |
 | `application/stocktakes.py` | 薄盘点及专属端点组织 |
-| `application/catalogs.py`、`members.py`、`warehouse_catalogs.py` | 账户、联系人、SKU、保管目录 |
+| `application/catalogs.py`、`members.py`、`warehouse_catalogs.py` | 账户、联系人、SKU、负责人历史 |
 | `kernel`、`modules` | 通用金额/数量和流水方案，不依赖 FastAPI 或具体业务表单 |
 | `infrastructure` | 持久化、快照查询、事务与已有简单写锁，不独立决定业务策略 |
 | `infrastructure/inventory_queries.py` | 库存 SQL、筛选、分页与汇总查询；应用层组织数量格式及返回结果 |
@@ -69,11 +69,11 @@ Vue / 人工 HTTP       Agent / MCP
 
 ### 账户与成员
 
-`FundAccount/fund_accounts` 与 `StockAccount/stock_accounts` 共用 `id/name/kind/member_id/avatar_url/tags/active`。`kind` 为公账、私账、外部，创建后不可变。可选成员关联表示对应人/联系人，独立于类型；名称、联系人、头像、标签和启用状态可修改。
+`FundAccount/fund_accounts` 与 `StockAccount/stock_accounts` 共用 `id/name/kind/avatar_url/tags/active`。资金账户保存可空 member_id 联系人；货物账户不保存独立联系人列，返回的 member_id/member_name 来自当前负责人历史记录。`kind` 为公账、私账、外部，创建后不可变。可选成员关联表示对应人/联系人，独立于类型；名称、联系人、头像、标签和启用状态可修改。
 
 SKU 保存名称、规格、单位、启用状态及可空 `avatar_url`，缩略图只用于目录和货物显示，不影响库存规则；已被引用的单位仍固定。货物账户和 SKU 的图片 URL 可修改或清空。文字头像按名称生成稳定配色，不增加颜色存储字段。
 
-成员仅保存 `id/name/note`，不自动开账户、不强制唯一账户、不联动账户名称。`StockAccountCustody/stock_account_custodies` 单独记录保管成员与起止、操作人，联系人不是保管历史。
+成员仅保存 `id/name/note`，不自动开账户、不强制唯一账户、不联动账户名称。`StockAccountCustody/stock_account_custodies` 是货物账户负责人的唯一来源，保存成员、起止时间及设置/结束操作者；create/update 的 member_id 维护该历史，普通列表只投影当前负责人，账户详情才返回完整历史。外部端点也可指定负责人。
 
 余额和数量从正式流水计算。资金余额统一借方减贷方即流入减流出，公账合计只计公账。私账为正表示应交回，为负表示社团应偿还。停用不影响历史统计，阻止新单但允许已有单处理。
 
@@ -93,6 +93,8 @@ SKU 保存名称、规格、单位、启用状态及可空 `avatar_url`，缩略
 
 Transfer 的批准即已认可收支，普通用户待审、可信用户代录自动批准。匹配由可信用户办理。任何一端被冲销后匹配失效但历史保留，不直接改账、不级联冲销；页面显示对应原收支未结或付款未匹配金额，由用户核对更正。
 
+人工 `GET /api/settlement-outstanding` 与 MCP query resource `settlement_outstanding` 共用结算应用服务，在同一只读快照中按现有有效匹配规则计算各普通已过账单的剩余额。按私账、费用/代收方向、原收支/结算付款类型筛选，跨全部历史排序分页，不从账户净余额推断未结；原收支和付款是关系两侧，不设全局金额相加汇总。MCP low/high 均可查询，保存关联仍只经 high 的 settlement/create、match；不新增顶层工具、存储或审批流程。
+
 ### 薄盘点
 
 资金与货物仍各一张薄盘点表，只保存名称、说明、进行中/结束、创建信息和两个专属外部账户。账户归属固定，标签不决定归属。盘点不改变余额或数量，普通 Transfer 才表达盘盈盘亏。
@@ -111,7 +113,7 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 ## 6 查询与验证
 
-页面分别展示公账余额、私账净往来与逐笔未结、实际货物数量、在途计划量及普通状态。标签、类型与联系人支持查找，保管人独立筛选。库存价值显示未估值，不显示为零价值或利润。
+页面分别展示公账余额、私账净往来与逐笔未结、实际货物数量、在途计划量及普通状态。标签、类型与关联人员支持查找，货物目录与库存均按 member_id 筛选同一负责人。库存价值显示未估值，不显示为零价值或利润。
 
 2026-10-26 确认成员私账尽量归零、非零及时处理的管理原则；在及时清理成员往来的前提下，日常可用资金沿用公账余额口径，不新增净额可用余额指标。首页利用已有账户列表展示全部 `kind=private` 且 `balance_minor != 0` 的账户，包含未绑定联系人和已停用账户，分别标明成员应交回或社团应偿还的金额并分方向汇总。存在提醒时应先核对处理未清往来，公账金额仍表示账面资金；私账归零不等于逐笔匹配全部完成。此展示复用现有前端数据与结算入口，不增加接口、数据库字段或自动处理流程。
 
@@ -133,7 +135,7 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 `AgentCredential/agent_credentials` 保存 ID、所属用户、名称、low/high、启用、到期、创建时间、SHA-256 摘要及密钥原文。原文按用户确认的社团内部使用方案保存，仅所属用户通过人工 Cookie 会话的 `GET /api/agent-credentials/{id}/secret` 再次查看，响应禁止缓存；列表不返回密钥，管理员也不能查看他人的密钥。认证仍按摘要检索。2026-10-26 用户确认尚未正式实装密钥机制，本次新增原文列直接同步模型与建库基线 `0001`，不新增迁移、旧密钥兼容或回退逻辑。所有启用中的登录用户均可按需管理自己的 low，前端默认名称为“某某的 AI”；管理员可额外管理自己的 high，并可停用他人的连接。连接归属真实用户，不另建 AI 用户、业务联系人或资金账户。low 不继承所属用户的人工自动批准权限，三种写申请进入原有统一审批，来源只用于追溯。实际授权同时检查凭据及所属用户；停用用户阻断全部连接，high 始终要求管理员身份，普通用户或受信任用户间的角色变化不阻断 low。不改变 User.role，不新增审批分类、对象白名单、grant 矩阵或只读第三档。
 
-low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具。所有原有业务能力通过固定 resource/action 组合保留，列表与详情共用 query。MCP 适配层的 agent_catalog 契约表共用于帮助、精确参数校验与固定函数分派，应用层不反向依赖它。公开 Schema 只声明小型外壳，具体操作的 help 默认只返回说明、精确输入 Schema 和示例，`include_output_schema=true` 才附完整输出 Schema；服务端仍按选中的输入/输出模型校验。状态分别按资金/货物枚举校验，help 的 resource/action 也从固定契约表声明枚举。propose 对两档始终待审，execute 及其应用函数均校验 high。返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/ID排序、业务按创建时间/ID倒序，page/limit/has_more 标明分页；库存和货物流水直接使用数据库分页与总数，库存 totals 汇总全部筛选结果，货物列表仅读取列表所需资料；联系人提供 note，货物账户提供 current_custody；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。事件列表（资金单、货物单、货物流水）默认最近 30 天按 `created_at` 录入时间，`all_time=true` 或显式时间条件才查更早/全量；`identifier` 详情不受窗口影响。`fund_balances` 和 `inventory` 支持 `as_of`/`basis`：默认按 `transfers.posted_at` 或 `stock_moves.created_at` 的过账时间，`basis=effective_date` 按业务日期；库存 as-of 只计算 on-hand，历史在途不可用。
+low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具。所有原有业务能力通过固定 resource/action 组合保留，列表与详情共用 query。MCP 适配层的 agent_catalog 契约表共用于帮助、精确参数校验与固定函数分派，应用层不反向依赖它。公开 Schema 只声明小型外壳，具体操作的 help 默认只返回说明、精确输入 Schema 和示例，`include_output_schema=true` 才附完整输出 Schema；服务端仍按选中的输入/输出模型校验。状态分别按资金/货物枚举校验，help 的 resource/action 也从固定契约表声明枚举。propose 对两档始终待审，execute 及其应用函数均校验 high。返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/ID排序、业务按创建时间/ID倒序，page/limit/has_more 标明分页；库存和货物流水直接使用数据库分页与总数，库存 totals 汇总全部筛选结果，货物列表仅读取列表所需资料；联系人提供 note，货物账户通过 member_id/member_name 提供负责人，identifier 详情含 responsibility_history；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。事件列表（资金单、货物单、货物流水）默认最近 30 天按 `created_at` 录入时间，`all_time=true` 或显式时间条件才查更早/全量；`identifier` 详情不受窗口影响。`fund_balances` 和 `inventory` 支持 `as_of`/`basis`：默认按 `transfers.posted_at` 或 `stock_moves.created_at` 的过账时间，`basis=effective_date` 按业务日期；库存 as-of 只计算 on-hand，历史在途不可用。
 
 三种 propose 对管理员所属 high 也固定待审。资金 direct 过账、货物 direct 在途、完成 direct 才写 StockMove。`submit_mode` 仅服务内部参数，客户端不能指定。资金和货物主单、完成申请记录 `submitted_credential_id/name`；审计记录实际操作者 `agent_credential_id/name`，审批/执行快照保留连接。`approval_mode` 区分 `agent_direct`、`agent_approval` 及人工既有 automatic/manual，改连接名称不覆盖历史快照。原历史字段为空时仍按人工记录解释。
 

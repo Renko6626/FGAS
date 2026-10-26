@@ -64,8 +64,7 @@ class StockTransferFilters(TransferFilters):
 class InventoryFilters(PageFilters):
     account_id: str | None = None
     sku_id: str | None = None
-    member_id: str | None = Field(default=None, description='按账户联系人筛选。')
-    custodian_id: str | None = Field(default=None, description='按当前实际保管人筛选；返回行的 member_id/member_name 也是此保管人。')
+    member_id: str | None = Field(default=None, description='按当前负责人筛选；返回行的 member_id/member_name 也是此负责人。')
     as_of: AwareDatetime | None = None
     basis: Literal['posted', 'effective_date'] = 'posted'
 
@@ -89,6 +88,12 @@ class SettlementFilters(Input):
     account_id: str
 
 
+class SettlementOutstandingFilters(PageFilters):
+    account_id: str | None = None
+    direction: Literal['expense', 'receipt'] | None = None
+    kind: Literal['item', 'payment'] | None = None
+
+
 class IdentifierInput(Input):
     identifier: str
 
@@ -110,16 +115,19 @@ class AccountRow(MemberRow):
     active: bool
 
 
-class CustodyRow(BaseModel):
+class ResponsibilityRow(BaseModel):
     id: str
     member_id: str
     member_name: str
     valid_from: datetime
+    valid_to: datetime | None
     actor_id: str
+    actor_name: str
+    ended_by: str | None
+    ended_by_name: str | None
 
 
-class StockAccountRow(AccountRow):
-    current_custody: CustodyRow | None
+class StockAccountRow(AccountRow): pass
 
 
 class SkuRow(MemberRow):
@@ -347,6 +355,12 @@ class StocktakeMetadata(BaseModel):
     status: str
 
 
+class StockAccountDetail(StockAccountRow):
+    avatar_url: str | None
+    stocktake: StocktakeMetadata | None
+    responsibility_history: list[ResponsibilityRow]
+
+
 class SettlementAccount(AccountRow):
     avatar_url: str | None
     balance_minor: int
@@ -385,9 +399,36 @@ class SettlementOverviewData(BaseModel):
     settlements: list[SettlementRow]
 
 
+class SettlementOutstandingRow(BaseModel):
+    account_id: str
+    account_name: str
+    kind: Literal['item', 'payment']
+    direction: Literal['expense', 'receipt']
+    transfer_id: str
+    effective_date: date
+    description: str
+    counterparty: str | None
+    source_account_id: str
+    source_account_name: str
+    destination_account_id: str
+    destination_account_name: str
+    amount_minor: int
+    amount: str
+    matched_minor: int
+    matched: str
+    remaining_minor: int
+    remaining: str
+
+
+class SettlementOutstandingData(PageData[SettlementOutstandingRow, SettlementOutstandingFilters]):
+    total: int
+    limit: int
+
+
 QUERY_OUTPUT_SCHEMAS = {
     'list_fund_accounts': QueryResult[PageData[AccountRow, AccountFilters]],
     'list_stock_accounts': QueryResult[PageData[StockAccountRow, AccountFilters]],
+    'get_stock_account': QueryResult[StockAccountDetail],
     'list_skus': QueryResult[PageData[SkuRow, SkuFilters]],
     'list_members': QueryResult[PageData[SavedMember, DirectoryFilters]],
     'get_fund_balances': QueryResult[BalanceData],
@@ -398,6 +439,7 @@ QUERY_OUTPUT_SCHEMAS = {
     'get_stock_transfer': QueryResult[StockTransferDetail],
     'list_stock_moves': QueryResult[PageData[StockMoveRow, StockMoveFilters]],
     'get_settlement_overview': QueryResult[SettlementOverviewData],
+    'list_settlement_outstanding': QueryResult[SettlementOutstandingData],
     'list_fund_stocktakes': QueryResult[PageData[StocktakeRow, StocktakeFilters]],
     'get_fund_stocktake': QueryResult[StocktakeDetail[FundTransferRow]],
     'list_stock_stocktakes': QueryResult[PageData[StocktakeRow, StocktakeFilters]],
@@ -406,11 +448,13 @@ QUERY_OUTPUT_SCHEMAS = {
 
 QUERY_INPUT_SCHEMAS = {
     'list_fund_accounts': AccountFilters, 'list_stock_accounts': AccountFilters,
+    'get_stock_account': IdentifierInput,
     'list_skus': SkuFilters, 'list_members': DirectoryFilters,
     'get_fund_balances': BalanceFilters, 'list_fund_transfers': FundTransferFilters,
     'get_fund_transfer': IdentifierInput, 'get_inventory': InventoryFilters,
     'list_stock_transfers': StockTransferFilters, 'get_stock_transfer': IdentifierInput,
     'list_stock_moves': StockMoveFilters, 'get_settlement_overview': SettlementFilters,
+    'list_settlement_outstanding': SettlementOutstandingFilters,
     'list_fund_stocktakes': StocktakeFilters, 'get_fund_stocktake': IdentifierInput,
     'list_stock_stocktakes': StocktakeFilters, 'get_stock_stocktake': IdentifierInput,
 }
@@ -452,7 +496,6 @@ class AgentMemberPatch(business.MemberPatch):
 class AccountPatchOperation(AgentAccountPatch, IdentifierInput): pass
 class SkuPatchOperation(AgentSkuPatch, IdentifierInput): pass
 class MemberPatchOperation(AgentMemberPatch, IdentifierInput): pass
-class CustodyOperation(business.CustodyInput, IdentifierInput): pass
 class CompletionOperation(business.CompletionInput, IdentifierInput): pass
 class FundApprovalOperation(business.Approval, IdentifierInput): pass
 class FundRejectionOperation(business.Rejection, IdentifierInput): pass
@@ -497,8 +540,7 @@ class SavedFundAccount(SavedAccount):
     balance: str
 
 
-class SavedStockAccount(SavedAccount):
-    current_custody: CustodyRow | None
+class SavedStockAccount(SavedAccount): pass
 
 
 class SavedSku(SkuRow):
@@ -571,7 +613,6 @@ OPERATION_INPUT_SCHEMAS = {
     'update_sku': SkuPatchOperation,
     'create_member': business.MemberCreate,
     'update_member': MemberPatchOperation,
-    'set_stock_custody': CustodyOperation,
     'approve_fund_transfer': FundApprovalOperation,
     'reject_fund_transfer': FundRejectionOperation,
     'reverse_fund_transfer': FundReversalOperation,
@@ -607,7 +648,6 @@ OPERATION_OUTPUT_SCHEMAS = {
     'update_sku': QueryResult[SkuWriteData],
     'create_member': QueryResult[MemberWriteData],
     'update_member': QueryResult[MemberWriteData],
-    'set_stock_custody': QueryResult[StockAccountWriteData],
     'approve_fund_transfer': QueryResult[FundWriteData],
     'reject_fund_transfer': QueryResult[FundWriteData],
     'reverse_fund_transfer': QueryResult[FundWriteData],

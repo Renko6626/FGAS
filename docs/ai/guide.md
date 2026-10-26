@@ -1,6 +1,6 @@
 # FGAS Agent 业务与操作指南
 
-guide_version：2026-10-26-v1，api_version：2。入门见 [核心模型](overview.md)。接口处于开发阶段，客户端验证范围见项目阶段记录。
+guide_version：2026-10-27-v3，api_version：2。入门见 [核心模型](overview.md)。接口处于开发阶段，客户端验证范围见项目阶段记录。
 
 ## 1. 先把用户的话还原成账本事实
 
@@ -18,9 +18,9 @@ guide_version：2026-10-26-v1，api_version：2。入门见 [核心模型](overv
 | private | 与社团往来：流入减流出为正应交回，为负应偿还 | 仍计入组织库存 |
 | external | 外部收支、期初、盈亏端点 | 组织外部端点，不计入组织库存 |
 
-kind 创建后固定。联系人是业务资料，登录用户是操作身份，保管人来自保管关系；三者不能互相推断。变更联系人或保管人不转移钱货、债务或权限。创建联系人不创建登录用户，也不自动开私账；同一联系人的多个私账分别结算。
+kind 创建后固定。成员与联系人是业务人员资料，登录用户决定权限；资金账户关联联系人，货物账户只维护一名负责人，member_id/member_name 为当前负责人。更换人员自动保留负责人历史，不转移钱货、债务或权限。创建联系人不创建登录用户，也不自动开私账；同一联系人的多个私账分别结算。
 
-查询目录后，用名称、类型、联系人、标签、SKU 规格与单位辨认。联系人查询含 note，货物账户查询含 current_custody。遇到多个候选再询问，不猜 ID，不因查不到就新建。
+查询目录后，用名称、类型、联系人、标签、SKU 规格与单位辨认。联系人查询含 note，货物账户列表含 member_id/member_name 当前负责人；用 stock_accounts 的 identifier 查详情才返回 responsibility_history，含起止时间和设置/结束操作者。遇到多个候选再询问，不猜 ID，不因查不到就新建。
 
 ## 3. 资金、货物和完成分别何时生效
 
@@ -44,6 +44,10 @@ kind 创建后固定。联系人是业务资料，登录用户是操作身份，
 
 已有付款用 settlement/match；需要新登记付款并匹配时用 settlement/create。两端须为同一私账、方向对应的有效单据，不能超额匹配，也不自动净额抵扣。用 settlement_overview 查逐笔未结，不能只看净余额。
 
+查全社团待匹配项，用 `fgas_query({"resource":"settlement_outstanding","filters":{"direction":"expense"}})`；省略 direction 同时查报销和代收交回，receipt 只查代收/交回。可按 account_id 限定私账、kind=item/payment 区分原收支/结算付款，并按 has_more 翻页；该查询覆盖全部历史，不套近30天窗口。每行含 transfer_id、私账、来源/去向、用途和 amount/matched/remaining。只列已过账且 remaining>0 的普通记录，部分匹配只返回剩余额。
+
+item 的 remaining 是原收支未结金额，payment 的 remaining 是已有结算付款未匹配金额；两侧不能相加当作尚需报销的金额，净余额为0也可能两侧均未匹配。low/high 均可查询；low 没有匹配或匹配送审入口，发现待匹配项后报告给用户，不为匹配自行索取 high。用户授权且使用 high 时，以 settlement/match 关联已有付款，不重复登记付款。
+
 任一端冲销后匹配失效，历史保留；另一端不自动冲销。按查询结果核对更正，避免重复登记付款。
 
 ## 5. 盘点、期初与更正
@@ -57,13 +61,17 @@ kind 创建后固定。联系人是业务资料，登录用户是操作身份，
 | 工具 | 参数与用途 |
 | --- | --- |
 | fgas_help | 默认看模型和权限；topic=query/propose/execute，加 resource，execute 可加 action 查具体用法；topic=guide 读本文 |
-| fgas_query | resource 选对象；filters 查列表；转移和盘点可用 identifier 查详情，详情不能附非空 filters |
+| fgas_query | resource 选对象；filters 查列表；货物账户、转移和盘点可用 identifier 查详情，详情不能附非空 filters |
 | fgas_propose | resource + data；仅资金、货物、整笔完成三种申请，high 也固定待审 |
 | fgas_execute | resource + action + data；仅 high 直接办理 |
 
-low/high 读取范围相同，沿用有效网页登录用户可读的业务范围。所有启用用户（含普通用户）均可在网页按需创建自己的 low，默认名称为“某某的 AI”；管理员可额外创建自己的 high。连接属于真实用户，不创建独立 AI 用户、业务联系人或资金账户。low 只可查询和提交三种待审申请，不继承所属用户的人工自动批准权限；申请沿用原有审批流程，用户和连接来源用于追溯。所属用户、凭据和等级每次调用重新校验；停用用户阻断其所有连接，high 始终要求所属用户为管理员。用户、角色、凭据由人工管理。query 的目录、转移、盘点资源名用复数，propose/execute 用单数，以各入口的 resource 枚举为准。
+**默认使用 low。** low/high 读取范围相同，沿用有效网页登录用户可读的业务范围。所有启用用户（含普通用户）均可在网页按需创建自己的 low，默认名称为“某某的 AI”；管理员可额外创建自己的 high。连接属于真实用户，不创建独立 AI 用户、业务联系人或资金账户。low 只可查询和提交三种待审申请，不继承所属用户的人工自动批准权限；没有审批、直接记账或目录维护能力。low 缺少所需账户或 SKU 时，报告具体缺项，请人工准备，不自行升级连接。
+
+连接后用 `fgas_help()` 的 level 核实当前权限。high 增加直接办理、审批和目录维护能力，但不表示用户已授权任意操作；用户要求送审时，high 也用 propose。不要为绕过审批、解决客户端错误或完成测试而索取 high。申请沿用原有审批流程，用户和连接来源用于追溯。所属用户、凭据和等级每次调用重新校验；停用用户阻断其所有连接，high 始终要求所属用户为管理员。用户、角色、凭据由人工管理。query 的目录、转移、盘点资源名用复数，propose/execute 用单数，以各入口的 resource 枚举为准。
 
 首次提交资金可先查 `fgas_help({"topic":"propose","resource":"fund_transfer"})`，再按返回示例填写真实端点、金额和业务日期。示例 ID 与日期不能直接用于登记；熟悉参数后无需反复读帮助。
+
+采购默认走 low：查目录后 propose fund_transfer，再 propose stock_transfer 并引用已有资金单 ID，报告两笔申请待审。货物获批进入在途后，实际整笔到货再 propose stock_completion；提交完成申请仍不记库存。需要等待人工办理时，清楚报告停在哪一步，不把送审改成直接执行。
 
 具体操作的帮助默认只返回短说明、精确输入 Schema 和示例。需要校验响应结构时，额外传 include_output_schema=true；execute 须选定 resource 和 action。服务端始终校验实际输入和输出。
 
@@ -78,10 +86,14 @@ stock_transfer/complete 和 stock_completion 提议的 data.identifier 是父货
 - 事件列表默认近30天录入记录；all_time=true 或任一 created_at_*/effective_date_*/posted_at_* 条件关闭默认窗口。详情、目录、余额、库存、盘点、结算不套此窗口。业务日期区间含两端，录入/过账时间须带时区且左闭右开。
 - fund_balances/inventory 的 as_of 是带时区时间。basis=posted 按实际过账时点，basis=effective_date 按业务日期。资金保留原单和冲销分录；历史库存只给 on-hand，在途量为 null。货物流水 posted_at 等于 created_at。
 - fund_balances.total 始终是全部公账合计，不随 items 筛选改变；inventory.totals 汇总全部筛选结果，不限于当前页。
-- inventory 的筛选 member_id 指账户联系人，custodian_id 指当前保管人；返回行的 member_id/member_name 指当前保管人。
+- 货物账户和 inventory 的 member_id 均筛选当前负责人，返回行 member_id/member_name 含义一致。high 用 stock_account/create、update 的 member_id 设置或更换负责人，省略保留、null 清空，重复设置同一人不新增历史。旧 set_custody 动作、custodian_id 筛选与 current_custody 返回字段已移除，请刷新契约；负责人变更不改变库存。
 - submitted_by_current_connection=true 查本连接提交的记录；货物还包括本连接申请完成的父单。进入详情按 confirmation_id 分辨申请状态；此筛选不提供去重或会话记忆。
 
 只用帮助声明的过滤字段。需要按未支持的金额、数量或正文筛选时，读取合适候选后核对。
+
+查全部待审资金单、货物单分别使用 `fgas_query({"resource":"fund_transfers","filters":{"status":"pending","all_time":true}})` 和 `fgas_query({"resource":"stock_transfers","filters":{"status":"pending","all_time":true}})`，均须按 has_more 翻页。查全部待审不能只用默认近30天窗口，也不要限定 submitted_by_current_connection，除非用户只问当前连接的申请。
+
+待审完成申请另在父货物单详情的 confirmations 中；父单通常是 in_transit，单查 pending 货物单会漏掉它。当前可查全部 in_transit 货物单，再逐笔读详情筛选 confirmations.status=pending。现有 MCP 没有统一待审清单或处理结果预览；待审资金单详情的 journal_lines 是已发生的正式分录，不能当作批准后的预览。
 
 ## 8. 返回结果、错误与迁移
 

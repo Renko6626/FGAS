@@ -117,12 +117,6 @@ def update_member(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     return _saved('member', 'member_id', value)
 
 
-def set_stock_custody(db, access: AgentAccess, identifier: str, data: dict) -> dict:
-    require_high(access)
-    value = warehouse_catalogs.set_custody(db, access.user, identifier, data['member_id'])
-    return _saved('stock_account', 'account_id', value)
-
-
 def approve_fund_transfer(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = funds.decide(db, access.user, identifier, data['expected_version'], access=access)

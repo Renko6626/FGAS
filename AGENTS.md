@@ -63,5 +63,7 @@ npm run db:init    # Alembic upgrade + 开发种子
 ## 已知待办线索
 
 - 成员往来当前由 `backend/application/settlements.py` 与私账实现；早期 member_claims 方案仅作历史记录，不作为当前实现入口。
-- 盘点与目录已有资金、货物测试中的部分覆盖，但无独立专项测试文件；不要将其描述为完全没有覆盖。最新集中验证为 2026-10-26 后端 71 passed、前端构建通过，范围与未验收项见 `docs/prototype-status.md`。
+- 盘点与目录已有资金、货物测试中的部分覆盖，但无独立专项测试文件；不要将其描述为完全没有覆盖。最新集中验证为 2026-10-27 后端 74 passed、前端构建通过，范围与未验收项见 `docs/prototype-status.md`。
 - `backend/migrations/versions/0001_baseline_schema.py` 是当前基线；未来模型变更必须新增 revision，并在 `fgas_test` 上通过迁移测试。2026-10-26 用户明确确认 Agent 密钥机制尚未正式实装，本次原文保存字段直接同步当前建库基线，不新增迁移或旧密钥兼容、回退逻辑。旧 `upgrade-agent-access.sql`、`upgrade-user-auth.sql`、`upgrade-posted-at.sql` 只用于收养旧库，处理不可丢弃的库前先问用户。
+
+- 2026-10-27 用户明确货物负责人调整无需旧数据迁移、开发阶段直接重建：StockAccount 删除独立 member_id 存储列，统一由既有 StockAccountCustody 记录当前负责人及历史，API 的 member_id/member_name 为其投影；同步0001建库基线，无回填/兼容。专用fgas_test重建前已备份，日常fgas未改。首次记账确认本人资料仍处于独立方案阶段，不得描述为已实现。

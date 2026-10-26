@@ -112,6 +112,9 @@ def patch_account(identifier: str, data: AccountPatch, user=Depends(identity), d
 @router.get('/api/stock-accounts')
 def stock_accounts(tag: str | None=None, kind: str | None=None, member_id: str | None=None, user=Depends(identity), db=database_dependency):
     return catalogs.stock_accounts(db, tag, kind, member_id)
+@router.get('/api/stock-accounts/{identifier}')
+def stock_account_detail(identifier: str, user=Depends(identity), db=database_dependency):
+    return warehouse_catalogs.account_detail(db, identifier)
 @router.post('/api/stock-accounts', status_code=201)
 def create_location(data: AccountCreate, user=Depends(identity), db=database_dependency):
     return catalogs.create_stock_account(db, user, data.model_dump())
@@ -164,6 +167,13 @@ def patch_member(identifier: str, data: MemberPatch, user=Depends(identity), db=
 @router.get('/api/accounts/{identifier}/settlement-overview')
 def settlement_overview(identifier: str,user=Depends(identity),db=database_dependency):
     return settlements.overview(db,identifier)
+@router.get('/api/settlement-outstanding')
+def settlement_outstanding(account_id: str | None=None,
+                           direction: Literal['expense', 'receipt'] | None=None,
+                           kind: Literal['item', 'payment'] | None=None,
+                           page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
+                           user=Depends(identity), db=database_dependency):
+    return settlements.outstanding(db, account_id, direction, kind, page, limit)
 @router.post('/api/settlements',status_code=201)
 def create_settlement(data: SettlementCreate,user=Depends(identity),db=database_dependency):
     return settlements.create(db,user,data.model_dump(mode='json'))
@@ -180,10 +190,6 @@ def create_sku(data: SkuCreate, user=Depends(identity), db=database_dependency):
 @router.patch('/api/skus/{identifier}')
 def patch_sku(identifier: str, data: SkuPatch, user=Depends(identity), db=database_dependency):
     return warehouse_catalogs.update_sku(db, user, identifier, data.model_dump(exclude_unset=True))
-@router.post('/api/stock-accounts/{identifier}/custody')
-def set_custody(identifier: str, data: CustodyInput, user=Depends(identity), db=database_dependency):
-    return warehouse_catalogs.set_custody(db, user, identifier, data.member_id)
-
 from backend.application import warehouse
 
 @router.post('/api/stock-transfers', status_code=201)
@@ -218,10 +224,10 @@ def approve_stock_completion(identifier: str, data: StockApproval, user=Depends(
 def reject_stock_completion(identifier: str, data: StockRejection, user=Depends(identity), db=database_dependency):
     return warehouse.decide_completion(db, user, identifier, data.model_dump(mode='json'), rejection=True)
 @router.get('/api/inventory')
-def stock_inventory(sku_id: str | None=None, account_id: str | None=None, member_id: str | None=None, custodian_id: str | None=None,
+def stock_inventory(sku_id: str | None=None, account_id: str | None=None, member_id: str | None=None,
                     page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
                     user=Depends(identity), db=database_dependency):
-    return warehouse.inventory(db, dict(sku_id=sku_id, account_id=account_id, member_id=member_id,custodian_id=custodian_id), page=page, limit=limit)
+    return warehouse.inventory(db, dict(sku_id=sku_id, account_id=account_id, member_id=member_id), page=page, limit=limit)
 @router.get('/api/stock-moves')
 def stock_moves(sku_id: str | None=None, source_account_id: str | None=None, destination_account_id: str | None=None, transfer_id: str | None=None,
                 page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),

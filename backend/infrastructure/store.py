@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import aliased
 from backend.infrastructure import auth_config
 from backend.infrastructure.database import DATABASE_URL, Session, engine
-from backend.infrastructure.models import Base, User, LoginSession, FundAccount, StockAccount, Transfer, JournalLine, Audit, Member
+from backend.infrastructure.models import Base, User, LoginSession, FundAccount, StockAccount, StockAccountCustody, Transfer, JournalLine, Audit, Member
 
 def transaction():
     with Session() as db:
@@ -64,7 +64,12 @@ def stock_accounts(db, tag=None, kind=None, member_id=None):
 def catalog_items(db, model, tag, kind, member_id):
     query = select(model).order_by(model.name, model.id)
     if kind: query = query.where(model.kind == kind)
-    if member_id: query = query.where(model.member_id == member_id)
+    if member_id:
+        if model is StockAccount:
+            query = query.where(model.id.in_(select(StockAccountCustody.account_id).where(
+                StockAccountCustody.member_id == member_id, StockAccountCustody.valid_to.is_(None))))
+        else:
+            query = query.where(model.member_id == member_id)
     return [a for a in db.scalars(query) if tag is None or tag in a.tags]
 def create_account(db, values):
     item = FundAccount(**values); db.add(item); db.flush(); return item

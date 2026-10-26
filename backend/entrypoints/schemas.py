@@ -21,8 +21,6 @@ class AccountPatch(Input):
     avatar_url: str | None = None
     tags: list[str] | None = None
     active: bool | None = None
-class CustodyInput(Input):
-    member_id: str | None
 class SkuCreate(Input):
     name: str = Field(min_length=1, max_length=200)
     specification: str = ''

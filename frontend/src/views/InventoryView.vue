@@ -31,7 +31,7 @@ async function refresh() {
     const result = await warehouse.inventory({
       account_id: location.value,
       sku_id: sku.value,
-      custodian_id: member.value,
+      member_id: member.value,
     }, page.value, limit.value);
     if (sequence !== requestSequence) return;
     rows.value = result.items;
@@ -78,7 +78,7 @@ onMounted(refresh);
     /><NSelect
       v-model:value="member"
       clearable
-      placeholder="所有当前保管成员"
+      placeholder="所有负责人"
       :options="members.map((m) => ({ label: m.name, value: m.id }))"
     />
   </div>
@@ -88,7 +88,7 @@ onMounted(refresh);
     <table>
       <thead>
         <tr>
-          <th>地点 / 当前保管成员</th>
+          <th>地点 / 负责人</th>
           <th>SKU</th>
           <th>库存数量</th>
           <th>未完成转移涉及数量</th>
@@ -100,7 +100,7 @@ onMounted(refresh);
             <AccountLabel
               :name="r.account_name"
               :url="locations.find((a) => a.id === r.account_id)?.avatar_url"
-            /><small>{{ r.member_name || "未指定成员" }}</small>
+            /><small>{{ r.member_name || "未指定负责人" }}</small>
           </td>
           <td>
             <AccountLabel

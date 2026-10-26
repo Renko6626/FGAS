@@ -214,10 +214,60 @@ def test_transfer_loss_adjustments_and_custody(client):
     assert client.get(f"/api/stock-transfers/{original['id']}").json()['related_transfers'][0]['id'] == adjustment['id']
     members = [client.post('/api/members', json={'name': name}).json() for name in ('旧保管人', '新保管人')]
     for member in members:
-        assert client.post(f'/api/stock-accounts/{b}/custody', json={'member_id': member['id']}).status_code == 200
-        current = client.get('/api/inventory', params={'custodian_id': member['id'], 'sku_id': skus[0]}).json()
+        assert client.patch(f'/api/stock-accounts/{b}', json={'member_id': member['id']}).status_code == 200
+        current = client.get('/api/inventory', params={'member_id': member['id'], 'sku_id': skus[0]}).json()
         assert current['totals'][0]['quantity'] == '28' and current['items'][0]['member_name'] == member['name']
-    assert client.get('/api/inventory', params={'custodian_id': members[0]['id']}).json()['items'] == []
+    assert client.get('/api/inventory', params={'member_id': members[0]['id']}).json()['items'] == []
+
+
+def test_stock_responsible_history_and_inventory(client):
+    from sqlalchemy import func, select
+    from backend.infrastructure.models import StockMove
+
+    opening, a, b, skus = stock_setup(client)
+    people = [client.post('/api/members', json={'name': name}).json() for name in ('小王', '小李')]
+    account = client.post('/api/stock-accounts', json={
+        'name': '成员代管处', 'kind': 'private', 'member_id': people[0]['id'],
+    }).json()
+    path = '/api/stock-accounts/' + account['id']
+    response = client.get(path)
+    assert response.status_code == 200, response.text
+    history = response.json()['responsibility_history']
+    assert len(history) == 1 and history[0]['member_name'] == '小王'
+    assert history[0]['actor_id'] == 'trusted' and history[0]['valid_to'] is None
+    assert complete(client, stock_plan(client, opening, account['id'], skus[:1], ['5'], '入库'), '到货').status_code == 200
+    before = balances(client)
+    with Session() as db:
+        move_count = db.scalar(select(func.count()).select_from(StockMove))
+
+    assert client.patch(path, json={'member_id': people[0]['id']}).status_code == 200
+    assert len(client.get(path).json()['responsibility_history']) == 1
+    changed = client.patch(path, json={'member_id': people[1]['id']}).json()
+    assert changed['member_id'] == people[1]['id'] and changed['member_name'] == '小李'
+    history = client.get(path).json()['responsibility_history']
+    assert [row['member_name'] for row in history] == ['小王', '小李']
+    assert history[0]['valid_to'] == history[1]['valid_from']
+    assert history[0]['ended_by'] == 'trusted' and history[0]['ended_by_name'] == '受信任成员'
+    assert history[1]['actor_name'] == '受信任成员'
+    current = client.get('/api/inventory', params={'member_id': people[1]['id'], 'sku_id': skus[0]}).json()
+    assert current['totals'][0]['quantity'] == '5'
+    assert client.get('/api/inventory', params={'member_id': people[0]['id']}).json()['items'] == []
+    listed = client.get('/api/stock-accounts', params={'member_id': people[1]['id']}).json()
+    assert [row['id'] for row in listed] == [account['id']]
+
+    assert client.patch(path, json={'member_id': None}).json()['member_id'] is None
+    history = client.get(path).json()['responsibility_history']
+    assert len(history) == 2 and all(row['valid_to'] is not None for row in history)
+    external = client.post('/api/stock-accounts', json={
+        'name': '供应商端点', 'kind': 'external', 'member_id': people[0]['id'],
+    }).json()
+    assert client.get('/api/stock-accounts/' + external['id']).json()['responsibility_history'][0]['member_id'] == people[0]['id']
+    client.post('/api/auth/login', json={'user_id': 'untrusted'})
+    assert client.patch(path, json={'member_id': people[0]['id']}).status_code == 403
+    assert client.get(path).status_code == 200
+    assert balances(client) == before
+    with Session() as db:
+        assert db.scalar(select(func.count()).select_from(StockMove)) == move_count
 
 def test_under_shipped_independent_endpoint_adjustments(client):
     opening, a, b, skus = stock_setup(client)

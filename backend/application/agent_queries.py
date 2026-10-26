@@ -1,7 +1,7 @@
 """Shared low/high business reads. Query conditions never confer authorization."""
 from datetime import datetime, timedelta, timezone
 from backend.application.agent_access import AgentAccess
-from backend.application import directory_views, funds, warehouse, stocktakes, settlements
+from backend.application import directory_views, funds, warehouse, warehouse_catalogs, stocktakes, settlements
 from backend.infrastructure import store, stock_store, agent_store
 from backend.infrastructure.models import Transfer, StockTransfer
 from backend.kernel.accounting import DomainError
@@ -81,9 +81,7 @@ def _accounts(db, filters, stock=False):
     for item in getter(db, filters.get('tag'), filters.get('kind'), filters.get('member_id')):
         if filters.get('q') is not None and filters['q'].casefold() not in item.name.casefold(): continue
         if 'active' in filters and item.active != filters['active']: continue
-        row = directory_views.account_view(db, item)
-        if stock:
-            row['current_custody'] = directory_views.current_custody_view(db, item.id)
+        row = directory_views.account_view(db, item, stock=stock)
         result.append(row)
     return sorted(result, key=lambda row: (row['name'], row['id']))
 
@@ -96,6 +94,10 @@ def list_fund_accounts(db, access: AgentAccess, filters: dict) -> dict:
 def list_stock_accounts(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
     return _page(_accounts(db, filters, True), filters)
+
+
+def get_stock_account(db, access: AgentAccess, identifier: str) -> dict:
+    return _result(warehouse_catalogs.account_detail(db, identifier))
 
 
 def list_skus(db, access: AgentAccess, filters: dict) -> dict:
@@ -155,7 +157,7 @@ def get_inventory(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
     as_of = filters.get('as_of')
     basis = filters.get('basis', 'posted')
-    value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_id','member_id','custodian_id','as_of','basis') if key in filters},
+    value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_id','member_id','as_of','basis') if key in filters},
                                 page=filters['page'], limit=filters['limit'])
     return _database_page(value, filters, totals=value['totals'],
                  as_of=as_of, basis=basis if as_of is not None else None)
@@ -170,6 +172,12 @@ def list_stock_moves(db, access: AgentAccess, filters: dict) -> dict:
 
 def get_settlement_overview(db, access: AgentAccess, filters: dict) -> dict:
     return _result(settlements.overview(db, filters['account_id']))
+
+
+def list_settlement_outstanding(db, access: AgentAccess, filters: dict) -> dict:
+    filters = _filters(filters)
+    value = settlements.outstanding(db, **filters)
+    return _database_page(value, filters, total=value['total'], limit=value['limit'])
 
 
 def _stocktakes(db, filters, kind):

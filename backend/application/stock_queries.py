@@ -8,7 +8,7 @@ def inventory(db,filters=None,page=1,limit=20):
     basis = filters.get('basis', 'posted')
     as_of_ts = as_of if as_of is not None and basis == 'posted' else None
     as_of_date = as_of.date() if as_of is not None and basis == 'effective_date' else None
-    params = {key:filters.get(key) for key in ('account_id','sku_id','member_id','custodian_id')}
+    params = {key:filters.get(key) for key in ('account_id','sku_id','member_id')}
     params.update(as_of_ts=as_of_ts, as_of_date=as_of_date)
     result = inventory_queries.inventory_page(db, params, page=page, limit=limit)
     totals = {}

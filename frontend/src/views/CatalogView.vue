@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { NButton, NInput, NModal, NSelect, NCheckbox } from "naive-ui";
 import { accountsApi } from "../api/accounts";
-import { type Account, type StockAccount, type AccountBase, type AccountKind } from "../api/accounts";
+import { type Account, type StockAccount, type AccountBase, type AccountKind, type ResponsibilityHistory } from "../api/accounts";
 import { kinds } from "../presentation/accounts";
 import { money } from "../presentation/funds";
 import type { Member } from "../api/members";
@@ -91,28 +91,23 @@ async function save() {
     busy.value = false;
   }
 }
-const custodyShow = ref(false),
-  custodyId = ref(""),
-  custodian = ref<string | null>(null);
-function custody(a: AccountBase) {
-  custodyId.value = a.id;
-  custodian.value = (a as StockAccount).current_custody?.member_id || null;
+const historyShow = ref(false), historyName = ref(""), historyBusy = ref(false);
+const historyRows = ref<ResponsibilityHistory[]>([]);
+async function history(a: AccountBase) {
+  historyName.value = a.name;
+  historyRows.value = [];
+  historyShow.value = true;
+  historyBusy.value = true;
   error.value = "";
-  custodyShow.value = true;
-}
-async function saveCustody() {
-  if (busy.value) return;
-  busy.value = true;
   try {
-    await accountsApi.setCustody(custodyId.value, custodian.value);
-    custodyShow.value = false;
-    emit("changed");
+    historyRows.value = (await accountsApi.stockDetail(a.id)).responsibility_history;
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
-    busy.value = false;
+    historyBusy.value = false;
   }
 }
+function dateText(value: string) { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }
 </script>
 <template>
   <div class="toolbar">
@@ -142,7 +137,7 @@ async function saveCustody() {
     <NInput
       v-model:value="search"
       clearable
-      placeholder="搜索账户、联系人或标签"
+      :placeholder="mode === 'accounts' ? '搜索账户、联系人或标签' : '搜索账户、负责人或标签'"
       :input-props="{ 'aria-label': '搜索账户' }"
     />
     <NSelect
@@ -163,7 +158,7 @@ async function saveCustody() {
     <NSelect
       v-model:value="filterMember"
       clearable
-      placeholder="所有联系人"
+      :placeholder="mode === 'accounts' ? '所有联系人' : '所有负责人'"
       :options="memberOptions"
     />
   </div>
@@ -233,11 +228,10 @@ async function saveCustody() {
         <tr>
           <th>账户</th>
           <th>类型</th>
-          <th>联系人</th>
+          <th>负责人</th>
           <th>标签</th>
-          <th>当前保管人</th>
           <th>状态</th>
-          <th v-if="editable">操作</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
@@ -246,11 +240,8 @@ async function saveCustody() {
             <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}
           </td>
           <td>{{ kinds[a.kind] }}</td>
-          <td>{{ a.member_name || "未绑定" }}</td>
+          <td>{{ a.member_name || "未指定" }}</td>
           <td>{{ a.tags.join("，") || "—" }}</td>
-          <td>
-            {{ (a as StockAccount).current_custody?.member_name || "未指定" }}
-          </td>
           <td>
             <span
               class="status-pill"
@@ -258,14 +249,9 @@ async function saveCustody() {
               >{{ a.active ? "启用" : "停用" }}</span
             >
           </td>
-          <td v-if="editable">
-            <NButton size="small" @click="edit(a)">编辑</NButton
-            ><NButton
-              v-if="a.kind !== 'external'"
-              size="small"
-              @click="custody(a)"
-              >保管关系</NButton
-            >
+          <td>
+            <NButton v-if="editable" size="small" @click="edit(a)">编辑</NButton>
+            <NButton size="small" :disabled="historyBusy" @click="history(a)">负责人历史</NButton>
           </td>
         </tr>
       </tbody>
@@ -291,12 +277,12 @@ async function saveCustody() {
     /></label>
     <p v-if="id" class="muted">类型创建后固定，需要其他类型时请新建账户。</p>
     <label
-      >联系人 <span class="field-optional">可选</span
+      >{{ mode === 'accounts' ? '联系人' : '负责人' }} <span class="field-optional">可选</span
       ><NSelect
         v-model:value="member"
         clearable
         :options="memberOptions"
-        placeholder="选择成员或联系人"
+        :placeholder="mode === 'accounts' ? '选择成员或联系人' : '选择负责人，清空表示暂未指定'"
     /></label>
     <label
       >标签 <span class="field-optional">可选</span><TagInput v-model="tags"
@@ -317,25 +303,29 @@ async function saveCustody() {
     </div>
   </NModal>
   <NModal
-    v-model:show="custodyShow"
+    v-model:show="historyShow"
     preset="card"
-    title="当前保管成员"
-    class="dialog compact-dialog"
-    ><p class="muted">保管关系独立于联系人，交接后保留历史。</p>
-    <label
-      >保管成员<NSelect
-        v-model:value="custodian"
-        clearable
-        :options="memberOptions"
-        placeholder="选择成员，清空可结束保管"
-    /></label>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <div class="actions">
-      <NButton type="primary" :loading="busy" @click="saveCustody"
-        >保存保管关系</NButton
-      >
-    </div></NModal
+    title="负责人历史"
+    class="dialog"
+    :style="{ width: '900px', maxWidth: 'calc(100vw - 32px)' }"
   >
+    <p>{{ historyName }}</p>
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="historyBusy">正在读取历史</p>
+    <div v-else class="table-wrap">
+      <table>
+        <thead><tr><th>负责人</th><th>开始时间</th><th>结束时间</th><th>设置人</th><th>结束人</th></tr></thead>
+        <tbody>
+          <tr v-for="row in historyRows" :key="row.id">
+            <td>{{ row.member_name }}</td><td>{{ dateText(row.valid_from) }}</td>
+            <td>{{ row.valid_to ? dateText(row.valid_to) : '至今' }}</td>
+            <td>{{ row.actor_name }}</td><td>{{ row.ended_by_name || '—' }}</td>
+          </tr>
+          <tr v-if="!historyRows.length"><td colspan="5">尚无负责人记录</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </NModal>
 </template>
 
 <style scoped>
