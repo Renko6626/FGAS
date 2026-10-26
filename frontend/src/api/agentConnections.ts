@@ -4,5 +4,6 @@ export interface ConnectionInput { name:string; level:'low'|'high'; expires_at:s
 export const agentConnections = {
   list:()=>request<AgentConnection[]>('/agent-credentials'),
   create:(body:ConnectionInput)=>request<{credential:AgentConnection;secret:string}>('/agent-credentials','POST',body),
+  secret:(id:string)=>request<{secret:string}>('/agent-credentials/'+id+'/secret'),
   update:(id:string,body:Partial<ConnectionInput>&{active?:boolean})=>request<AgentConnection>('/agent-credentials/'+id,'PATCH',body),
 }

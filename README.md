@@ -58,7 +58,8 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 | `/auth/users`、`/auth/login` | 仅 development 模式可用的开发登录 |
 | `/auth/casdoor/login`、`/auth/casdoor/callback` | 仅 casdoor 模式可用的 OIDC 登录（授权码 + PKCE） |
 | `/auth/logout`、`/auth/me` | 退出登录与当前用户 |
-| `/agent-credentials`、`/agent-credentials/{id}` | 人工 Cookie 会话管理连接：列表、签发、修改；明文只在签发时返回 |
+| `/agent-credentials`、`/agent-credentials/{id}` | 人工 Cookie 会话管理连接：列表、签发、修改；列表不返回密钥 |
+| `/agent-credentials/{id}/secret` | 本人通过 Cookie 会话再次查看连接密钥，管理员不能查看他人的密钥 |
 | `/users`、`/users/{id}` | 管理员查看用户、修改角色和启停；最后一名启用管理员受保护 |
 | `/users/{id}/logout` | 管理员强制撤销该用户全部网页会话 |
 | `/members`、`/members/{id}` | 联系人目录，列表/创建/修改；不自动建账 |
@@ -108,28 +109,13 @@ npm run build
 
 网页页脚提供无需登录的 `/agent-setup.md` 接入指南，链接直接写在原始 HTML 中。可以将该站点文档地址交给外部 Agent，让它自行识别客户端、配置 MCP 并做只读验证；缺少连接密钥时再由用户在网页签发。文档源文件为 [agent-setup.md](frontend/public/agent-setup.md)。
 
-后端通过官方 `mcp==2.3.0` Streamable HTTP 在 `http://127.0.0.1:10622/mcp` 提供业务工具。先由人工登录“Agent 连接”签发令牌，再由客户端运行时提供 `Authorization: Bearer …`。令牌不能作为 `/api` 人工登录会话；Cookie 也不能代替 MCP Bearer。明文仅显示一次，丢失请新建连接，勿放入对话、仓库或工具参数。
+后端通过官方 `mcp==2.3.0` Streamable HTTP 在 `http://127.0.0.1:10622/mcp` 提供业务工具。先由人工登录“Agent 连接”签发令牌，再由客户端运行时提供 `Authorization: Bearer …`。令牌不能作为 `/api` 人工登录会话；Cookie 也不能代替 MCP Bearer。密钥按内部使用方案保存原文，所属用户可登录后点击“查看密钥”反复查看；认证仍使用 SHA-256 摘要，列表不返回原文。允许用户将密钥粘贴到对话，由 Agent 填写本机 MCP 认证配置，无需先设置环境变量；密钥不提交仓库，不放进业务工具参数。
 
-受信任用户只能签发自己的 low，管理员可签自己的 low/high；普通用户不能签发。MCP v2 的 low 只暴露 `fgas_help`、`fgas_query`、`fgas_propose`，high 增加 `fgas_execute`。通过对象、动作及参数覆盖原有业务能力，具体参数按需查 help。连接及所属用户的启停、角色和过期时间每次调用重新检查；Agent 不能管理登录用户、角色或连接。初始化说明先讲清账户、Transfer、正式流水、结算和盘点的关系，见 [核心模型](docs/ai/overview.md) 与 [完整指南](docs/ai/guide.md)。
+所有启用中的登录用户均可按需签发自己的 low，默认名称为“某某的 AI”；管理员可额外签发自己的 high。连接归属真实用户，不另建 AI 用户，业务申请沿用统一审批流程。MCP v2 的 low 只暴露 `fgas_help`、`fgas_query`、`fgas_propose`，不继承所属用户的人工自动批准权限；high 增加 `fgas_execute`。通过对象、动作及参数覆盖原有业务能力，具体参数按需查 help。连接及所属用户的启停、角色和过期时间每次调用重新检查，high 始终要求所属用户为管理员；Agent 不能管理登录用户、角色或连接。初始化说明先讲清账户、Transfer、正式流水、结算和盘点的关系，见 [核心模型](docs/ai/overview.md) 与 [完整指南](docs/ai/guide.md)。
 
-以下变量由启动客户端的运行时安全注入：`FGAS_MCP_URL` 为上述 URL，`FGAS_AGENT_TOKEN` 为一次性签发所得令牌。回环地址仅供与后端同机的客户端访问；另一台机器的 `127.0.0.1` 指向它自己。当前保留 SDK 默认回环 Host 校验；自定义域名、远程 HTTPS、OAuth 和部署尚未联调。
+当前客户端配置见[公开接入指南](frontend/public/agent-setup.md)，包含 Codex CLI、DSH 0.2 和 OpenCode 示例。DSH 首次自助安装推荐创造模式（`cordis`）：本机 `0.2.1-rc.3` 普通 Web 会话已验证，在用户粘贴密钥并允许一次安装后，模型自行配置官方 MCP 插件、热加载工具并提交待审批申请，无需父代理代装或重启。标准模式缺少安装工具时需先由用户配置连接；先前 SDK 试验不能代表普通创造模式的体验，见[客户端实验记录](docs/ai/2026-10-27-mcp-client-trials.md)。
 
-DeepSeek Harness 0.1.5-rc.3 的 `cordis.yml` 插件条目如下。字段及 `!!js` 环境变量写法依据其已安装官方包 README/Config；工具名称在 Harness 中为 `mcp__fgas__fgas_*`；2026-10-15 曾用实际 MCP 插件/ToolRuntime 在专用测试库验证 v1 的两档发现、读取、待审提交及 high 直接过账，未调用模型；该历史结果不代表 v2 已验收；2026-10-23 已另用本机 DSH 完成 v2 真实模型查询与写入体验，具体范围见阶段记录，远程 HTTPS 及其他客户端仍待联调。将条目加入现有配置，不需要改变模型或调用模型完成连接验证。
-
-```yaml
-- id: mcp-fgas
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: fgas
-    transport: streamable-http
-    url: !!js process.env.FGAS_MCP_URL
-    headers:
-      Authorization: !!js '`Bearer ${process.env.FGAS_AGENT_TOKEN}`'
-    reconnect:
-      enabled: false
-```
-
-DSH 插件来源：[官方 MCP 客户端说明](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/mcp/mcp-client)。关闭重连方便本地人工排查；客户端不得自动重发业务写操作。
+也可沿用环境变量：`FGAS_MCP_URL` 为服务完整地址，`FGAS_AGENT_TOKEN` 为用户签发的连接密钥。回环地址仅供与后端同机的客户端访问；另一台机器的 `127.0.0.1` 指向它自己。当前保留 SDK 默认回环 Host 校验；自定义域名、远程 HTTPS、OAuth 和部署尚未联调。客户端不得自动重发业务写操作。
 
 OpenCode 的 `opencode.json` 使用标准远程配置，依据 [官方 MCP 文档](https://opencode.ai/docs/mcp-servers/#disabling-oauth)。本机未安装 OpenCode，下面配置尚未由实际 OpenCode 联调。
 

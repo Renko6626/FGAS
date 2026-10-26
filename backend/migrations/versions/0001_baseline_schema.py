@@ -52,6 +52,7 @@ def upgrade() -> None:
     sa.Column('owner_user_id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('secret_hash', sa.String(), nullable=False),
+    sa.Column('secret_value', sa.String(), nullable=False),
     sa.Column('level', sa.String(), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),

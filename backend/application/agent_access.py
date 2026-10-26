@@ -5,7 +5,6 @@ from hashlib import sha256
 import secrets
 from typing import Literal
 
-from backend.application.identity import require_trusted
 from backend.infrastructure import agent_store, store
 from backend.infrastructure.models import AgentCredential, User
 from backend.kernel.accounting import DomainError
@@ -30,9 +29,8 @@ def hash_secret(secret: str) -> str:
 def require_issue_level(user: User, level: str) -> None:
     if level not in ('low', 'high'):
         raise DomainError('连接权限等级无效')
-    if not user.active:
-        raise DomainError('需要受信任用户权限', 403)
-    require_trusted(user)
+    if not user.active or user.role not in ('untrusted', 'trusted', 'admin'):
+        raise DomainError('用户已停用或角色无效', 403)
     if level == 'high' and user.role != 'admin':
         raise DomainError('高权限连接需要管理员权限', 403)
 
@@ -44,7 +42,7 @@ def resolve(db, bearer: str) -> AgentAccess:
         raise DomainError('连接凭据无效或已过期', 401)
     user = store.get_user(db, credential.owner_user_id)
     if (user is None or not user.active or
-            (credential.level == 'low' and user.role not in ('trusted', 'admin')) or
+            user.role not in ('untrusted', 'trusted', 'admin') or
             (credential.level == 'high' and user.role != 'admin') or
             credential.level not in ('low', 'high')):
         raise DomainError('连接所属用户已失去授权', 403)
@@ -120,6 +118,16 @@ def list_credentials(db, user: User) -> list[dict]:
     return [_credential_view(db, credential) for credential in credentials]
 
 
+def credential_secret(db, user: User, identifier: str) -> dict:
+    _management_user(db, user)
+    credential = agent_store.get_by_id(db, identifier)
+    if credential is None:
+        raise DomainError('连接不存在', 404)
+    if credential.owner_user_id != user.id:
+        raise DomainError('只能查看自己的连接密钥', 403)
+    return dict(secret=credential.secret_value)
+
+
 def _validate_credential_changes(values: dict) -> None:
     if set(values) - {'name', 'level', 'active', 'expires_at'}:
         raise DomainError('连接字段无效')
@@ -146,7 +154,7 @@ def create_credential(db, user: User, data: dict) -> dict:
     secret = generate_secret()
     credential = agent_store.save(db, AgentCredential(
         owner_user_id=user.id, name=data['name'].strip(), level=level,
-        active=True, expires_at=data.get('expires_at'), secret_hash=hash_secret(secret)))
+        active=True, expires_at=data.get('expires_at'), secret_hash=hash_secret(secret), secret_value=secret))
     return dict(credential=_credential_view(db, credential), secret=secret)
 
 

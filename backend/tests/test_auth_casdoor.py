@@ -1,9 +1,12 @@
-"""Casdoor SSO flows with the identity provider mocked out."""
+"""Human authentication; Casdoor flows use a mocked identity provider."""
+import asyncio
 import base64
 import hashlib
 from datetime import datetime, timedelta, timezone
+from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, urlparse
 
+import httpx
 import pytest
 from sqlalchemy import func, select
 
@@ -57,6 +60,31 @@ def user_by_subject(subject):
 def session_count(user_id):
     with Session() as db:
         return db.scalar(select(func.count()).select_from(LoginSession).where(LoginSession.user_id == user_id))
+
+
+def test_login_session_is_committed_before_response(client):
+    visible_at_response = []
+
+    async def observe_response(scope, receive, send):
+        async def observe(message):
+            if scope['path'] == '/api/auth/login' and message['type'] == 'http.response.start':
+                cookie = SimpleCookie()
+                for name, value in message['headers']:
+                    if name.lower() == b'set-cookie':
+                        cookie.load(value.decode())
+                with Session() as db:
+                    visible_at_response.append(db.get(LoginSession, cookie['fgas_session'].value) is not None)
+            await send(message)
+        await client.app(scope, receive, observe)
+
+    async def login_and_read():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=observe_response), base_url='http://testserver') as http:
+            response = await http.post('/api/auth/login', json={'user_id': 'untrusted'})
+            assert response.status_code == 200
+            assert (await http.get('/api/auth/me')).json()['id'] == 'untrusted'
+
+    asyncio.run(login_and_read())
+    assert visible_at_response == [True]
 
 
 def test_login_redirect_contains_pkce_and_signed_state(casdoor_client, idp):

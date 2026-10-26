@@ -20,7 +20,7 @@ _bearer: ContextVar[str | None] = ContextVar('fgas_mcp_bearer', default=None)
 _DOCS = Path(__file__).resolve().parents[2] / 'docs/ai'
 GUIDE = (_DOCS / 'guide.md').read_text()
 OVERVIEW = (_DOCS / 'overview.md').read_text()
-GUIDE_VERSION = '2026-10-23-v5'
+GUIDE_VERSION = '2026-10-26-v1'
 RESULT_SCHEMA = QueryResult[dict].model_json_schema()
 logger = logging.getLogger(__name__)
 LEGACY_TOOLS = {'fgas_get_context'} | {

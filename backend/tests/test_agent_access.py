@@ -39,7 +39,7 @@ def stock_data(client):
 
 def test_credential_issue_limits_and_invalidation(client):
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
-    assert client.post('/api/agent-credentials', json={'name': '禁止', 'level': 'low'}).status_code == 403
+    assert client.post('/api/agent-credentials', json={'name': '禁止high', 'level': 'high'}).status_code == 403
     trusted = issue(client, owner='trusted')
     assert client.post('/api/agent-credentials', json={'name': '禁止high', 'level': 'high'}).status_code == 403
     credential, secret = trusted['credential'], trusted['secret']
@@ -50,6 +50,10 @@ def test_credential_issue_limits_and_invalidation(client):
         stored = db.get(AgentCredential, credential['id'])
         assert stored.secret_hash == agent_access.hash_secret(secret) and stored.secret_hash != secret
         assert agent_access.resolve(db, secret).user.role == 'trusted'
+    with Session.begin() as db:
+        db.get(User, 'trusted').role = 'untrusted'
+    with Session() as db:
+        assert agent_access.resolve(db, secret).user.role == 'untrusted'
     client.post('/api/auth/login', json={'user_id': 'admin'})
     path = f"/api/agent-credentials/{credential['id']}"
     assert client.patch(path, json={'name': '不能改他人'}).status_code == 403
@@ -80,11 +84,61 @@ def test_credential_issue_limits_and_invalidation(client):
     assert client.get('/api/agent-credentials', headers={'Authorization': f'Bearer {secret}'}).status_code == 401
 
 
-@pytest.mark.parametrize('level', ['low', 'high'])
-def test_proposals_always_require_approval(client, level):
-    connection = issue(client, level)
+@pytest.mark.parametrize('owner,level', [('untrusted', 'low'), ('admin', 'high')])
+def test_connection_secret_can_be_viewed_only_by_owner(client, owner, level):
+    connection = issue(client, owner=owner, level=level)
+    identifier = connection['credential']['id']
+    path = f'/api/agent-credentials/{identifier}/secret'
+    for _ in range(2):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.json() == {'secret': connection['secret']}
+        assert response.headers['cache-control'] == 'no-store'
+    with Session() as db:
+        stored = db.get(AgentCredential, identifier)
+        assert stored.secret_value == connection['secret']
+        assert agent_access.resolve(db, stored.secret_value).credential_id == identifier
+    listed = client.get('/api/agent-credentials').json()
+    updated = client.patch(f'/api/agent-credentials/{identifier}', json={'name': '我的 AI'}).json()
+    for row in [*listed, updated, connection['credential']]:
+        assert not {'secret', 'secret_value', 'secret_hash'} & row.keys()
+    for other in ({'trusted', 'admin'} - {owner}):
+        client.post('/api/auth/login', json={'user_id': other})
+        assert client.get(path).status_code == 403
+    client.post('/api/auth/logout')
+    assert client.get(path, headers={'Authorization': f"Bearer {connection['secret']}"}).status_code == 401
+
+
+def test_personal_low_connection_management(client):
+    other = issue(client, owner='trusted')
+    own = issue(client, owner='untrusted', name='普通用户的 AI')
+    path = f"/api/agent-credentials/{own['credential']['id']}"
+    listed = client.get('/api/agent-credentials').json()
+    assert [row['id'] for row in listed] == [own['credential']['id']]
+    assert client.patch(path, json={'name': '我的 AI'}).json()['name'] == '我的 AI'
+    assert client.patch(path, json={'level': 'high'}).status_code == 403
+    assert client.patch(f"/api/agent-credentials/{other['credential']['id']}", json={'active': False}).status_code == 403
+    with Session() as db:
+        access = agent_access.resolve(db, own['secret'])
+        assert access.user.id == 'untrusted' and access.level == 'low'
+        assert queries.list_fund_accounts(db, access, {})['data']['items']
+    assert client.patch(path, json={'active': False}).status_code == 200
+    with Session() as db, pytest.raises(DomainError) as denied:
+        agent_access.resolve(db, own['secret'])
+    assert denied.value.status == 401
+    assert client.patch(path, json={'active': True}).status_code == 200
+    with Session.begin() as db:
+        db.get(User, 'untrusted').active = False
+    with Session() as db, pytest.raises(DomainError) as denied:
+        agent_access.resolve(db, own['secret'])
+    assert denied.value.status == 403
+
+
+@pytest.mark.parametrize('owner,level', [('untrusted', 'low'), ('trusted', 'low'), ('admin', 'low'), ('admin', 'high')])
+def test_proposals_always_require_approval(client, owner, level):
     payload = stock_data(client)
     parent = client.post('/api/stock-transfers', json=payload).json()
+    connection = issue(client, level, owner=owner)
     with Session() as db:
         access = agent_access.resolve(db, connection['secret'])
         fund = ops.propose_fund_transfer(db, access, fund_data())['data']
@@ -99,7 +153,17 @@ def test_proposals_always_require_approval(client, level):
         assert detail['status'] == 'in_transit'
         assert db.scalar(select(func.count()).select_from(JournalLine)) == 0
         assert db.scalar(select(func.count()).select_from(StockMove)) == 0
-        assert access.user.role == 'admin'
+        assert access.user.id == owner
+    if owner == 'untrusted':
+        path = f"/api/transfers/{fund['transfer_id']}"
+        pending = client.get(path).json()
+        assert pending['actor_id'] == owner
+        assert pending['submitted_credential_id'] == connection['credential']['id']
+        assert client.post(path + '/approve', json={'expected_version': pending['version']}).status_code == 403
+        client.post('/api/auth/login', json={'user_id': 'trusted'})
+        approved = client.post(path + '/approve', json={'expected_version': pending['version']}).json()
+        assert approved['status'] == 'posted' and approved['approved_by'] == 'trusted'
+        assert approved['actor_id'] == owner and approved['submitted_credential_id'] == connection['credential']['id']
 
 
 def test_high_direct_business_and_source(client):
@@ -230,13 +294,13 @@ def test_independent_apps_start_on_separate_event_loops(client):
 
 
 def test_mcp_auth_discovery_and_structured_results(client):
-    connection = issue(client)
     stock = stock_data(client)
     sku_ids = {stock['lines'][0]['sku_id']}
     for index in range(20):
         response = client.post('/api/skus', json={'name': f'分页货物{index:02}', 'unit': '件'})
         assert response.status_code == 201
         sku_ids.add(response.json()['id'])
+    connection = issue(client, owner='untrusted')
     for headers in ({}, {'Authorization': 'Bearer invalid'}, {'Cookie': '; '.join(f'{k}={v}' for k, v in client.cookies.items())}):
         assert client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}, headers=headers).status_code == 401
 

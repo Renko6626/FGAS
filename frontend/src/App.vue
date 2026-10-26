@@ -104,7 +104,7 @@ const groups = computed(() => [
     label: "基础资料",
     items: [
       { value: "members", label: "成员与联系人" },
-      ...(trusted.value ? [{ value: "agentConnections", label: "Agent 连接" }] : []),
+      { value: "agentConnections", label: "Agent 连接" },
       ...(user.value?.role === "admin"
         ? [{ value: "users", label: "用户权限" }]
         : []),
@@ -416,7 +416,7 @@ onMounted(async () => {
               @changed="refresh"
             />
             <AgentConnectionsView
-              v-else-if="tab === 'agentConnections' && trusted"
+              v-else-if="tab === 'agentConnections'"
               :key="`${user.id}:${identityEpoch}`"
               :user="user"
             />

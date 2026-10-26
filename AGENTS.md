@@ -48,9 +48,9 @@ npm run db:init    # Alembic upgrade + 开发种子
 
 ## 安全红线
 
-- `.env`、数据库连接、Agent 令牌明文**绝不提交仓库**；令牌明文只在签发时显示一次，不要放入对话、文件或工具参数。
+- `.env`、数据库连接、Agent 令牌明文**绝不提交仓库**；令牌可由所属用户登录网页后再次查看。用户已确认社团内部允许直接将 Agent 密钥粘贴到对话，由 Agent 填写本机 MCP 认证配置，无需先配置环境变量；密钥不放进业务工具参数。
 - 人工 `/api` 只用 Cookie 会话；MCP 只用 Bearer 凭据；两者不可互替。
-- Agent 凭据存 SHA-256 摘要；外部集成必须经过应用服务与账本校验，**禁止直接写数据库或绕过授权**。
+- Agent 凭据按用户确认的内部使用方案保存原文供本人再次查看，认证仍用 SHA-256 摘要；列表不返回原文，管理员也不能查看他人的密钥。外部集成必须经过应用服务与账本校验，**禁止直接写数据库或绕过授权**。
 
 ## 明确不做（第一阶段范围外）
 
@@ -58,10 +58,10 @@ npm run db:init    # Alembic upgrade + 开发种子
 - 不引入微服务、队列、缓存、多主同步、通用规则引擎、幂等键/自动重试/Outbox。
 - 数据库 schema 只通过 Alembic 演进：部署由 Compose `migrate` 一次性服务在 API 启动前执行 `alembic upgrade head`；迁移前必须备份，失败即停止发布。禁止用 `create_all` 或手写 SQL 作为新装/升级路径，禁止自动 downgrade。
 - 历史 `scripts/upgrade-*.sql` 仅用于收养基线前旧库：不可丢弃的库必须备份、执行遗留脚本、校验 schema，再 `alembic stamp 0001`；可丢弃的旧库直接重建。
-- 生产部署以 `deploy/README.md` 的 Docker Compose 路线为准；真实 Casdoor、HTTPS、生产发布及备份恢复尚未验收，附件尚未实现；MCP v2 已有本机 DSH 真实模型验证，远程 HTTPS 及其他客户端仍待联调——不要把开发环境行为当作生产已验收。
+- 生产部署以 `deploy/README.md` 的 Docker Compose 路线为准；真实 Casdoor、HTTPS、生产发布及备份恢复尚未验收，附件尚未实现；MCP v2 已有本机 DSH 真实模型验证；DSH 0.2.1-rc.3 普通 Web 创造模式已跑通自助安装、热加载和 low 待审提交，SDK／标准模式受限不能代表该路径。远程 HTTPS 及其他客户端仍待联调——不要把开发环境行为当作生产已验收。
 
 ## 已知待办线索
 
 - 成员往来当前由 `backend/application/settlements.py` 与私账实现；早期 member_claims 方案仅作历史记录，不作为当前实现入口。
-- 盘点与目录已有资金、货物测试中的部分覆盖，但无独立专项测试文件；不要将其描述为完全没有覆盖。最新集中验证为 2026-10-25 后端 65 passed、前端构建通过，范围与未验收项见 `docs/prototype-status.md`。
-- `backend/migrations/versions/0001_baseline_schema.py` 是当前基线；未来模型变更必须新增 revision，并在 `fgas_test` 上通过迁移测试。旧 `upgrade-agent-access.sql`、`upgrade-user-auth.sql`、`upgrade-posted-at.sql` 只用于收养旧库，处理不可丢弃的库前先问用户。
+- 盘点与目录已有资金、货物测试中的部分覆盖，但无独立专项测试文件；不要将其描述为完全没有覆盖。最新集中验证为 2026-10-26 后端 71 passed、前端构建通过，范围与未验收项见 `docs/prototype-status.md`。
+- `backend/migrations/versions/0001_baseline_schema.py` 是当前基线；未来模型变更必须新增 revision，并在 `fgas_test` 上通过迁移测试。2026-10-26 用户明确确认 Agent 密钥机制尚未正式实装，本次原文保存字段直接同步当前建库基线，不新增迁移或旧密钥兼容、回退逻辑。旧 `upgrade-agent-access.sql`、`upgrade-user-auth.sql`、`upgrade-posted-at.sql` 只用于收养旧库，处理不可丢弃的库前先问用户。

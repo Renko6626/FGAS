@@ -1,21 +1,41 @@
 % 编译：mkdir -p /tmp/fgas-introduction-ai
 % xelatex -interaction=nonstopmode -halt-on-error -output-directory=/tmp/fgas-introduction-ai docs/fgas-introduction-ai.tex
 \documentclass[UTF8,fontset=none,a4paper,11pt]{ctexart}
-\usepackage[left=20mm,right=20mm,top=17mm,bottom=17mm]{geometry}
-\usepackage{tikz,tabularx,array,booktabs,amsmath,hyperref}
+\usepackage[left=18mm,right=18mm,top=16mm,bottom=18mm]{geometry}
+\usepackage{tikz,tabularx,array,booktabs,amsmath,hyperref,fancyhdr}
 \usetikzlibrary{arrows.meta,positioning}
-\setCJKmainfont{Noto Serif CJK SC}
+\setmainfont{TeX Gyre Heros}
+\setsansfont{TeX Gyre Heros}
+\setCJKmainfont{Noto Sans CJK SC}
 \setCJKsansfont{Noto Sans CJK SC}
 \setCJKmonofont{Noto Sans Mono CJK SC}
 \hypersetup{hidelinks,pdftitle={FGAS：AI 辅助的社团财务与库存管理},pdfauthor={FGAS}}
-\pagestyle{empty}
+\urlstyle{same}
+\definecolor{ink}{HTML}{24364B}
+\definecolor{muted}{HTML}{596B7C}
+\definecolor{teal}{HTML}{16756C}
+\definecolor{blue}{HTML}{315FAD}
+\definecolor{tealpale}{HTML}{EDF6F3}
+\definecolor{bluepale}{HTML}{EEF3FA}
+\color{ink}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\footnotesize\color{muted}FGAS\quad 社团资金与库存}
+\fancyfoot[R]{\footnotesize\color{teal}\thepage\ /\ 2}
+\setlength{\footskip}{9mm}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{3pt}
-\linespread{1.04}
-\newcommand{\blocktitle}[1]{\par\addvspace{6pt}{\sffamily\bfseries\large #1}\par\nobreak\vspace{2pt}}
+\linespread{1.12}
+\newcommand{\blocktitle}[1]{\par\addvspace{6pt}{\sffamily\bfseries\color{ink}\fontsize{21}{27}\selectfont #1}\par\nobreak\vspace{4mm}}
+\newcommand{\stepbadge}[2][teal]{\tikz[baseline=(n.base)]\node[circle,fill=#1,text=white,font=\bfseries\small,inner sep=0pt,minimum size=5.5mm] (n) {#2};}
+\newcommand{\aistep}[3]{\par\begingroup\hangindent=8mm\hangafter=1\noindent\makebox[8mm][l]{\stepbadge[blue]{#1}}\textbf{#2}\quad #3\par\endgroup}
+\newcommand{\steptitle}[2]{\stepbadge[flowcolor]{#1}\hspace{2mm}{\bfseries\color{flowcolor}#2}\par\vspace{3mm}}
+\newcommand{\pagebrand}[1]{{\color{teal}\bfseries\large FGAS}\hfill{\small\color{muted}#1}\par\vspace{2mm}{\color{teal}\hrule height 1.1pt}\vspace{6mm}}
+\colorlet{flowcolor}{teal}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
-\tikzset{inlineaccount/.style={draw=black!65,fill=black!3,line width=.5pt,
-  inner xsep=4pt,inner ysep=3pt,minimum width=12mm,
+\tikzset{inlineaccount/.style={draw=flowcolor!25,fill=white,text=ink,rounded corners=2pt,line width=.5pt,
+  inner xsep=5pt,inner ysep=5pt,minimum width=12mm,
   font=\small\sffamily,text height=1.5ex,text depth=.25ex}}
 % 行内转移与正文基线对齐；卡片内统一两端方框宽度。
 \newcommand{\inlineflow}[3]{%
@@ -23,8 +43,8 @@
   \tikz[baseline=(source.base)]{%
     \node[inlineaccount] (source) {#1};
     \node[inlineaccount,right=17mm of source] (destination) {#3};
-    \draw[-{Stealth[length=1.8mm,width=1.3mm]},line width=.6pt]
-      (source.east) -- node[above=2pt,font=\footnotesize,inner sep=0pt] {#2}
+    \draw[-{Stealth[length=1.8mm,width=1.3mm]},draw=flowcolor,line width=.8pt]
+      (source.east) -- node[above=3pt,font=\footnotesize,text=flowcolor,inner sep=0pt] {#2}
       (destination.west);
   }}\hskip0pt%
 }
@@ -32,117 +52,125 @@
 % 对应步骤使用相同高度，左右标题、箭头与结尾横线保持对齐。
 \newcommand{\cardstep}[2]{%
   \begin{minipage}[t][#1][t]{\linewidth}
-    \setlength{\parskip}{2pt}\setlength{\parindent}{0pt}#2
+    \setlength{\parskip}{4pt}\setlength{\parindent}{0pt}#2
   \end{minipage}\par\nointerlineskip
 }
 \newcommand{\cardresult}[1]{%
-  \hrule\vspace{6pt}%
-  \begin{minipage}[t][14mm][t]{\linewidth}#1\end{minipage}
+  {\color{flowcolor!25}\hrule}\vspace{8pt}%
+  \begin{minipage}[t][20mm][t]{\linewidth}#1\end{minipage}
 }
-\newcommand{\examplecard}[2]{%
+\newcommand{\examplecard}[3]{%
   \begingroup
-  \setlength{\fboxsep}{7pt}%
-  \setlength{\fboxrule}{.6pt}%
-  \fbox{\begin{minipage}[t]{\dimexpr .5\linewidth-3mm-2\fboxsep-2\fboxrule\relax}
+  \colorlet{flowcolor}{#1}%
+  \setlength{\fboxsep}{10pt}%
+  \colorbox{#1pale}{\begin{minipage}[t]{\dimexpr .5\linewidth-3mm-2\fboxsep\relax}
     \small\raggedright
     \setlength{\parskip}{0pt}%
     \tikzset{inlineaccount/.append style={minimum width=17mm}}
-    {\sffamily\bfseries\large #1}\par\vspace{5pt}
-    #2
+    {\sffamily\bfseries\color{flowcolor}\fontsize{17}{22}\selectfont #2}\par\vspace{6mm}
+    #3
   \end{minipage}}%
   \endgroup
 }
 
 \begin{document}
 \begingroup
-\setlength{\parskip}{5pt}
-\linespread{1.15}\selectfont
-{\sffamily\bfseries\fontsize{30}{34}\selectfont FGAS}\par
+\setlength{\parskip}{4pt}
+\linespread{1.10}\selectfont
+\pagebrand{系统介绍\quad 2026 年 10 月}
+{\sffamily\bfseries\fontsize{24}{31}\selectfont AI 辅助的社团财务与库存管理系统}\par
 \vspace{2mm}
-{\sffamily\bfseries\fontsize{21}{27}\selectfont AI 辅助的社团财务与库存管理}\par
-\vspace{3mm}
-{\large 让 AI 协助查询、整理和提交记录，由成员核对审批。}\par
-
-\vspace{10mm}
-{\sffamily\bfseries\Large 钱和货，都用转移来记录}\par
-订货、销售、报销、调拨，都记清钱或货从哪里转到哪里。付款和到货分开记录，各自按实际进度处理。
-
-例如，小明垫付 100 元订购 10 个立牌，记下到货、垫付和报销三笔转移：
+{\color{muted}使用尽量简洁的数据模型，并接入AI进行日常事务的文书工作。}\par
 
 \vspace{4mm}
+{\sffamily\bfseries\large “转移”作为一等公民}\par
+我们将引入复式记账的思路。
+
+文中“账户”指的是任何能够存放资金/货物的实体（实际的或者抽象的），而记录都聚焦于“钱/东西在账户之间的转移”。
+
+例如，小明垫付 100 元订购 10 个立牌，记下到货、垫付和报销三笔：
+
+\vspace{3mm}
 \begin{tabularx}{\linewidth}{@{}Y Y Y@{}}
-{\sffamily\bfseries 到货} & {\sffamily\bfseries 垫付} & {\sffamily\bfseries 报销} \\[9pt]
+{\sffamily\bfseries\color{teal} 到货} & {\sffamily\bfseries\color{blue} 垫付} & {\sffamily\bfseries\color{blue} 报销} \\[9pt]
 \inlineflow{厂家}{10 个立牌}{仓库} &
-\inlineflow{小明}{100 元}{厂家} &
-\inlineflow{公账}{100 元}{小明}
+{\colorlet{flowcolor}{blue}\inlineflow{小明}{100 元}{厂家}} &
+{\colorlet{flowcolor}{blue}\inlineflow{公账}{100 元}{小明}}
 \end{tabularx}
 
-\vspace{12mm}
-{\setlength{\fboxsep}{13pt}%
-\colorbox{black!4}{%
-\begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}
-\setlength{\parskip}{6pt}
-{\sffamily\bfseries\Large AI 只提交，不拍板}\par
-\vspace{1mm}
-AI 通过 MCP 协议接入系统，普通连接只有三个入口：\textbf{查帮助、查数据、提交待审记录}；批不批始终由成员决定。需要哪些动作和参数，再查帮助。
+这个模型足够简洁，而且也被很多现实世界的管理系统应用。
 
-因为钱和货都记成同一种“转移”，AI 不必为每种业务另学一组工具。
-
+最重要的是，系统越简单，\textbf{人类和大模型}在操作时因理解不足产生的错误操作/幻觉就会越少，十万个按钮/工具和一堆层层叠叠的字段依赖会把所有没经过专业训练的人类逼疯。\par
 \vspace{4mm}
-\begin{center}
+{\setlength{\fboxsep}{11pt}%
+\colorbox{bluepale}{%
+\begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}
+\setlength{\parskip}{4pt}
+{\sffamily\bfseries\color{blue}\large AI 辅助日常操作和计算}\par
+\vspace{1mm}
+我们支持网页内调用模型，或者让你自己的coding agent连接MCP服务。
+网站有引导agent接入网站MCP的文档，给AI域名之后他们就会自动发现并接入所有功能。
+接入 AI 助手后，以小明这笔垫付款为例，AI 这样工作：\par
+\vspace{1mm}
+{\centering
 \begin{tikzpicture}[
-  stage/.style={font=\sffamily\bfseries,inner sep=0pt},
+  stage/.style={font=\sffamily\bfseries\small,text=blue,inner sep=0pt},
   >={Stealth[length=2mm,width=1.5mm]}]
-\node[stage] (user) {你说明情况};
-\node[stage,right=18mm of user] (ai) {AI 查询并提交};
-\node[stage,right=18mm of ai] (human) {成员核对审批};
-\draw[->,black!60] ([xshift=3mm]user.east) -- ([xshift=-3mm]ai.west);
-\draw[->,black!60] ([xshift=3mm]ai.east) -- ([xshift=-3mm]human.west);
+\node[stage] (user) {成员提出需求};
+\node[stage,right=18mm of user] (ai) {AI 提交待审记录};
+\node[stage,right=18mm of ai] (human) {管理员核对审批};
+\draw[->,blue!50] ([xshift=3mm]user.east) -- ([xshift=-3mm]ai.west);
+\draw[->,blue!50] ([xshift=3mm]ai.east) -- ([xshift=-3mm]human.west);
 \end{tikzpicture}
-\end{center}
-\vspace{2mm}
-你可以让 AI 查余额、查库存、整理垫付记录。AI 提交后，成员核对账户、金额和数量再决定批不批；AI 与人工走同一套校验，留同一套记录。
+\par}
+\aistep{1}{小明说明情况}{“我今天垫了 100 元，向厂家买了 10 个立牌，货还没到。帮我记一下这笔垫付款。”}
+
+\aistep{2}{AI 整理并提交}{AI 查询已有账户，把这句话整理成“\textbf{小明 $\rightarrow$ 厂家，100 元}”，附上日期和采购说明，提交。}
+
+\aistep{3}{管理员核对并批准}{核对付款人、收款人、金额和用途后批准，系统里小明的账户余额就减少 100 元；若原来互不相欠，现在就表示社团应报销他 100 元。}
+
+对于所有Agent（和不受信任的用户），他们的操作都需要“人类（受信任的用户）审批”，防止手滑抽风。
+当然，即使有一笔错误的转移，我们目前完全可以通过“追加一个方向相反的转移”来抵消掉它。
+
 \end{minipage}}\par}
 
-\vspace{10mm}
-{\sffamily\bfseries\Large 随时核对钱和货}\par
+\vspace{4mm}
+{\sffamily\bfseries\large 随时核对钱和货}\par
 \vspace{2mm}
-{\renewcommand{\arraystretch}{1.5}%
+{\renewcommand{\arraystretch}{1.28}%
 \begin{tabularx}{\linewidth}{@{}>{\sffamily\bfseries}p{25mm}Y@{}}
 公账 & 社团账面还有多少钱。\\
-个人往来 & 成员应交回多少，社团应偿还多少。\\
-库存 & 各处还剩多少货物。\\
+个人 & 成员应交回多少，社团应偿还多少。\\
+库存 & 货物都存在哪，各处还剩多少货物。\\
 厂家 & 付给这个厂家的钱：余额 $+100$ 元，即已付 100 元。\\
 展会游客 & 从游客收到的钱：余额 $-120$ 元，即已收 120 元。\\
 \end{tabularx}}
 \vspace{2mm}
-{\small “厂家”和“展会游客”是虚拟账户，只记录我们与对方的往来。下一页用一次完整的展会例子，看钱和货怎么记。}\par
+{\small “厂家”和“展会游客”是虚拟账户，只记录我们与对方的往来。}\par
 
 \vfill
-{\footnotesize\color{black!65}
+{\footnotesize\color{muted}
 \setlength{\parskip}{4pt}
-当前为单社团、人民币的开发原型。核心功能已有测试；正式登录、HTTPS、生产发布及备份恢复仍待验收。不计算成本、估值或利润，可先选一次小活动试记。\par
-源码：\url{https://github.com/Renko6626/FGAS}\hfill 2026 年 10 月\par}
+仓库：\url{https://github.com/Renko6626/FGAS}\par}
 \endgroup
 
 \newpage
-\blocktitle{2\quad 示例：订一批立牌，拿去展会卖}
+\pagebrand{一次展会的完整记录}
+\blocktitle{订一批立牌，拿去展会卖}
 小明先垫 100 元订了 10 个立牌，全部拿去展会，每个卖 20 元。卖掉 6 个后，钱先收进小红的收款码，事后再转进公账；收摊时发现只剩 3 个，核对后确认丢了 1 个。剩下的带回仓库，最后给小明报销。
 
-下面两张卡片说的是同一件事，分别看货和钱怎么走。货物箭头表示已经完成的转移；还没到货时先记在途，不提前算进库存。
-
-\vspace{3pt}
-\examplecard{货物的转移}{%
-\cardstep{30mm}{%
-\textbf{1\quad 从厂家订货}\par
+\vspace{4mm}
+\examplecard{teal}{货物的转移}{%
+\cardstep{36mm}{%
+\steptitle{1}{从厂家订货}
 
 \inlineflow{厂家}{10 个立牌}{仓库}\par
 
 仓库 $+10$；厂家记 $-10$，表示这 10 个已经发给我们了。
 
 }
-\cardstep{32mm}{%
-\textbf{2\quad 带去展会卖6个}\par
+\cardstep{43mm}{%
+\steptitle{2}{带去展会卖 6 个}
 
 \inlineflow{仓库}{10 个}{展会摊位}\par
 
@@ -150,8 +178,8 @@ AI 通过 MCP 协议接入系统，普通连接只有三个入口：\textbf{查�
 
 现在账面上仓库有0个，展会摊位有4个，展会游客有6个。
 }
-\cardstep{26mm}{%
-\textbf{3\quad 收摊发现只剩3个}\par
+\cardstep{34mm}{%
+\steptitle{3}{收摊发现只剩 3 个}
 
 清点后确认是真丢了 1 个，就把它记到“虚空”：
 
@@ -159,8 +187,8 @@ AI 通过 MCP 协议接入系统，普通连接只有三个入口：\textbf{查�
 
 这样账面就和实际对上了。
 }
-\cardstep{16mm}{%
-\textbf{4\quad 剩下的带回}\par
+\cardstep{21mm}{%
+\steptitle{4}{剩下的带回}
 
 \inlineflow{展会摊位}{3 个}{仓库}\par
 }
@@ -168,24 +196,24 @@ AI 通过 MCP 协议接入系统，普通连接只有三个入口：\textbf{查�
 
 }%
 \hfill
-\examplecard{钱的转移}{%
-\cardstep{30mm}{%
-\textbf{1\quad 小明订货付钱 }\par
+\examplecard{blue}{钱的转移}{%
+\cardstep{36mm}{%
+\steptitle{1}{小明订货付钱}
 
 \inlineflow{小明}{100 元}{厂家}\par
 
 小明账户变成 $-100$，代表社团应该给他报销 $100$。
 \textbf{个人账户余额原则上应为 0：为 0 就是互不相欠。}
 }
-\cardstep{32mm}{%
-\textbf{2\quad 卖出 6 个，收到 120 元}\par
+\cardstep{43mm}{%
+\steptitle{2}{卖出 6 个，收到 120 元}
 假设收款码用的是小红的：\par
 \inlineflow{展会游客}{120 元}{小红}\par
 
 此时小明账户 $-100$，小红账户 $+120$。
 }
-\cardstep{42mm}{%
-\textbf{3\quad 社团大报销}\par
+\cardstep{55mm}{%
+\steptitle{3}{社团大报销}
 
 \inlineflow{小红}{120 元}{公账}\par
 \inlineflow{公账}{100 元}{小明}\par
@@ -196,7 +224,5 @@ AI 通过 MCP 协议接入系统，普通连接只有三个入口：\textbf{查�
 
 }
 
-\vspace{3pt}
-\textbf{有些地方没对上，就知道该去哪查。}比如摊位还有账面库存，但东西已经全带回了，可能漏记了退回；小明已经拿到报销，账上却还挂着未结款项，就要查付款或匹配有没有漏记、记错。余额没对上不一定就是错——也可能事情还没办完，先核对实际进度。
 
 \end{document}

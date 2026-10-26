@@ -10,17 +10,21 @@ FGAS 用来记录一个社团的人民币资金和货物。MCP 和网页调用�
 
 先看自己运行在哪个 Agent 客户端里，再检查它现有的 MCP 配置。客户端需要支持远程 Streamable HTTP，并且能发送自定义的 Authorization 请求头。如果已经有 `fgas` 连接，就先尝试使用；需要修改时，只改这一项，保留其他服务器、模型和用户设置。
 
-FGAS 自己不运行大模型，连接它不需要换模型，也不需要另外提供模型供应商的 API Key。如果当前客户端不支持配置 MCP，或不能发送认证头，就把这个限制告诉用户，不能说已经连好了。
+FGAS 自己不运行大模型，连接它不需要换模型，也不需要另外提供模型供应商的 API Key。如果当前客户端或运行模式完全没有可用的 MCP 接入能力，请说明缺少什么，并引导用户在客户端启用 MCP 功能、配置原生 MCP 插件，或切换到支持 MCP 的客户端或模式；配置后按客户端要求重载或重新开启会话，再验证连接。如果不支持 Streamable HTTP 或不能发送认证头，也应引导用户使用支持这些能力的接入方式。没有原生工具可用时，不要声称已经连接，也不要用手写协议客户端代替正常的 MCP 接入。
 
 ## 2. 获取用户签发的连接密钥
 
 连接时要在请求头里带上 `Authorization: Bearer <连接密钥>`。MCP 目前使用密钥认证，不走 OAuth；网页登录（开发账号或 Casdoor）只用于进入网页和签发连接，不能代替 MCP Bearer。
 
-先看看运行环境里有没有 `FGAS_AGENT_TOKEN`，或者客户端是否已经保存了 FGAS 的密钥。有的话直接使用，不要把密钥打印出来。没有的话，告诉用户这一步就够了：
+先看看客户端是否已有可用的 FGAS 连接，有的话直接使用。没有的话，请用户在网页创建或查看个人连接，将密钥直接粘贴到当前对话。本站按社团内部使用约定允许这样传递密钥，你可以据此将它直接写入客户端的 MCP 认证配置，无需让用户先设置环境变量：
 
-> 请打开 FGAS 网页（按站点配置使用 Casdoor 或开发账号登录），在“基础资料 → Agent 连接”里新建一个连接。把页面显示的密钥存到当前 Agent 客户端的安全配置，或 `FGAS_AGENT_TOKEN` 环境变量里。存好后，我继续检查能不能连上。
+> 请登录 FGAS，在“基础资料 → Agent 连接”里创建个人连接，或点击已有连接的“查看密钥”，将密钥粘贴到当前对话。我会用它配置连接；如果需要你在客户端手动操作，我会给出具体步骤。
 
-受信任用户可以创建自己的 low 连接；管理员可以创建自己的 low 或 high 连接。low 能查数据、提交待审申请，high 还可以直接办理业务。按用户的要求使用现有权限，不要自行升级权限或换账号。密钥只在创建时显示一次，丢失后需要新建连接；网页登录用的 Cookie 不能拿来代替它。
+所有启用中的登录用户都可以按需创建自己的 low 连接，普通用户不需要先取得受信任角色。管理员还可以额外创建自己的 high 连接。连接属于真实登录用户，不另建“AI 用户”、业务联系人或资金账户；提交记录会保留用户和连接来源，所属用户停用后连接也无法使用。
+
+密钥可以由所属用户登录网页后反复查看，管理员也不能查看他人的密钥。查看和管理密钥只使用人工 Cookie 会话，不通过 MCP 暴露；不要让 Agent 获取网页登录 Cookie 来读取密钥。
+
+low 能读取与网页相同范围的业务资料，并提交资金、货物和整笔完成申请。所有 low 写申请都进入现有人工审批，即使所属用户本人是受信任用户或管理员，也不会自动批准。high 才能直接办理业务，并且所属用户必须仍为管理员。按用户的要求使用现有权限，不自行升级或换账号；网页登录 Cookie 不能代替 MCP Bearer。
 
 ## 3. 配置当前客户端
 
@@ -34,24 +38,40 @@ FGAS 自己不运行大模型，连接它不需要换模型，也不需要另外
 | 认证请求头 | `Authorization: Bearer <用户签发的密钥>` |
 | OAuth | 关闭，使用上述密钥 |
 
-以 OpenCode 为例，可以把下面这一项加入已有的 `opencode.json`。使用前，先确保客户端进程能读到 `FGAS_MCP_URL` 和 `FGAS_AGENT_TOKEN` 这两个环境变量：
+**Codex CLI（包括使用 Luna 的会话）**：收到用户粘贴的密钥后，在实际使用的 `config.toml` 中合并以下连接项，保留其他配置。将示例 URL 换成本站地址，将密钥占位符换成用户提供的值：
+
+```toml
+[mcp_servers.fgas]
+url = "https://fgas.example.com/mcp"
+http_headers = { Authorization = "Bearer <用户粘贴的连接密钥>" }
+```
+
+用 `codex mcp list` 核对配置，再重新开启会话确认工具可见。仅临时验证时，也可以用 CLI 的 `-c` 覆盖上述连接项，沿用现有模型登录环境；不要仅为添加 FGAS 改用空的 `CODEX_HOME`，它同时影响配置和模型登录态。模型服务的 401 应检查 Codex 登录，本站 `/mcp` 的 401 才检查 FGAS 密钥。写工具被 Codex 本地审批策略拦截时，按客户端提示处理该项操作的许可；不要因此重复提交或升级 FGAS 密钥。配置字段见 [Codex 官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp#streamable-http-servers)，目录影响见 [CODEX_HOME 说明](https://learn.chatgpt.com/docs/config-file/environment-variables#core-locations)。
+
+**DeepSeek Harness（DSH 0.2）**：先检查当前模型实际可见的工具。已有 `mcp__fgas__*` 时直接验证；尚未连接时，先按第 2 节请求用户粘贴个人密钥。发布版 `0.2.1-rc.3` 的标准模式默认没有 `plugin_manager`，不能保证自行安装连接。若没有该工具，立即说明需要用户通过客户端插件管理安装，或用创造模式（`cordis`）完成首次配置；不要反复扫描客户端源码、SDK、进程或端口来寻找安装入口。连接配置完成后，标准模式即可办理业务。
+
+具备 `plugin_manager` 时，读取客户端自带的 `cordis-plugin-development` 指导，在工作目录准备仅含配置的 bundle，通过 `install_bundle` 安装到当前 profile。配置包使用官方原生插件 `@deepseek-ai/dsh-mcp-client`，填写 `serverName: fgas`、`transport: streamable-http`、本站 `/mcp` 完整 URL，以及 `headers.Authorization: 'Bearer <用户粘贴的连接密钥>'`。无需编写协议客户端或新的工具实现。
+
+安装需要客户端许可时，说明这是为当前 profile 添加 FGAS 连接，按客户端提示处理。管理结果为 `application: applied` 后，检查 `mcp__fgas__*` 工具并调用帮助与只读查询；启用热重载时可以在当前会话直接验证。只有返回 `restart-required` 时才引导用户重启。若没有 `plugin_manager` 或相应权限，请说明当前版本、模式及所缺能力，引导用户使用具备该入口的标准或创造模式，停止反复探查动态 Cordis 内部接口。配置格式以本机插件文档为准，操作方式见 [DSH 官方 MCP 配置示例](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/practice/dynamic-cordis.md)。
+
+**OpenCode**：可以把下面这一项合并到已有的 `opencode.json`，替换站点地址与密钥：
 
 ```json
 {
   "mcp": {
     "fgas": {
       "type": "remote",
-      "url": "{env:FGAS_MCP_URL}",
+      "url": "https://fgas.example.com/mcp",
       "oauth": false,
       "headers": {
-        "Authorization": "Bearer {env:FGAS_AGENT_TOKEN}"
+        "Authorization": "Bearer <用户粘贴的连接密钥>"
       }
     }
   }
 }
 ```
 
-其他客户端的配置格式可能不同，用它自己的远程 MCP 配置方式就行，不必换成 OpenCode。添加时保留原有配置，也别把示例中的环境变量占位符当作密钥发出去。环境变量改好后，可能需要重启客户端或重新加载连接才会生效。
+其他客户端用自己的远程 MCP 配置方式即可，不必更换客户端。已有环境变量配置也可以沿用，但不作为接入前提。配置文件保存在本机，不要提交到项目仓库。配置后可能需要重启客户端或重新加载连接；如需用户操作，请给出具体动作，再验证工具可见和只读查询成功。
 
 配置格式可以查阅：[OpenCode 远程 MCP 与 API Key](https://docs.opencode.ai/docs/mcp-servers/#disabling-oauth)。
 

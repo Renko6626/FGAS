@@ -33,6 +33,7 @@ class AgentCredential(Base):
     owner_user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     name: Mapped[str] = mapped_column(String)
     secret_hash: Mapped[str] = mapped_column(String, unique=True)
+    secret_value: Mapped[str] = mapped_column(String)
     level: Mapped[str] = mapped_column(String)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
