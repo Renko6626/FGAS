@@ -1,0 +1,191 @@
+% 编译：mkdir -p /tmp/fgas-introduction
+% xelatex -interaction=nonstopmode -halt-on-error -output-directory=/tmp/fgas-introduction docs/fgas-introduction.tex
+\documentclass[UTF8,fontset=none,a4paper,11pt]{ctexart}
+\usepackage[left=20mm,right=20mm,top=17mm,bottom=17mm]{geometry}
+\usepackage{tikz,tabularx,array,booktabs,amsmath,hyperref}
+\usetikzlibrary{arrows.meta,positioning}
+\setCJKmainfont{Noto Serif CJK SC}
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmonofont{Noto Sans Mono CJK SC}
+\hypersetup{hidelinks,pdftitle={FGAS：用账户和转移记录钱与货},pdfauthor={FGAS}}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\linespread{1.04}
+\newcommand{\blocktitle}[1]{\par\addvspace{6pt}{\sffamily\bfseries\large #1}\par\nobreak\vspace{2pt}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\tikzset{inlineaccount/.style={draw=black!65,fill=black!3,line width=.5pt,
+  inner xsep=4pt,inner ysep=3pt,minimum width=12mm,
+  font=\small\sffamily,text height=1.5ex,text depth=.25ex}}
+% 行内转移与正文基线对齐；卡片内统一两端方框宽度。
+\newcommand{\inlineflow}[3]{%
+  \leavevmode\hskip0pt\mbox{%
+  \tikz[baseline=(source.base)]{%
+    \node[inlineaccount] (source) {#1};
+    \node[inlineaccount,right=17mm of source] (destination) {#3};
+    \draw[-{Stealth[length=1.8mm,width=1.3mm]},line width=.6pt]
+      (source.east) -- node[above=2pt,font=\footnotesize,inner sep=0pt] {#2}
+      (destination.west);
+  }}\hskip0pt%
+}
+
+% 对应步骤使用相同高度，左右标题、箭头与结尾横线保持对齐。
+\newcommand{\cardstep}[2]{%
+  \begin{minipage}[t][#1][t]{\linewidth}
+    \setlength{\parskip}{2pt}\setlength{\parindent}{0pt}#2
+  \end{minipage}\par\nointerlineskip
+}
+\newcommand{\cardresult}[1]{%
+  \hrule\vspace{6pt}%
+  \begin{minipage}[t][14mm][t]{\linewidth}#1\end{minipage}
+}
+\newcommand{\examplecard}[2]{%
+  \begingroup
+  \setlength{\fboxsep}{7pt}%
+  \setlength{\fboxrule}{.6pt}%
+  \fbox{\begin{minipage}[t]{\dimexpr .5\linewidth-3mm-2\fboxsep-2\fboxrule\relax}
+    \small\raggedright
+    \setlength{\parskip}{0pt}%
+    \tikzset{inlineaccount/.append style={minimum width=17mm}}
+    {\sffamily\bfseries\large #1}\par\vspace{5pt}
+    #2
+  \end{minipage}}%
+  \endgroup
+}
+
+\begin{document}
+{\sffamily\bfseries\LARGE FGAS：AI辅助下的极简财务和库存管理}\par
+社团的资金与库存工作台。成员可以在同一处查看余额、查询库存、核对报销与代收款。
+
+\blocktitle{1\quad 复式记账：一切皆“转移”}
+我们将采用复式记账/库存，它的核心思路是把“钱和物品从哪转移到哪”作为一等公民进行记录。
+
+比如小明向厂家订购一批货，会记下三笔：
+
+\begin{tabularx}{\linewidth}{@{}Y Y Y@{}}
+{\small 到货} & {\small 小明垫付} & {\small 后续的报销} \\[4pt]
+\inlineflow{厂家}{10 个立牌}{仓库} &
+\inlineflow{小明}{100 块}{厂家} &
+\inlineflow{公账}{100 块}{小明}
+\end{tabularx}
+
+通过简单加减法（一个地方出去了多少钱，进去了多少钱）就能得到它当前“还剩多少”。
+
+{\renewcommand{\arraystretch}{1.2}%
+\begin{tabularx}{\linewidth}{@{}p{20mm}Y@{}}
+\toprule
+\textbf{看哪里} & \textbf{这里的“余额”怎么理解} \\
+\midrule
+对厂家 & 我们付给了这个厂家多少钱；这里不记录厂家自己的完整资产。\\
+对公账 & 社团账面上还剩多少钱，可以和实际持有的资金核对。\\
+对个人 & 我欠社团/社团欠我多少钱：正数表示我应交回，负数表示社团应偿还。\\
+\bottomrule
+\end{tabularx}}
+
+\textbf{这些余额也能帮我们查漏。}比如只看小明垫的这 100 块，私账是 $-100$，表示社团还欠他 100 块。代收款也一样，还没交回的钱会留下应交回的记录。
+
+对于货物，也是同理的，我们可以以此记录“哪些地方还剩下哪些东西”。
+
+当然，一些“地点”是虚拟的，只用于抽象意义的记录，比如：
+
+\begin{tabularx}{\linewidth}{@{}p{29mm}Y@{}}
+弄丢了东西 & \inlineflow{仓库}{货物}{虚空} \\[6pt]
+展会卖东西 & \inlineflow{展会摊位}{货物}{抽象游客}
+\end{tabularx}
+
+\vspace{5pt}
+{\setlength{\fboxsep}{9pt}%
+\fcolorbox{black!20}{black!3}{%
+\begin{minipage}{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}
+\small\setlength{\parskip}{4pt}
+{\sffamily\bfseries\large 为什么值得一起用}\par
+\textbf{模型统一：}订货、销售、报销、调拨，都是在说明从哪到哪，换场景也用同一套模型。
+
+\textbf{钱货分开生效：}付款与到货可以关联，二者分别按实际进度记录。
+
+\textbf{协作可追溯：}系统记录提交、审批与留痕。用户可用冲销更正资金错误，货物调整则另记转移。
+
+\textbf{结算有明细：}报销、代收交回可逐笔匹配，并支持部分结清。
+
+\textbf{Agent 可协助：}它可通过 MCP 查询、提交或按权限执行，并与人工操作共用同一套业务校验与审计。MCP 最多只有四个入口：帮助、查询、送审、执行，普通连接只有前三个。具体动作和参数按需查帮助，AI 可以沿着“查账户、记转移、核对结果”来操作。
+\end{minipage}}\par}
+
+\vfill
+{\footnotesize 当前系统是单社团、人民币的开发原型。核心功能已有测试，但正式登录、HTTPS、生产发布及备份恢复仍待验收。系统不计算成本、估值或利润。用户可先选择一次小活动试记。\par
+源码：\url{https://github.com/Renko6626/FGAS}\hfill 2026 年 10 月}
+
+\newpage
+\blocktitle{2\quad 示例：订一批立牌，拿去展会卖}
+小明先垫 100 块订了 10 个立牌，全部拿去展会，每个卖 20 块。卖掉 6 个后，钱先收进小红的收款码，事后再转进公账；收摊时发现只剩 3 个，核对后确认丢了 1 个。剩下的带回仓库，最后给小明报销。
+
+下面两张卡片说的是同一件事，分别看货和钱怎么走。货物箭头表示已经完成的转移；还没到货时先记在途，不提前算进库存。
+
+\vspace{3pt}
+\examplecard{货物的转移}{%
+\cardstep{30mm}{%
+\textbf{1\quad 从厂家订货}\par
+
+\inlineflow{厂家}{10 个立牌}{仓库}\par
+
+仓库 $+10$；厂家记 $-10$，表示这 10 个已经发给我们了。
+
+}
+\cardstep{32mm}{%
+\textbf{2\quad 带去展会卖6个}\par
+
+\inlineflow{仓库}{10 个}{展会摊位}\par
+
+\inlineflow{展会摊位}{6 个}{展会游客}\par
+
+现在账面上仓库有0个，展会摊位有4个，展会游客有6个。
+}
+\cardstep{26mm}{%
+\textbf{3\quad 收摊发现只剩3个}\par
+
+清点后确认是真丢了 1 个，就把它记到“虚空”：
+
+\inlineflow{展会摊位}{1 个}{虚空}\par
+
+这样账面就和实际对上了。
+}
+\cardstep{16mm}{%
+\textbf{4\quad 剩下的带回}\par
+
+\inlineflow{展会摊位}{3 个}{仓库}\par
+}
+\cardresult{\textbf{最后：}仓库 $+3$，摊位 $0$，游客 $+6$（卖出），虚空 $+1$（遗失）。}
+
+}%
+\hfill
+\examplecard{钱的转移}{%
+\cardstep{30mm}{%
+\textbf{1\quad 小明订货付钱 }\par
+
+\inlineflow{小明}{100 块}{厂家}\par
+
+小明账户变成 $-100$，代表社团应该给他报销 $100$。
+\textbf{个人账户余额原则上应为 0：为 0 就是互不相欠。}
+}
+\cardstep{32mm}{%
+\textbf{2\quad 卖出 6 个，收到 120 块}\par
+假设收款码用的是小红的：\par
+\inlineflow{展会游客}{120 块}{小红}\par
+
+此时小明账户 $-100$，小红账户 $+120$。
+}
+\cardstep{42mm}{%
+\textbf{3\quad 社团大报销}\par
+
+\inlineflow{小红}{120 块}{公账}\par
+\inlineflow{公账}{100 块}{小明}\par
+
+报销完成，两边的账都结清了。
+}
+\cardresult{\textbf{最后：}小明、小红账户 $0$（没人欠钱），公账 $+20$（结余），展会游客 $-120$（收入），厂家 $+100$（成本）。}
+
+}
+
+\vspace{3pt}
+\textbf{有些地方没对上，就知道该去哪查。}比如摊位还有账面库存，但东西已经全带回了，可能漏记了退回；小明已经拿到报销，账上却还挂着未结款项，就要查付款或匹配有没有漏记、记错。余额没对上不一定就是错——也可能事情还没办完，先核对实际进度。
+
+\end{document}
