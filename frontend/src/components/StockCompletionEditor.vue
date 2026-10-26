@@ -76,8 +76,8 @@ async function save() {
           <tr v-for="l in item.lines" :key="l.id">
             <td>
               <AccountLabel
-                :name="l.sku_name"
-                :url="skus?.find((s) => s.id === l.sku_id)?.avatar_url"
+                :name="`${l.sku_code} ${l.sku_name}`"
+                :url="skus?.find((s) => s.code === l.sku_code)?.avatar_url"
               />
             </td>
             <td>{{ l.quantity }} {{ l.unit }}</td>

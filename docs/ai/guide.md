@@ -1,6 +1,6 @@
 # FGAS Agent 业务与操作指南
 
-guide_version：2026-10-27-v5，api_version：2。入门见 [核心模型](overview.md)。接口处于开发阶段，客户端验证范围见项目阶段记录。
+guide_version：2026-10-27-v6，api_version：2。入门见 [核心模型](overview.md)。接口处于开发阶段，客户端验证范围见项目阶段记录。
 
 ## 1. 先把用户的话还原成账本事实
 
@@ -21,7 +21,9 @@ guide_version：2026-10-27-v5，api_version：2。入门见 [核心模型](overv
 
 kind 创建后固定。成员与联系人是业务人员资料，登录用户决定权限；资金账户关联联系人，货物账户只维护一名负责人，member_id/member_name 为当前负责人。更换人员自动保留负责人历史，不转移钱货、债务或权限。创建联系人不创建登录用户，也不自动开私账；同一联系人的多个私账分别结算。
 
-查询目录后，用名称、类型、联系人、标签、SKU 规格与单位辨认。联系人查询含 note，货物账户列表含 member_id/member_name 当前负责人；用 stock_accounts 的 identifier 查详情才返回 responsibility_history，含起止时间和设置/结束操作者。遇到多个候选再询问，不猜 ID，不因查不到就新建。
+查询目录后，用名称、类型、联系人、标签、SKU代号和单位辨认。商品名称已包含规格与款式；`skus`用`filters.code`精确查业务代号（如`ARC-01-A`），`q`搜索代号/名称，`tag`筛选类别或角色。库存、货物转移、数量流水用`filters.sku_code`；提交货物明细用`{sku_code,quantity}`，不用内部UUID。目录编辑的identifier也填SKU代号。代号去首尾空格转大写，重复拒绝；一个角色可有多款，缺代号且款式不清时补问。
+
+联系人查询含note，货物账户列表含member_id/member_name当前负责人；用stock_accounts的identifier查详情才返回responsibility_history，含起止时间和设置/结束操作者。遇到多个候选再询问，不猜ID，不因查不到就新建。
 
 ## 3. 资金、货物和完成分别何时生效
 

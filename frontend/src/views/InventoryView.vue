@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { NButton, NSelect } from "naive-ui";
 import type { StockAccount } from "../api/accounts";
 import type { Member } from "../api/members";
-import { warehouse, type InventoryRow, type Sku } from "../api/warehouse";
+import { warehouse, type InventoryRow, type InventoryTotals, type Sku } from "../api/warehouse";
 import AccountLabel from "../components/AccountLabel.vue";
 import PaginationBar from "../components/PaginationBar.vue";
 const props = defineProps<{
@@ -16,7 +16,7 @@ const location = ref(""),
   sku = ref(""),
   member = ref(""),
   rows = ref<InventoryRow[]>([]),
-  totals = ref<{ sku_id: string; quantity: string; valuation: string }[]>([]),
+  totals = ref<InventoryTotals[]>([]),
   error = ref(""),
   busy = ref(false),
   snapshot = ref(""),
@@ -30,7 +30,7 @@ async function refresh() {
   try {
     const result = await warehouse.inventory({
       account_id: location.value,
-      sku_id: sku.value,
+      sku_code: sku.value,
       member_id: member.value,
     }, page.value, limit.value);
     if (sequence !== requestSequence) return;
@@ -73,8 +73,9 @@ onMounted(refresh);
     /><NSelect
       v-model:value="sku"
       clearable
+      filterable
       placeholder="所有 SKU"
-      :options="skus.map((s) => ({ label: s.name, value: s.id }))"
+      :options="skus.map((s) => ({ label: `${s.code} ${s.name}`, value: s.code }))"
     /><NSelect
       v-model:value="member"
       clearable
@@ -104,8 +105,8 @@ onMounted(refresh);
           </td>
           <td>
             <AccountLabel
-              :name="r.sku_name"
-              :url="skus.find((s) => s.id === r.sku_id)?.avatar_url"
+              :name="`${r.sku_code} ${r.sku_name}`"
+              :url="skus.find((s) => s.code === r.sku_code)?.avatar_url"
             />
           </td>
           <td>{{ r.quantity }} {{ r.unit }}</td>
@@ -122,7 +123,7 @@ onMounted(refresh);
     @update:limit="limit = $event; page = 1"
   />
   <p v-for="t in totals" :key="t.sku_id">
-    {{ skus.find((s) => s.id === t.sku_id)?.name || t.sku_id }} 合计：{{
+    {{ t.sku_code }} {{ skus.find((s) => s.code === t.sku_code)?.name }} 合计：{{
       t.quantity
     }}，{{ t.valuation }}
   </p>

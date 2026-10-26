@@ -7,10 +7,10 @@ export interface FundChange {
 export interface StockChange {
   id: string; description: string; posted_at: string;
   source_account_name: string; destination_account_name: string;
-  lines: { sku_id: string; sku_name: string; unit: string; delta_quantity: string }[];
+  lines: { sku_id: string; sku_code: string; sku_name: string; unit: string; delta_quantity: string }[];
 }
 export interface DashboardSku {
-  sku_id: string; sku_name: string; unit: string; avatar_url: string | null;
+  sku_id: string; sku_code: string; sku_name: string; unit: string; avatar_url: string | null;
   quantity: string; incoming_quantity: string; outgoing_quantity: string; net_quantity: string;
 }
 interface OperationBase {
@@ -19,7 +19,7 @@ interface OperationBase {
 }
 export type DashboardOperation = OperationBase & (
   { kind: 'funds'; amount_minor: number; reversal_of: string | null } |
-  { kind: 'stock'; lines: { sku_id: string; sku_name: string; unit: string; quantity: string }[] }
+  { kind: 'stock'; lines: { sku_id: string; sku_code: string; sku_name: string; unit: string; quantity: string }[] }
 );
 export interface Dashboard {
   snapshot_at: string; window_start: string;

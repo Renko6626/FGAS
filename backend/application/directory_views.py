@@ -14,7 +14,7 @@ def account_view(db, item, *, stock=False):
 
 
 def sku_view(item):
-    return {key: getattr(item, key) for key in ('id', 'name', 'specification', 'unit', 'active')}
+    return {key: getattr(item, key) for key in ('id', 'code', 'name', 'tags', 'unit', 'active')}
 
 
 def member_view(item):

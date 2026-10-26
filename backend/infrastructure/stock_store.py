@@ -7,6 +7,7 @@ from backend.infrastructure.models import Base, Sku, StockAccountCustody
 
 
 def get_sku(db, identifier): return db.get(Sku, identifier)
+def get_sku_by_code(db, code): return db.scalar(select(Sku).where(Sku.code == code.strip().upper()))
 def skus(db): return list(db.scalars(select(Sku).order_by(Sku.name, Sku.id)))
 def current_custody(db, identifier):
     return db.scalar(select(StockAccountCustody).where(StockAccountCustody.account_id == identifier, StockAccountCustody.valid_to.is_(None)))
@@ -64,7 +65,7 @@ def transfer_page(db, *, status=None, tag=None, q=None, date_from=None, date_to=
         pattern = f'%{q}%'
         sku_matches = (select(StockTransferLine.transfer_id)
                        .join(Sku, Sku.id == StockTransferLine.sku_id)
-                       .where(Sku.name.ilike(pattern)))
+                       .where(or_(Sku.name.ilike(pattern), Sku.code.ilike(pattern))))
         query = query.where(or_(source.name.ilike(pattern), destination.name.ilike(pattern),
                                 StockTransfer.description.ilike(pattern), StockTransfer.id.ilike(pattern),
                                 StockTransfer.id.in_(sku_matches)))

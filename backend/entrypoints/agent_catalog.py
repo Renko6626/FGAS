@@ -30,20 +30,20 @@ def contract(handler, summary, example):
 FUND = dict(source_account_id='source-account-id', destination_account_id='destination-account-id',
             amount='120.50', effective_date='2026-10-22', description='用户说明的实际用途')
 STOCK = dict(source_account_id='source-account-id', destination_account_id='destination-account-id',
-             effective_date='2026-10-22', lines=[dict(sku_id='sku-id', quantity='2')])
+             effective_date='2026-10-22', lines=[dict(sku_code='ARC-01-A', quantity='2')])
 COMPLETION = dict(identifier='stock-transfer-id', effective_date='2026-10-22')
 ALLOCATION = [dict(item_transfer_id='expense-or-receipt-id', amount='120.50')]
 
 QUERIES = {
     'fund_accounts': contract(queries.list_fund_accounts, '查资金账户及其公私分类、联系人和标签。', {'q': '公账', 'active': True}),
     'stock_accounts': contract(queries.list_stock_accounts, '查货物账户及 member_id/member_name 当前负责人；按 member_id 筛选，identifier 详情含负责人历史。', {'q': '仓库', 'active': True}),
-    'skus': contract(queries.list_skus, '查货物名称、规格和整数计量单位。', {'q': '书', 'active': True}),
+    'skus': contract(queries.list_skus, '按业务SKU代号code精确查询，q搜代号/完整名称，tag筛选类别或角色；返回code、名称、标签和整数单位。', {'code': 'ARC-01-A'}),
     'members': contract(queries.list_members, '查业务联系人名称及 note 备注。', {'q': '小王'}),
     'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计；支持 as_of/basis 查截止时点。', {'kind': 'public', 'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'posted'}),
-    'inventory': contract(queries.get_inventory, '查正式库存和在途计划量；member_id 筛选当前负责人，totals 是全部筛选结果的 SKU 合计。as_of/basis 查历史库存，历史在途不可用，不提供估值。', {'account_id': 'stock-account-id', 'as_of': '2026-10-01T00:00:00+08:00'}),
+    'inventory': contract(queries.get_inventory, '按sku_code查正式库存和在途计划量；member_id筛选当前负责人，totals是全部筛选结果合计。as_of/basis查历史库存，历史在途不可用，不提供估值。', {'sku_code': 'BAD-01-A'}),
     'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；默认最近30天，全量传 all_time=true；支持 identifier 查详情。', {'status': 'pending'}),
-    'stock_transfers': contract(queries.list_stock_transfers, '按条件查货物转移；默认最近30天，全量传 all_time=true；完成申请在父单详情中。', {'status': 'in_transit'}),
-    'stock_moves': contract(queries.list_stock_moves, '查已经发生的正式数量流水；默认最近30天，全量传 all_time=true。', {'created_at_from': '2026-10-01T00:00:00+08:00'}),
+    'stock_transfers': contract(queries.list_stock_transfers, '按sku_code等条件查货物转移；默认最近30天，全量传all_time=true；完成申请在父单详情中。', {'status': 'in_transit', 'sku_code': 'BAD-01-A'}),
+    'stock_moves': contract(queries.list_stock_moves, '按sku_code查正式数量流水；默认最近30天，全量传all_time=true。', {'sku_code': 'BAD-01-A', 'all_time': True}),
     'settlement_overview': contract(queries.get_settlement_overview, '查一个私账的逐笔收支未结、付款及匹配；不从净余额推断。', {'account_id': 'private-account-id'}),
     'settlement_outstanding': contract(queries.list_settlement_outstanding, '跨私账查全部已过账未匹配记录，不限30天；kind=item 原收支、payment 结算付款，direction=expense 报销、receipt 交回。两侧金额不可相加为待付款额；匹配仍仅 high。', {'direction': 'expense', 'page': 1, 'limit': 20}),
     'fund_stocktakes': contract(queries.list_fund_stocktakes, '查资金盘点；支持 identifier 查专属端点关联记录。', {'status': 'in_progress'}),
@@ -71,8 +71,8 @@ EXECUTIONS = {
         'update': contract(ops.update_stock_account, '修改货物资料或负责人；member_id 省略保留、null 清空，变更自动留历史，不改变库存。', {'identifier': 'stock-account-id', 'member_id': 'member-id'}),
     },
     'sku': {
-        'create': contract(ops.create_sku, '创建货物规格与整数计量单位，不增加库存。', {'name': '纪念册', 'unit': '本'}),
-        'update': contract(ops.update_sku, '修改货物资料；已使用 SKU 的单位不可变更。', {'identifier': 'sku-id', 'name': '新的货物名称'}),
+        'create': contract(ops.create_sku, '创建唯一业务SKU代号、完整商品名称及标签，不增加库存；code去空格转大写，重复拒绝。', {'code': 'ARC-01-A', 'name': '博丽灵梦立牌 10cm 春服A款', 'unit': '个', 'tags': ['类别:立牌', '角色:博丽灵梦']}),
+        'update': contract(ops.update_sku, 'identifier填业务SKU代号；修改资料，已使用SKU的单位不可变更。', {'identifier': 'ARC-01-A', 'name': '博丽灵梦立牌 10cm 春服A款'}),
     },
     'member': {
         'create': contract(ops.create_member, '创建业务联系人，不创建登录用户或自动开账。', {'name': '小王'}),

@@ -46,7 +46,7 @@ def fund_overview(db, window):
 
 def stock_overview(db, window):
     rows = db.execute(text(STOCK_CHANGES + '''
- SELECT s.id AS sku_id, s.name AS sku_name, s.unit, s.avatar_url,
+ SELECT s.id AS sku_id, s.code AS sku_code, s.name AS sku_name, s.unit, s.avatar_url,
    SUM(c.delta) AS quantity,
    COALESCE(SUM(c.delta) FILTER (WHERE c.delta>0 AND c.created_at>=:since AND c.created_at<=:until),0) AS incoming_quantity,
    COALESCE(SUM(-c.delta) FILTER (WHERE c.delta<0 AND c.created_at>=:since AND c.created_at<=:until),0) AS outgoing_quantity
@@ -57,7 +57,7 @@ def stock_overview(db, window):
     recent = db.execute(text(STOCK_CHANGES + '''
  SELECT t.id, t.description, MAX(c.created_at) AS posted_at,
    s.name AS source_account_name, d.name AS destination_account_name,
-   jsonb_agg(jsonb_build_object('sku_id',sku.id,'sku_name',sku.name,'unit',sku.unit,
+   jsonb_agg(jsonb_build_object('sku_id',sku.id,'sku_code',sku.code,'sku_name',sku.name,'unit',sku.unit,
      'delta_quantity',c.delta::text) ORDER BY sku.name,sku.id) AS lines
  FROM changes c JOIN stock_transfers t ON t.id=c.transfer_id
  JOIN stock_accounts s ON s.id=t.source_account_id
@@ -84,7 +84,7 @@ def recent_operations(db):
  SELECT 'stock' AS kind,t.id,t.created_at,t.effective_date,t.description,t.status,
    s.name AS source_account_name,d.name AS destination_account_name,
    u.display_name AS actor_name,
-   jsonb_agg(jsonb_build_object('sku_id',sku.id,'sku_name',sku.name,
+   jsonb_agg(jsonb_build_object('sku_id',sku.id,'sku_code',sku.code,'sku_name',sku.name,
      'unit',sku.unit,'quantity',l.quantity::text) ORDER BY sku.name,sku.id) AS lines
  FROM (SELECT * FROM stock_transfers ORDER BY created_at DESC,id DESC LIMIT 10) t
  JOIN stock_accounts s ON s.id=t.source_account_id

@@ -102,7 +102,7 @@ def get_stock_account(db, access: AgentAccess, identifier: str) -> dict:
 
 def list_skus(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
-    rows = [directory_views.sku_view(item) for item in stock_store.skus(db) if ('q' not in filters or filters['q'].casefold() in item.name.casefold()) and ('active' not in filters or filters['active'] == item.active)]
+    rows = warehouse_catalogs.skus(db, **{key: filters[key] for key in ('code','q','tag','active') if key in filters})
     return _page(rows, filters)
 
 
@@ -133,7 +133,9 @@ def _stock_view(db, item, detail=False):
 def _transfers(db, access, filters, stock=False):
     filters = _event_filters(filters)
     filters.setdefault('submitted_by_current_connection', False)
-    rows = agent_store.transfer_page(db, StockTransfer if stock else Transfer, filters, access.credential_id)
+    rows = agent_store.transfer_page(db, StockTransfer if stock else Transfer,
+                                    warehouse_catalogs.sku_filters(db, filters) if stock else filters,
+                                    access.credential_id)
     return _page([_stock_view(db, row) if stock else funds.transfer_view(db, row) for row in rows], filters, sliced=True)
 
 
@@ -157,7 +159,7 @@ def get_inventory(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
     as_of = filters.get('as_of')
     basis = filters.get('basis', 'posted')
-    value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_id','member_id','as_of','basis') if key in filters},
+    value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_code','member_id','as_of','basis') if key in filters},
                                 page=filters['page'], limit=filters['limit'])
     return _database_page(value, filters, totals=value['totals'],
                  as_of=as_of, basis=basis if as_of is not None else None)
@@ -165,7 +167,7 @@ def get_inventory(db, access: AgentAccess, filters: dict) -> dict:
 
 def list_stock_moves(db, access: AgentAccess, filters: dict) -> dict:
     filters = _event_filters(filters)
-    value = warehouse.list_moves_page(db, {key: filters[key] for key in ('transfer_id','sku_id','source_account_id','destination_account_id','effective_date_from','effective_date_to','created_at_from','created_at_to','posted_at_from','posted_at_to') if key in filters},
+    value = warehouse.list_moves_page(db, {key: filters[key] for key in ('transfer_id','sku_code','source_account_id','destination_account_id','effective_date_from','effective_date_to','created_at_from','created_at_to','posted_at_from','posted_at_to') if key in filters},
                                       page=filters['page'], limit=filters['limit'], descending=True)
     return _database_page(value, filters)
 

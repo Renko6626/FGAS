@@ -4,6 +4,7 @@ import type { StockTransfer } from "../api/warehouse";
 export interface StockFilters {
   search: string;
   status: string | null;
+  skuCode?: string | null;
   tag: string | null;
 }
 
@@ -14,6 +15,7 @@ export interface FundFilters extends StockFilters {
 
 export const emptyStockFilters = (): StockFilters => ({
   search: "",
+  skuCode: null,
   status: null,
   tag: null,
 });
@@ -52,6 +54,7 @@ export function filterFundTransfers(items: Transfer[], filters: FundFilters) {
 
 export function filterStockTransfers(items: StockTransfer[], filters: StockFilters) {
   return items.filter(t =>
+    (!filters.skuCode || t.lines.some(line => line.sku_code === filters.skuCode)) &&
     (!filters.tag || t.tags.includes(filters.tag)) &&
     (!filters.status || t.status === filters.status) &&
     (!filters.search || [
@@ -59,7 +62,7 @@ export function filterStockTransfers(items: StockTransfer[], filters: StockFilte
       t.description,
       t.source_account_name,
       t.destination_account_name,
-      ...t.lines.map(line => line.sku_name),
+      ...t.lines.flatMap(line => [line.sku_code, line.sku_name]),
     ].join(" ").toLowerCase().includes(filters.search.trim().toLowerCase())),
   );
 }

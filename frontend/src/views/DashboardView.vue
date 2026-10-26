@@ -32,7 +32,7 @@ function shortDate(value: string | null) {
   return value ? new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
 }
 function stockChangeText(item: Dashboard['stock']['recent'][number]) {
-  return item.lines.map(line => `${line.sku_name} ${signedQuantity(line.delta_quantity)} ${line.unit}`).join('，');
+  return item.lines.map(line => `${line.sku_code} ${line.sku_name} ${signedQuantity(line.delta_quantity)} ${line.unit}`).join('，');
 }
 </script>
 
@@ -95,7 +95,7 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
             <thead><tr><th>货物</th><th class="numeric">当前数量</th><th class="numeric">近 7 天净变化</th></tr></thead>
             <tbody>
               <tr v-for="sku in featuredSkus" :key="sku.sku_id">
-                <td><div class="sku-name"><AccountAvatar :name="sku.sku_name" :url="sku.avatar_url" /><span>{{ sku.sku_name }}</span></div></td>
+                <td><div class="sku-name"><AccountAvatar :name="sku.sku_name" :url="sku.avatar_url" /><span>{{ sku.sku_code }} {{ sku.sku_name }}</span></div></td>
                 <td class="numeric"><strong>{{ sku.quantity }}</strong> {{ sku.unit }}</td>
                 <td class="numeric" :title="`近 7 天入库 ${sku.incoming_quantity} ${sku.unit}，出库 ${sku.outgoing_quantity} ${sku.unit}`"><strong :class="tone(sku.net_quantity)">{{ signedQuantity(sku.net_quantity) }} {{ sku.unit }}</strong></td>
               </tr>
@@ -109,7 +109,7 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
             <time :datetime="item.posted_at" :title="fullDate(item.posted_at)">{{ shortDate(item.posted_at) }}</time>
             <p class="change-description" :title="`${item.description || '货物转移'}；${item.source_account_name} → ${item.destination_account_name}`">{{ item.description || '货物转移' }}</p>
             <div class="change-value stock-change-value" :title="stockChangeText(item)">
-              <strong v-for="line in item.lines" :key="line.sku_id" :class="tone(line.delta_quantity)">{{ line.sku_name }} {{ signedQuantity(line.delta_quantity) }} {{ line.unit }}</strong>
+              <strong v-for="line in item.lines" :key="line.sku_id" :class="tone(line.delta_quantity)">{{ line.sku_code }} {{ line.sku_name }} {{ signedQuantity(line.delta_quantity) }} {{ line.unit }}</strong>
             </div>
           </li>
         </ul>
@@ -140,7 +140,7 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
                 <td class="operation-route"><span>{{ item.source_account_name }}</span><small>转入 {{ item.destination_account_name }}</small></td>
                 <td class="numeric operation-amount">
                   <strong v-if="item.kind === 'funds'">¥ {{ money(item.amount_minor) }}</strong>
-                  <template v-else><p v-for="line in item.lines" :key="line.sku_id">{{ line.sku_name }} <strong>{{ line.quantity }} {{ line.unit }}</strong></p></template>
+                  <template v-else><p v-for="line in item.lines" :key="line.sku_id">{{ line.sku_code }} {{ line.sku_name }} <strong>{{ line.quantity }} {{ line.unit }}</strong></p></template>
                 </td>
                 <td><span class="status-pill" :class="`status-${item.status}`">{{ (item.kind === 'funds' ? statuses : stockStatuses)[item.status] || item.status }}</span></td>
                 <td>{{ item.actor_name }}</td>

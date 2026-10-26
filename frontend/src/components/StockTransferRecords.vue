@@ -63,8 +63,8 @@ defineExpose({ busy: computed(() => detailDialog.value?.busy ?? false) });
           <td>
             <div v-for="l in t.lines" :key="l.id">
               <AccountLabel
-                :name="l.sku_name"
-                :url="skus.find((s) => s.id === l.sku_id)?.avatar_url"
+                :name="`${l.sku_code} ${l.sku_name}`"
+                :url="skus.find((s) => s.code === l.sku_code)?.avatar_url"
               />
               <strong>{{ l.quantity }} {{ l.unit }}</strong>
             </div>

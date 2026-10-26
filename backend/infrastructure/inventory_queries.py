@@ -19,7 +19,7 @@ WITH moves AS (
  AND CAST(:as_of_ts AS timestamptz) IS NULL AND CAST(:as_of_date AS date) IS NULL
  ) p GROUP BY account_id,sku_id
 ), base AS (
- SELECT statement_timestamp() AS snapshot_at,l.id AS account_id,l.name AS account_name,c.member_id,m.name AS member_name,s.id AS sku_id,s.name AS sku_name,s.unit,COALESCE(b.quantity,0) AS quantity,
+ SELECT statement_timestamp() AS snapshot_at,l.id AS account_id,l.name AS account_name,c.member_id,m.name AS member_name,s.id AS sku_id,s.code AS sku_code,s.name AS sku_name,s.unit,COALESCE(b.quantity,0) AS quantity,
  CASE WHEN CAST(:as_of_ts AS timestamptz) IS NULL AND CAST(:as_of_date AS date) IS NULL THEN COALESCE(p.quantity,0) END AS in_transit_planned_quantity
  FROM stock_accounts l
  CROSS JOIN skus s LEFT JOIN stock_account_custodies c ON c.account_id=l.id AND c.valid_to IS NULL LEFT JOIN members m ON m.id=c.member_id
@@ -32,7 +32,7 @@ INVENTORY_SQL = text(INVENTORY_BASE + '''
 SELECT * FROM base ORDER BY account_name,account_id,sku_name,sku_id LIMIT :limit OFFSET :offset
 ''')
 INVENTORY_COUNT_SQL = text(INVENTORY_BASE + '\nSELECT COUNT(*) FROM base\n')
-INVENTORY_TOTALS_SQL = text(INVENTORY_BASE + '\nSELECT sku_id,SUM(quantity) AS quantity FROM base GROUP BY sku_id,sku_name ORDER BY sku_name,sku_id\n')
+INVENTORY_TOTALS_SQL = text(INVENTORY_BASE + '\nSELECT sku_id,sku_code,SUM(quantity) AS quantity FROM base GROUP BY sku_id,sku_code,sku_name ORDER BY sku_name,sku_id\n')
 
 
 def inventory_page(db, params, *, page=1, limit=20):

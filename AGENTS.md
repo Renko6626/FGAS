@@ -62,6 +62,8 @@ npm run db:init    # Alembic upgrade + 开发种子
 
 ## 已知待办线索
 
+- 2026-10-27用户确认商品业务入口使用必填唯一SKU code（去空格转大写、拒绝重号），UUID只作内部关联；name合并规格，删除specification，tags表达类别/角色。公开货物明细及库存/货物/数量流水筛选用sku_code，目录查询/编辑用code。明确不做迁移/回填/旧接口兼容，直接同步0001；本轮只备份重建fgas_test并新建fgas_benchmark，日常fgas不改。东方社团基准脚本与24任务见benchmarks/gensokyo-circle-v1/README.md，不把数据加载当模型验收。
+
 - 2026-10-27 用户要求暂停资金／货物薄盘点但保留代码：网页入口隐藏，HTTP 返回 404 并从 OpenAPI 隐藏，MCP 不再提供盘点资源；模型保留。恢复需同时启用 `backend/application/stocktakes.py` 的 `ENABLED` 与 `frontend/src/features.ts` 的 `stocktakesEnabled`，重启后端、重建前端。货物在途与完成流程继续保留；历史余额／库存默认实际入账时间，业务日期仅为明确指定的备选。前端不展示完整快照和原始审计 JSON。
 - 2026-10-27 用户进一步确认删除货物完整批准／执行快照和公私分类，货物账户仅 internal/external，审计使用精简 detail。明确不新增迁移，直接备份后重建数据库并同步 0001 基线；不回填、不兼容旧结构。永久测试只覆盖核心数据模型和约束，不新增用例来证明入口停用、字段删除或返回结构变更；保留原核心测试并做必要适配。
 

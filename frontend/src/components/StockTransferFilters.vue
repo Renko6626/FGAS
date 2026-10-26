@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { NInput, NSelect } from "naive-ui";
-import { type StockTransfer } from "../api/warehouse";
+import { type Sku, type StockTransfer } from "../api/warehouse";
 import { stockStatuses } from "../presentation/warehouse";
 import type { StockFilters } from "../composables/transferFilters";
 const props = defineProps<{
   items: StockTransfer[];
+  skus: Sku[];
 }>();
 const filters = defineModel<StockFilters>({ required: true });
 const statusOptions = Object.entries(stockStatuses).map(([value, label]) => ({ label, value }));
@@ -19,7 +20,14 @@ const tags = computed(() =>
     <NInput
       v-model:value="filters.search"
       clearable
-      placeholder="搜索用途、货物、来源或去向"
+      placeholder="搜索用途、货物代号、名称、来源或去向"
+    />
+    <NSelect
+      v-model:value="filters.skuCode"
+      clearable
+      filterable
+      :options="skus.map(s => ({ label: `${s.code} ${s.name}`, value: s.code }))"
+      placeholder="所有商品"
     />
     <NSelect
       v-model:value="filters.status"
@@ -41,12 +49,12 @@ const tags = computed(() =>
 <style scoped>
 .stock-filters {
   display: grid;
-  grid-template-columns: minmax(240px, 2fr) minmax(160px, 1fr) minmax(
+  grid-template-columns: minmax(240px, 2fr) minmax(180px, 1fr) minmax(160px, 1fr) minmax(
       140px,
       1fr
     );
   gap: 16px;
   margin-bottom: 24px;
 }
-@media (max-width: 650px) { .stock-filters { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .stock-filters { grid-template-columns: 1fr; } }
 </style>

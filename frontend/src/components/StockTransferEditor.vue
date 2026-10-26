@@ -30,7 +30,7 @@ const show = ref(false),
   reference = ref(""),
   related = ref(""),
   refs = ref<string[]>([]),
-  lines = ref([{ sku_id: "", quantity: "" }]);
+  lines = ref([{ sku_code: "", quantity: "" }]);
 const { options: fundOptions, loading: fundLoading, search: searchFunds } = useFundTransferOptions(() => refs.value);
 const moneyMode = ref("none"),
   moneySource = ref(""),
@@ -47,7 +47,7 @@ function open(initial: Partial<StockInput> = props.initial || {}) {
   related.value = initial.related_transfer_id || "";
   refs.value = [];
   lines.value = initial.lines?.map((l) => ({ ...l })) || [
-    { sku_id: "", quantity: "" },
+    { sku_code: "", quantity: "" },
   ];
   moneyMode.value = "none";
   moneySource.value = "";
@@ -58,10 +58,10 @@ function open(initial: Partial<StockInput> = props.initial || {}) {
   searchFunds("");
 }
 function renderSkuLabel(option: SelectOption) {
-  const sku = props.skus.find((s) => s.id === option.value);
+  const sku = props.skus.find((s) => s.code === option.value);
   return h("span", { class: "sku-option" }, [
     h(AccountLabel, {
-      name: sku?.name || String(option.label || ""),
+      name: sku ? `${sku.code} ${sku.name}` : String(option.label || ""),
       url: sku?.avatar_url,
     }),
     h("span", sku ? `（${sku.unit}）` : ""),
@@ -145,13 +145,14 @@ async function save() {
       <h3>货物明细</h3>
       <div v-for="(line, i) in lines" :key="i" class="stock-line">
         <NSelect
-          v-model:value="line.sku_id"
+          v-model:value="line.sku_code"
+          filterable
           :render-label="renderSkuLabel"
           :disabled="busy"
           :options="
             skus
               .filter((s) => s.active)
-              .map((s) => ({ label: `${s.name}（${s.unit}）`, value: s.id }))
+              .map((s) => ({ label: `${s.code} ${s.name}（${s.unit}）`, value: s.code }))
           "
           placeholder="选择货物"
         />
@@ -168,7 +169,7 @@ async function save() {
       </div>
       <NButton
         :disabled="busy"
-        @click="lines.push({ sku_id: '', quantity: '' })"
+        @click="lines.push({ sku_code: '', quantity: '' })"
         >增加货物</NButton
       >
       <details class="stock-extra">

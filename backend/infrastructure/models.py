@@ -126,8 +126,9 @@ class SettlementMatch(Base):
 class Sku(Base):
     __tablename__ = 'skus'
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    code: Mapped[str] = mapped_column(String, unique=True)
     name: Mapped[str] = mapped_column(String)
-    specification: Mapped[str] = mapped_column(String, default='')
+    tags: Mapped[list] = mapped_column(JSON, default=list)
     unit: Mapped[str] = mapped_column(String)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)

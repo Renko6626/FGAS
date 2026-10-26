@@ -137,8 +137,8 @@ defineExpose({ open, busy });
               <tr v-for="l in detail.lines" :key="l.id">
                 <td>
                   <AccountLabel
-                    :name="l.sku_name"
-                    :url="skus.find((s) => s.id === l.sku_id)?.avatar_url"
+                    :name="`${l.sku_code} ${l.sku_name}`"
+                    :url="skus.find((s) => s.code === l.sku_code)?.avatar_url"
                   />
                 </td>
                 <td>
@@ -323,12 +323,12 @@ defineExpose({ open, busy });
           </div>
           <div v-for="l in a.lines" :key="l.sku_id">
             <AccountLabel
-              :name="skus.find((s) => s.id === l.sku_id)?.name || l.sku_id"
-              :url="skus.find((s) => s.id === l.sku_id)?.avatar_url"
+              :name="`${l.sku_code} ${skus.find((s) => s.code === l.sku_code)?.name || ''}`.trim()"
+              :url="skus.find((s) => s.code === l.sku_code)?.avatar_url"
             />
             <strong
               >{{ l.quantity }}
-              {{ skus.find((s) => s.id === l.sku_id)?.unit }}</strong
+              {{ skus.find((s) => s.code === l.sku_code)?.unit }}</strong
             >
           </div>
         </div>

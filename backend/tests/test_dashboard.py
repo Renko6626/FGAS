@@ -56,14 +56,15 @@ def test_dashboard_owned_stock_and_mixed_activity(client):
     external = client.post('/api/stock-accounts', json={'name': '商家', 'kind': 'external'}).json()['id']
     public = client.post('/api/stock-accounts', json={'name': '社团仓库', 'kind': 'internal'}).json()['id']
     private = client.post('/api/stock-accounts', json={'name': '成员代管', 'kind': 'internal'}).json()['id']
-    book = client.post('/api/skus', json={'name': '甲刊物', 'unit': '本'}).json()['id']
-    card = client.post('/api/skus', json={'name': '乙卡片', 'unit': '张'}).json()['id']
+    book = client.post('/api/skus', json={'code': 'BOOK-01', 'name': '甲刊物', 'unit': '本'}).json()['id']
+    card = client.post('/api/skus', json={'code': 'CARD-01', 'name': '乙卡片', 'unit': '张'}).json()['id']
+    codes = {book: 'BOOK-01', card: 'CARD-01'}
 
     def stock(source, target, quantities, completed=True):
         response = client.post('/api/stock-transfers', json=dict(
             source_account_id=source, destination_account_id=target,
             effective_date='2020-01-01', description='货物测试',
-            lines=[dict(sku_id=sku, quantity=str(q)) for sku, q in quantities]))
+            lines=[dict(sku_code=codes[sku], quantity=str(q)) for sku, q in quantities]))
         assert response.status_code == 201, response.text
         item = response.json()
         if completed:
@@ -83,13 +84,16 @@ def test_dashboard_owned_stock_and_mixed_activity(client):
     data = client.get('/api/dashboard').json()
     rows = {row['sku_id']: row for row in data['stock']['skus']}
     assert [row['sku_id'] for row in data['stock']['skus']] == [book, card]
+    assert {row['sku_id']: row['sku_code'] for row in data['stock']['skus']} == codes
     assert (rows[book]['quantity'], rows[book]['net_quantity'], rows[book]['incoming_quantity'], rows[book]['outgoing_quantity']) == ('106', '6', '10', '4')
     assert (rows[card]['quantity'], rows[card]['net_quantity'], rows[card]['unit']) == ('30', '5', '张')
     assert [row['id'] for row in data['stock']['recent']][:2] == [outgoing['id'], incoming['id']]
     assert internal['id'] not in [row['id'] for row in data['stock']['recent']]
     assert data['stock']['recent'][1]['lines'][0]['delta_quantity'] in ('10', '5')
+    assert {line['sku_code'] for line in data['stock']['recent'][1]['lines']} == {'BOOK-01', 'CARD-01'}
     assert data['counts']['inTransit'] == 1
     assert data['operations']['all'][0]['id'] == money['id']
     assert data['operations']['stock'][0]['id'] == transit['id']
     assert data['operations']['stock'][0]['lines'][0]['quantity'] == '999'
+    assert data['operations']['stock'][0]['lines'][0]['sku_code'] == 'BOOK-01'
     assert data['operations']['stock'][0]['actor_name'] == '受信任成员'

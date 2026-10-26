@@ -70,7 +70,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 | `/accounts`、`/accounts/{id}` | 资金账户列表/创建/修改 |
 | `/stock-accounts`、`/stock-accounts/{id}` | 货物账户列表/创建/修改 |
 | `/stock-accounts/{id}` | 货物账户详情含负责人历史；编辑 member_id 更改负责人，null 清空 |
-| `/skus`、`/skus/{id}` | SKU 目录，已引用后单位固定 |
+| `/skus`、`/skus/{code}` | SKU目录，代号唯一；按code/q/tag/active查询，已引用后单位固定 |
 | `/transfers/preview`、`/transfers`、`/transfers/{id}` | 资金转移预览/提交/列表/详情 |
 | `/transfers/{id}/approve`、`reject`、`reverse` | 资金审批、拒绝、冲销 |
 | `/funds/summary` | 公账合计 |
@@ -89,7 +89,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 | `/fund-stocktakes`、`/stock-stocktakes` | 薄盘点列表/创建 |
 | 上述盘点路径加 `/{id}`、`/{id}/end` | 详情/修改说明/结束 |
 
-账户列表支持 `tag/kind/member_id`，两类转移列表支持单个 `tag`。金额输入是元字符串，数据库按整数分；数量输入为正整数字符串，数据库按整数数量。资金 Transfer 主要输入 `source_account_id/destination_account_id/amount/effective_date/description/tags/counterparty`；货物主要输入来源/去向账户、日期、说明、标签、可选单据与原单引用、多 SKU `lines` 和资金引用。
+账户列表支持`tag/kind/member_id`，两类转移列表支持单个tag。SKU有必填唯一code（如ARC-01-A），完整name包含款式规格，tags可标类别和角色；录单lines使用`{sku_code,quantity}`，库存/货物/数量流水按sku_code筛选，业务不必使用商品UUID。代号去首尾空格、转大写后去重，重复返回409。金额输入是元字符串、库内整数分；数量为正整数字符串。资金Transfer输入来源/去向、金额、业务日期、说明及标签；货物另含多SKU lines、原单/原始单据和资金引用。
 
 资金普通转移由可信用户自动批准过账，普通用户待人工审批。货物批准后在途，额外整笔完成才记数量；普通用户的完成申请也需审批。拒绝/取消/冲销填写原因，正式流水不能覆盖改写。货物实际账户出库不得造成负库存，两个外部货物账户间不转移。用途不再强制匹配供应商、客户或动作枚举。
 
@@ -102,6 +102,10 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 盘点保存名称、说明、状态、两个专属外部账户和创建信息，不保存清点明细或独立差异账本。详情查询任一端涉及专属账户的转移及资金直接冲销。结束默认隐藏端点，仍可补录，不表示差异已结清。
 
 ## 验证
+
+东方社团Agent基准配置见[基准包说明](benchmarks/gensokyo-circle-v1/README.md)：32件带业务代号和角色/类别标签的商品、49笔资金单、52笔货物单及24张任务卡。用`.venv/bin/python scripts/benchmark.py init`创建独立`fgas_benchmark`并沿真实HTTP业务入口加载，`check`核对固定答案，`serve`启动独立回环服务。写任务之间用`reset`备份后恢复基线，不改日常开发库或测试库。任务和黄金答案分开提供，加载成功不表示模型任务已经通过。
+
+2026-10-27用户确认本轮SKU结构直接同步0001新基线，不做迁移、回填或旧字段兼容；旧日常开发库不能原地升级成该结构，需另行处理，脚本不会自动重建它。
 
 ```bash
 ./tools/run_tests.sh

@@ -7,6 +7,10 @@ class Input(BaseModel):
     @classmethod
     def clean_tags(cls,value):
         return list(dict.fromkeys(t.strip() for t in value if t.strip())) if value is not None else value
+    @field_validator('code', 'sku_code', check_fields=False, mode='before')
+    @classmethod
+    def clean_code(cls, value):
+        return value.strip().upper() if isinstance(value, str) else value
 class Login(Input): user_id: str
 class AccountCreate(Input):
     name: str = Field(min_length=1,max_length=200)
@@ -24,14 +28,16 @@ class AccountPatch(Input):
 class StockAccountCreate(AccountCreate):
     kind: Literal['internal','external']
 class SkuCreate(Input):
+    code: str = Field(min_length=1, max_length=64, pattern=r'^[A-Z0-9]+(?:-[A-Z0-9]+)*$')
     name: str = Field(min_length=1, max_length=200)
-    specification: str = ''
+    tags: list[str] = Field(default_factory=list)
     unit: str = Field(min_length=1, max_length=100)
     avatar_url: str | None = None
     active: bool = True
 class SkuPatch(Input):
+    code: str | None = Field(default=None, min_length=1, max_length=64, pattern=r'^[A-Z0-9]+(?:-[A-Z0-9]+)*$')
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    specification: str | None = None
+    tags: list[str] | None = None
     unit: str | None = Field(default=None, min_length=1, max_length=100)
     avatar_url: str | None = None
     active: bool | None = None
@@ -68,7 +74,7 @@ class SettlementCreate(SettlementMatches):
     transfer: Submit
 
 class StockLineInput(Input):
-    sku_id: str
+    sku_code: str = Field(min_length=1)
     quantity: str
 class StockTransferInput(Input):
     source_account_id: str

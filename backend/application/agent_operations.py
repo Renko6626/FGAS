@@ -32,7 +32,9 @@ def _completion(value, confirmation_id, *, applied=False):
 
 def _saved(resource_type, identifier_key, value):
     status = value.get('status', 'active' if value.get('active', True) else 'inactive')
-    return _result(dict(resource_type=resource_type, **{identifier_key: value['id']}, status=status,
+    identifier = {identifier_key: value['id']}
+    if resource_type == 'sku': identifier['sku_code'] = value['code']
+    return _result(dict(resource_type=resource_type, **identifier, status=status,
                         ledger_effect_applied=False, approval_required=False, object=value))
 
 

@@ -456,3 +456,13 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 验证：新负责人真实HTTP用例先因缺失详情入口失败；实施后相关货物/Agent检查41 passed。显式fgas_test执行 ./tools/run_tests.sh：74 passed in 31.03s，含建库基线/模型一致性、迁移与原业务回归；npm run build 的vue-tsc/Vite通过（6.14s），保留既有主JS超过500kB提示；git diff --check通过。一次独立只读审阅无重要问题。未做浏览器自动点击/填表或本功能真实模型试用，未发布。首次记账身份确认功能仍为独立待实施方案。
 
 本地服务更新后另经5188前端代理验证页面和HTTP负责人详情可读，原生MCP low可读取同一历史、仍为三个工具、指南v3已加载。实际fgas_test的stock_accounts旧member_id列已移除，fund_accounts联系人列仍存在；临时验证凭据已停用，验证未写业务流水。
+
+### 2026-10-27：业务SKU代号与东方社团基准
+
+用户确认保留内部UUID关联，商品业务查询、录单使用必填唯一code；代号去首尾空格转大写，创建和编辑均检查去重并以数据库唯一约束兜底。商品name合并规格，删除specification，tags表达类别、角色及多角色同人本。目录HTTP/MCP支持code精确、q搜索、tag筛选；货物明细和库存/货物/数量流水公开筛选使用sku_code。前端目录、选货、库存和首页同步展示代号和完整名称。指南版本2026-10-27-v6。用户明确不做迁移/回填/旧接口兼容，直接同步0001；日常fgas未修改。
+
+基准包为benchmarks/gensokyo-circle-v1，脚本scripts/benchmark.py提供init/reset/serve/check。独立fgas_benchmark通过受控本地API的真实人工HTTP入口加载：8名联系人、32SKU（徽章16/立牌8/同人本8，28启用4停用）、唯一公账、固定苏禾收银、储藏室/临时储藏室/宿舍分散保管、49笔资金及52笔货物单。24张自然语言任务与独立黄金答案分开，覆盖low查询送审/回退、高权限办理和补问边界。业务日期固定，创建/入账时间由真实加载产生，不伪造半年运行历史。
+
+验证：fgas_test重建前备份到.runtime/backups/fgas-20261026T200113Z.dump；显式DATABASE_URL指向fgas_test执行./tools/run_tests.sh，74 passed in 30.28s。npm run build的vue-tsc/Vite通过（保留既有主JS超过500kB提示）。基准脚本reset成功备份并加载，独立check再次通过：公账16100元、BAD-01-A正式297（社团储藏室227/叶青宿舍50/临时储藏室20），入途120/出途10、结算与负责人历史及四种连接正确；再次init按预期拒绝非空库，未重复灌入。初次加载遇本机代理、备份DSN传递问题，已分别改为回环直连和显式无密码DSN，随后实际reset/check通过。只读审阅修正一处F01黄金答案账户名，其余无重要问题。
+
+未运行外部模型的24张任务、浏览器自动交互、真实SSO、公网或生产部署。数据已加载与软件检查通过，不代表Agent已通过任务。工作保留在codex/agent-benchmark工作目录，独立库可用于后续试验。

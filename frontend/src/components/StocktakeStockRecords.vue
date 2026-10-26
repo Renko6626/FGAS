@@ -24,6 +24,6 @@ const records = computed(() => filterStockTransfers(props.items, filters.value))
 
 <template>
   <div class="toolbar"><h2>货物转移记录</h2><NButton :disabled="recordList?.busy" @click="emit('changed')">刷新</NButton></div>
-  <StockTransferFilters v-model="filters" :items="items" />
+  <StockTransferFilters v-model="filters" :items="items" :skus="skus" />
   <StockTransferRecords ref="recordList" :items="records" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts" @changed="emit('changed')" />
 </template>

@@ -73,7 +73,9 @@ Vue / 人工 HTTP       Agent / MCP
 
 `FundAccount/fund_accounts` 与 `StockAccount/stock_accounts` 共用 `id/name/kind/avatar_url/tags/active`。资金账户保存可空 member_id 联系人，`kind` 为 `public/private/external`；货物账户为 `internal/external`，不保存独立联系人列，返回的 member_id/member_name 来自当前负责人历史记录。两类账户的 kind 创建后不可变。可选成员关联表示对应人/联系人，独立于类型；名称、联系人、头像、标签和启用状态可修改。
 
-SKU 保存名称、规格、单位、启用状态及可空 `avatar_url`，缩略图只用于目录和货物显示，不影响库存规则；已被引用的单位仍固定。货物账户和 SKU 的图片 URL 可修改或清空。文字头像按名称生成稳定配色，不增加颜色存储字段。
+SKU保留内部ID，并以必填唯一code作为业务入口，去首尾空格并转大写，创建/编辑都拒绝重号。name包含规格与款式，不再单列specification；tags表达类别、角色等简单分类。目录支持code精确查询、q搜索代号/名称和tag筛选，编辑按code定位；库存/货物/数量流水公开筛选与货物明细用sku_code，服务解析内部关联。数量流水保留内部外键，输出同时给出可读代号。用户2026-10-27确认直接同步0001，不做迁移/回填/兼容，不自动重建日常开发库。
+
+SKU另存单位、启用状态及可空avatar_url，已被引用的单位固定。货物账户和SKU的图片URL可修改或清空；文字头像按名称生成稳定配色，不增加颜色字段。
 
 成员仅保存 `id/name/note`，不自动开账户、不强制唯一账户、不联动账户名称。`StockAccountCustody/stock_account_custodies` 是货物账户负责人的唯一来源，保存成员、起止时间及设置/结束操作者；create/update 的 member_id 维护该历史，普通列表只投影当前负责人，账户详情才返回完整历史。外部端点也可指定负责人。
 

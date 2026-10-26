@@ -27,12 +27,14 @@ def upgrade() -> None:
     )
     op.create_table('skus',
     sa.Column('id', sa.String(), nullable=False),
+    sa.Column('code', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
-    sa.Column('specification', sa.String(), nullable=False),
+    sa.Column('tags', sa.JSON(), nullable=False),
     sa.Column('unit', sa.String(), nullable=False),
     sa.Column('avatar_url', sa.String(), nullable=True),
     sa.Column('active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_skus'))
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_skus')),
+    sa.UniqueConstraint('code', name=op.f('uq_skus_code'))
     )
     op.create_table('users',
     sa.Column('id', sa.String(), nullable=False),

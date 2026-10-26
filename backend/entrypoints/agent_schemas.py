@@ -23,6 +23,11 @@ class SkuFilters(DirectoryFilters):
     active: bool | None = None
 
 
+class SkuDirectoryFilters(SkuFilters):
+    code: str | None = Field(default=None, description='业务SKU代号，精确查询，如ARC-01-A。')
+    tag: str | None = None
+
+
 class AccountFilters(SkuFilters):
     kind: Literal['public', 'private', 'external'] | None = None
     member_id: str | None = None
@@ -61,12 +66,12 @@ class FundTransferFilters(TransferFilters):
 
 class StockTransferFilters(TransferFilters):
     status: Literal['pending', 'in_transit', 'completed', 'rejected', 'cancelled'] | None = Field(default=None, description='pending 待审；in_transit 在途；completed 已完成；rejected 已拒绝；cancelled 已取消。')
-    sku_id: str | None = None
+    sku_code: str | None = None
 
 
 class InventoryFilters(PageFilters):
     account_id: str | None = None
-    sku_id: str | None = None
+    sku_code: str | None = None
     member_id: str | None = Field(default=None, description='按当前负责人筛选；返回行的 member_id/member_name 也是此负责人。')
     as_of: AwareDatetime | None = None
     basis: Literal['posted', 'effective_date'] = Field(default='posted', description='默认按实际入账时间；仅用户明确要求按业务日期核对时选 effective_date。')
@@ -74,7 +79,7 @@ class InventoryFilters(PageFilters):
 
 class StockMoveFilters(WindowFilters):
     transfer_id: str | None = None
-    sku_id: str | None = None
+    sku_code: str | None = None
     source_account_id: str | None = None
     destination_account_id: str | None = None
     effective_date_from: date | None = None
@@ -135,7 +140,8 @@ class StockAccountRow(AccountRow):
 
 
 class SkuRow(MemberRow):
-    specification: str
+    code: str
+    tags: list[str]
     unit: str
     active: bool
 
@@ -203,8 +209,8 @@ class FundTransferDetail(FundTransferRow):
 class StockLine(BaseModel):
     id: str
     sku_id: str
+    sku_code: str
     sku_name: str
-    specification: str
     unit: str
     quantity: str
 
@@ -239,6 +245,7 @@ class FundReference(BaseModel):
 
 class RelatedLine(BaseModel):
     sku_id: str
+    sku_code: str
     quantity: str
 
 
@@ -269,6 +276,7 @@ class StockTransferDetail(StockTransferRow):
 
 class InventoryTotal(BaseModel):
     sku_id: str
+    sku_code: str
     quantity: str
     valuation: Literal['未估值']
 
@@ -288,6 +296,7 @@ class StockMoveRow(BaseModel):
     confirmation_id: str
     transfer_line_id: str
     sku_id: str
+    sku_code: str
     source_account_id: str
     destination_account_id: str
     effective_date: date
@@ -431,7 +440,7 @@ QUERY_OUTPUT_SCHEMAS = {
     'list_fund_accounts': QueryResult[PageData[AccountRow, AccountFilters]],
     'list_stock_accounts': QueryResult[PageData[StockAccountRow, StockAccountFilters]],
     'get_stock_account': QueryResult[StockAccountDetail],
-    'list_skus': QueryResult[PageData[SkuRow, SkuFilters]],
+    'list_skus': QueryResult[PageData[SkuRow, SkuDirectoryFilters]],
     'list_members': QueryResult[PageData[SavedMember, DirectoryFilters]],
     'get_fund_balances': QueryResult[BalanceData],
     'list_fund_transfers': QueryResult[PageData[FundTransferRow, FundTransferFilters]],
@@ -451,7 +460,7 @@ QUERY_OUTPUT_SCHEMAS = {
 QUERY_INPUT_SCHEMAS = {
     'list_fund_accounts': AccountFilters, 'list_stock_accounts': StockAccountFilters,
     'get_stock_account': IdentifierInput,
-    'list_skus': SkuFilters, 'list_members': DirectoryFilters,
+    'list_skus': SkuDirectoryFilters, 'list_members': DirectoryFilters,
     'get_fund_balances': BalanceFilters, 'list_fund_transfers': FundTransferFilters,
     'get_fund_transfer': IdentifierInput, 'get_inventory': InventoryFilters,
     'list_stock_transfers': StockTransferFilters, 'get_stock_transfer': IdentifierInput,
@@ -486,8 +495,8 @@ class AgentAccountPatch(business.AccountPatch):
 
 
 class AgentSkuPatch(business.SkuPatch):
-    model_config = ConfigDict(json_schema_extra=lambda schema: non_null_patch_schema(schema, ('name', 'specification', 'unit', 'active')))
-    reject_null = field_validator('name', 'specification', 'unit', 'active', mode='before')(require_patch_value)
+    model_config = ConfigDict(json_schema_extra=lambda schema: non_null_patch_schema(schema, ('code', 'name', 'tags', 'unit', 'active')))
+    reject_null = field_validator('code', 'name', 'tags', 'unit', 'active', mode='before')(require_patch_value)
 
 
 class AgentMemberPatch(business.MemberPatch):
@@ -565,6 +574,7 @@ class StockAccountWriteData(WriteEffect):
 class SkuWriteData(WriteEffect):
     resource_type: Literal['sku']
     sku_id: str
+    sku_code: str
     object: SavedSku
 
 

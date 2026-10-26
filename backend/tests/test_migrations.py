@@ -58,8 +58,9 @@ def test_migrations_match_models():
                 "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
                 "WHERE contype='u' AND connamespace='public'::regnamespace"
             )).all())
-            assert len(uniques) == 8
+            assert len(uniques) == 9
             assert 'uq_agent_credentials_secret_hash' in uniques
+            assert 'uq_skus_code' in uniques
             indexes = {row[0]: row[1] for row in db.execute(text(
                 "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public'"
             )).all()}

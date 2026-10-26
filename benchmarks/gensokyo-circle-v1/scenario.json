@@ -1,0 +1,4776 @@
+{
+  "name": "gensokyo-circle-v1",
+  "story_date": "2026-10-27",
+  "members": [
+    {
+      "key": "lin",
+      "name": "林舟",
+      "note": "社长、财务"
+    },
+    {
+      "key": "xu",
+      "name": "许棠",
+      "note": "现任仓库管理"
+    },
+    {
+      "key": "chen",
+      "name": "陈墨",
+      "note": "订货"
+    },
+    {
+      "key": "su",
+      "name": "苏禾",
+      "note": "三场展会固定收银"
+    },
+    {
+      "key": "zhou",
+      "name": "周宁",
+      "note": "摊位协调"
+    },
+    {
+      "key": "ye",
+      "name": "叶青",
+      "note": "打包、长期代管"
+    },
+    {
+      "key": "tang",
+      "name": "唐悦",
+      "note": "前任仓库负责人"
+    },
+    {
+      "key": "shen",
+      "name": "沈言",
+      "note": "运输、临时储藏室管理"
+    }
+  ],
+  "accounts": [
+    {
+      "key": "public",
+      "name": "幻想结界同好社公账",
+      "kind": "public",
+      "seed_id": "fund_pool",
+      "member": null
+    },
+    {
+      "key": "customers",
+      "name": "展会顾客",
+      "kind": "external",
+      "seed_id": "income",
+      "member": null
+    },
+    {
+      "key": "daily",
+      "name": "日常支出",
+      "kind": "external",
+      "seed_id": "expense",
+      "member": null
+    },
+    {
+      "key": "opening",
+      "name": "期初",
+      "kind": "external",
+      "seed_id": "opening",
+      "member": null
+    },
+    {
+      "key": "print",
+      "name": "红枫印刷社",
+      "kind": "external",
+      "seed_id": null,
+      "member": null
+    },
+    {
+      "key": "badge",
+      "name": "星砂徽章工坊",
+      "kind": "external",
+      "seed_id": null,
+      "member": null
+    },
+    {
+      "key": "acrylic",
+      "name": "月影亚克力工坊",
+      "kind": "external",
+      "seed_id": null,
+      "member": null
+    },
+    {
+      "key": "difference",
+      "name": "资金差异",
+      "kind": "external",
+      "seed_id": null,
+      "member": null
+    },
+    {
+      "key": "chen",
+      "name": "陈墨私账",
+      "kind": "private",
+      "seed_id": null,
+      "member": "chen"
+    },
+    {
+      "key": "su",
+      "name": "苏禾私账",
+      "kind": "private",
+      "seed_id": null,
+      "member": "su"
+    },
+    {
+      "key": "zhou",
+      "name": "周宁私账",
+      "kind": "private",
+      "seed_id": null,
+      "member": "zhou"
+    },
+    {
+      "key": "ye",
+      "name": "叶青私账",
+      "kind": "private",
+      "seed_id": null,
+      "member": "ye"
+    },
+    {
+      "key": "shen",
+      "name": "沈言私账",
+      "kind": "private",
+      "seed_id": null,
+      "member": "shen"
+    }
+  ],
+  "stock_accounts": [
+    {
+      "key": "main",
+      "name": "社团储藏室",
+      "kind": "internal",
+      "member": "tang",
+      "seed_id": "main"
+    },
+    {
+      "key": "temporary",
+      "name": "临时储藏室",
+      "kind": "internal",
+      "member": "shen",
+      "seed_id": null
+    },
+    {
+      "key": "ye",
+      "name": "叶青宿舍书架",
+      "kind": "internal",
+      "member": "ye",
+      "seed_id": null
+    },
+    {
+      "key": "shen",
+      "name": "沈言宿舍床下箱",
+      "kind": "internal",
+      "member": "shen",
+      "seed_id": null
+    },
+    {
+      "key": "chen",
+      "name": "陈墨宿舍收纳箱",
+      "kind": "internal",
+      "member": "chen",
+      "seed_id": null
+    },
+    {
+      "key": "booth",
+      "name": "展会摊位周转箱",
+      "kind": "internal",
+      "member": "su",
+      "seed_id": null
+    },
+    {
+      "key": "supplier",
+      "name": "供应商交货处",
+      "kind": "external",
+      "member": null,
+      "seed_id": null
+    },
+    {
+      "key": "customers",
+      "name": "展会顾客",
+      "kind": "external",
+      "member": null,
+      "seed_id": null
+    },
+    {
+      "key": "gifts",
+      "name": "宣传赠品",
+      "kind": "external",
+      "member": null,
+      "seed_id": null
+    },
+    {
+      "key": "loss",
+      "name": "盘亏与遗失",
+      "kind": "external",
+      "member": null,
+      "seed_id": null
+    },
+    {
+      "key": "opening",
+      "name": "存货期初",
+      "kind": "external",
+      "member": null,
+      "seed_id": null
+    }
+  ],
+  "skus": [
+    {
+      "code": "BAD-01-A",
+      "name": "博丽灵梦徽章 58mm 哑光常服A款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:博丽灵梦"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-01-B",
+      "name": "博丽灵梦徽章 75mm 镭射节日B款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:博丽灵梦"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-02-A",
+      "name": "雾雨魔理沙徽章 58mm 哑光常服A款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:雾雨魔理沙"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-02-B",
+      "name": "雾雨魔理沙徽章 75mm 镭射节日B款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:雾雨魔理沙"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-03-A",
+      "name": "十六夜咲夜徽章 58mm 哑光常服A款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:十六夜咲夜"
+      ],
+      "active": false
+    },
+    {
+      "code": "BAD-03-B",
+      "name": "十六夜咲夜徽章 75mm 镭射节日B款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:十六夜咲夜"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-04-A",
+      "name": "蕾米莉亚徽章 58mm 哑光常服A款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:蕾米莉亚"
+      ],
+      "active": false
+    },
+    {
+      "code": "BAD-04-B",
+      "name": "蕾米莉亚徽章 75mm 镭射节日B款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:蕾米莉亚"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-05-A",
+      "name": "芙兰朵露徽章 58mm 哑光常服A款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:芙兰朵露"
+      ],
+      "active": false
+    },
+    {
+      "code": "BAD-05-B",
+      "name": "芙兰朵露徽章 75mm 镭射节日B款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:芙兰朵露"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-06-A",
+      "name": "魂魄妖梦徽章 58mm 哑光常服A款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:魂魄妖梦"
+      ],
+      "active": false
+    },
+    {
+      "code": "BAD-06-B",
+      "name": "魂魄妖梦徽章 75mm 镭射节日B款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:魂魄妖梦"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-07-A",
+      "name": "西行寺幽幽子徽章 58mm 哑光常服A款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:西行寺幽幽子"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-07-B",
+      "name": "西行寺幽幽子徽章 75mm 镭射节日B款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:西行寺幽幽子"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-08-A",
+      "name": "古明地恋徽章 58mm 哑光常服A款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:古明地恋"
+      ],
+      "active": true
+    },
+    {
+      "code": "BAD-08-B",
+      "name": "古明地恋徽章 75mm 镭射节日B款",
+      "unit": "枚",
+      "tags": [
+        "类别:徽章",
+        "角色:古明地恋"
+      ],
+      "active": true
+    },
+    {
+      "code": "ARC-01-A",
+      "name": "博丽灵梦立牌 10cm 春服A款",
+      "unit": "个",
+      "tags": [
+        "类别:立牌",
+        "角色:博丽灵梦"
+      ],
+      "active": true
+    },
+    {
+      "code": "ARC-02-A",
+      "name": "雾雨魔理沙立牌 10cm 春服A款",
+      "unit": "个",
+      "tags": [
+        "类别:立牌",
+        "角色:雾雨魔理沙"
+      ],
+      "active": true
+    },
+    {
+      "code": "ARC-03-A",
+      "name": "十六夜咲夜立牌 10cm 春服A款",
+      "unit": "个",
+      "tags": [
+        "类别:立牌",
+        "角色:十六夜咲夜"
+      ],
+      "active": true
+    },
+    {
+      "code": "ARC-04-A",
+      "name": "蕾米莉亚立牌 10cm 春服A款",
+      "unit": "个",
+      "tags": [
+        "类别:立牌",
+        "角色:蕾米莉亚"
+      ],
+      "active": true
+    },
+    {
+      "code": "ARC-05-A",
+      "name": "芙兰朵露立牌 10cm 春服A款",
+      "unit": "个",
+      "tags": [
+        "类别:立牌",
+        "角色:芙兰朵露"
+      ],
+      "active": true
+    },
+    {
+      "code": "ARC-06-A",
+      "name": "魂魄妖梦立牌 10cm 春服A款",
+      "unit": "个",
+      "tags": [
+        "类别:立牌",
+        "角色:魂魄妖梦"
+      ],
+      "active": true
+    },
+    {
+      "code": "ARC-07-A",
+      "name": "西行寺幽幽子立牌 10cm 春服A款",
+      "unit": "个",
+      "tags": [
+        "类别:立牌",
+        "角色:西行寺幽幽子"
+      ],
+      "active": true
+    },
+    {
+      "code": "ARC-08-A",
+      "name": "古明地恋立牌 10cm 春服A款",
+      "unit": "个",
+      "tags": [
+        "类别:立牌",
+        "角色:古明地恋"
+      ],
+      "active": true
+    },
+    {
+      "code": "BOK-01-A",
+      "name": "《博丽神社的寻常一日》 初版",
+      "unit": "本",
+      "tags": [
+        "类别:同人本",
+        "角色:博丽灵梦",
+        "角色:雾雨魔理沙"
+      ],
+      "active": true
+    },
+    {
+      "code": "BOK-01-B",
+      "name": "《博丽神社的寻常一日》 再版",
+      "unit": "本",
+      "tags": [
+        "类别:同人本",
+        "角色:博丽灵梦",
+        "角色:雾雨魔理沙"
+      ],
+      "active": true
+    },
+    {
+      "code": "BOK-02-A",
+      "name": "《红魔馆值日表》 初版",
+      "unit": "本",
+      "tags": [
+        "类别:同人本",
+        "角色:十六夜咲夜",
+        "角色:蕾米莉亚",
+        "角色:芙兰朵露"
+      ],
+      "active": true
+    },
+    {
+      "code": "BOK-02-B",
+      "name": "《红魔馆值日表》 再版",
+      "unit": "本",
+      "tags": [
+        "类别:同人本",
+        "角色:十六夜咲夜",
+        "角色:蕾米莉亚",
+        "角色:芙兰朵露"
+      ],
+      "active": true
+    },
+    {
+      "code": "BOK-03-A",
+      "name": "《白玉楼的春尽之时》 初版",
+      "unit": "本",
+      "tags": [
+        "类别:同人本",
+        "角色:魂魄妖梦",
+        "角色:西行寺幽幽子"
+      ],
+      "active": true
+    },
+    {
+      "code": "BOK-03-B",
+      "name": "《白玉楼的春尽之时》 再版",
+      "unit": "本",
+      "tags": [
+        "类别:同人本",
+        "角色:魂魄妖梦",
+        "角色:西行寺幽幽子"
+      ],
+      "active": true
+    },
+    {
+      "code": "BOK-04-A",
+      "name": "《地灵殿的来信》 初版",
+      "unit": "本",
+      "tags": [
+        "类别:同人本",
+        "角色:古明地恋"
+      ],
+      "active": true
+    },
+    {
+      "code": "BOK-04-B",
+      "name": "《地灵殿的来信》 再版",
+      "unit": "本",
+      "tags": [
+        "类别:同人本",
+        "角色:古明地恋"
+      ],
+      "active": true
+    }
+  ],
+  "events": [
+    {
+      "type": "fund",
+      "key": "opening_cash",
+      "source": "opening",
+      "destination": "public",
+      "amount": "18000.00",
+      "date": "2026-05-01",
+      "description": "接手期初公账",
+      "tags": [],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "opening_stock",
+      "source": "opening",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "120"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "20"
+        }
+      ],
+      "date": "2026-05-01",
+      "description": "接手期初库存，存放社团储藏室",
+      "tags": [
+        "期初"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "buy_1_badge_payment",
+      "source": "public",
+      "destination": "badge",
+      "amount": "2200.00",
+      "date": "2026-05-20",
+      "description": "采购PO-01-badge已付，混合批含立牌和印刷配送",
+      "tags": [
+        "采购",
+        "采购轮次:1"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "buy_1_badge",
+      "source": "supplier",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "100"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "20"
+        }
+      ],
+      "date": "2026-05-20",
+      "description": "采购PO-01-badge整批验收",
+      "tags": [
+        "采购",
+        "采购轮次:1"
+      ],
+      "state": "completed",
+      "funds": [
+        "buy_1_badge_payment"
+      ],
+      "related": null,
+      "reference": "PO-01-badge"
+    },
+    {
+      "type": "fund",
+      "key": "buy_1_mixed_payment",
+      "source": "public",
+      "destination": "acrylic",
+      "amount": "1800.00",
+      "date": "2026-05-20",
+      "description": "采购PO-01-mixed已付，混合批含立牌和印刷配送",
+      "tags": [
+        "采购",
+        "采购轮次:1"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "buy_1_mixed",
+      "source": "supplier",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "20"
+        }
+      ],
+      "date": "2026-05-20",
+      "description": "采购PO-01-mixed整批验收",
+      "tags": [
+        "采购",
+        "采购轮次:1"
+      ],
+      "state": "completed",
+      "funds": [
+        "buy_1_mixed_payment"
+      ],
+      "related": null,
+      "reference": "PO-01-mixed"
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_prepare_BAD",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "110"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "10"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 徽章备货",
+      "tags": [
+        "展会:青岚东方交流展",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_sales_BAD",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "55"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "3"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 徽章销售",
+      "tags": [
+        "展会:青岚东方交流展",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_sales_BAD_cash",
+      "source": "customers",
+      "destination": "su",
+      "amount": "1800.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 苏禾现金及个人码代收",
+      "tags": [
+        "展会:青岚东方交流展",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_handover",
+      "source": "su",
+      "destination": "public",
+      "amount": "1800.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 苏禾代收交回",
+      "tags": [
+        "展会:青岚东方交流展",
+        "交回"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "qinglan_handover",
+      "item": "qinglan_sales_BAD_cash",
+      "amount": "1800.00"
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_prepare_ARC",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "10"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 立牌备货",
+      "tags": [
+        "展会:青岚东方交流展",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_sales_ARC",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "3"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 立牌销售",
+      "tags": [
+        "展会:青岚东方交流展",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_sales_ARC_cash",
+      "source": "customers",
+      "destination": "public",
+      "amount": "1200.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 苏禾收银，社团公账二维码直收立牌",
+      "tags": [
+        "展会:青岚东方交流展",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_prepare_BOK",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "10"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "10"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 同人本备货",
+      "tags": [
+        "展会:青岚东方交流展",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_sales_BOK",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "3"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 同人本销售",
+      "tags": [
+        "展会:青岚东方交流展",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_sales_BOK_cash",
+      "source": "customers",
+      "destination": "public",
+      "amount": "1000.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 苏禾收银，社团公账二维码直收同人本",
+      "tags": [
+        "展会:青岚东方交流展",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_gift",
+      "source": "booth",
+      "destination": "gifts",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "1"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 宣传赠品",
+      "tags": [
+        "展会:青岚东方交流展",
+        "赠送"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_loss",
+      "source": "booth",
+      "destination": "loss",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "2"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "1"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 闭展确认遗失",
+      "tags": [
+        "展会:青岚东方交流展",
+        "丢失"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_return_BAD",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "48"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "5"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 未售徽章返仓",
+      "tags": [
+        "展会:青岚东方交流展",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_return_ARC",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "5"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 未售立牌返仓",
+      "tags": [
+        "展会:青岚东方交流展",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "qinglan_return_BOK",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "5"
+        }
+      ],
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 未售同人本返仓",
+      "tags": [
+        "展会:青岚东方交流展",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_su_expense",
+      "source": "su",
+      "destination": "daily",
+      "amount": "90.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 收银杂费垫付",
+      "tags": [
+        "展会:青岚东方交流展",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_su_refund",
+      "source": "public",
+      "destination": "su",
+      "amount": "90.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 收银杂费报销",
+      "tags": [
+        "展会:青岚东方交流展",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "qinglan_su_refund",
+      "item": "qinglan_su_expense",
+      "amount": "90.00"
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_shen_expense",
+      "source": "shen",
+      "destination": "daily",
+      "amount": "120.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 运输费垫付",
+      "tags": [
+        "展会:青岚东方交流展",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_shen_refund",
+      "source": "public",
+      "destination": "shen",
+      "amount": "120.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 运输费报销",
+      "tags": [
+        "展会:青岚东方交流展",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "qinglan_shen_refund",
+      "item": "qinglan_shen_expense",
+      "amount": "120.00"
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_zhou_expense",
+      "source": "zhou",
+      "destination": "daily",
+      "amount": "160.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 摊位杂费垫付",
+      "tags": [
+        "展会:青岚东方交流展",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "qinglan_zhou_refund",
+      "source": "public",
+      "destination": "zhou",
+      "amount": "160.00",
+      "date": "2026-06-14",
+      "description": "青岚东方交流展 摊位杂费报销",
+      "tags": [
+        "展会:青岚东方交流展",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "qinglan_zhou_refund",
+      "item": "qinglan_zhou_expense",
+      "amount": "160.00"
+    },
+    {
+      "type": "fund",
+      "key": "buy_2_badge_payment",
+      "source": "public",
+      "destination": "badge",
+      "amount": "3400.00",
+      "date": "2026-07-20",
+      "description": "采购PO-02-badge已付，混合批含立牌和印刷配送",
+      "tags": [
+        "采购",
+        "采购轮次:2"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "buy_2_badge",
+      "source": "supplier",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "160"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "30"
+        }
+      ],
+      "date": "2026-07-20",
+      "description": "采购PO-02-badge整批验收",
+      "tags": [
+        "采购",
+        "采购轮次:2"
+      ],
+      "state": "completed",
+      "funds": [
+        "buy_2_badge_payment"
+      ],
+      "related": null,
+      "reference": "PO-02-badge"
+    },
+    {
+      "type": "fund",
+      "key": "buy_2_mixed_payment",
+      "source": "public",
+      "destination": "acrylic",
+      "amount": "2600.00",
+      "date": "2026-07-20",
+      "description": "采购PO-02-mixed已付，混合批含立牌和印刷配送",
+      "tags": [
+        "采购",
+        "采购轮次:2"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "buy_2_mixed",
+      "source": "supplier",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "30"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "30"
+        }
+      ],
+      "date": "2026-07-20",
+      "description": "采购PO-02-mixed整批验收",
+      "tags": [
+        "采购",
+        "采购轮次:2"
+      ],
+      "state": "completed",
+      "funds": [
+        "buy_2_mixed_payment"
+      ],
+      "related": null,
+      "reference": "PO-02-mixed"
+    },
+    {
+      "type": "stock",
+      "key": "summer_prepare_BAD",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "140"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "12"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 徽章备货",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "summer_sales_BAD",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "70"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "4"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 徽章销售",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "summer_sales_BAD_cash",
+      "source": "customers",
+      "destination": "su",
+      "amount": "2600.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 苏禾现金及个人码代收",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "summer_handover",
+      "source": "su",
+      "destination": "public",
+      "amount": "2600.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 苏禾代收交回",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "交回"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "summer_handover",
+      "item": "summer_sales_BAD_cash",
+      "amount": "2600.00"
+    },
+    {
+      "type": "stock",
+      "key": "summer_prepare_ARC",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "12"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 立牌备货",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "summer_sales_ARC",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "4"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 立牌销售",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "summer_sales_ARC_cash",
+      "source": "customers",
+      "destination": "public",
+      "amount": "1800.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 苏禾收银，社团公账二维码直收立牌",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "summer_prepare_BOK",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "12"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 同人本备货",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "summer_sales_BOK",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "4"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 同人本销售",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "summer_sales_BOK_cash",
+      "source": "customers",
+      "destination": "public",
+      "amount": "1600.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 苏禾收银，社团公账二维码直收同人本",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "summer_gift",
+      "source": "booth",
+      "destination": "gifts",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "1"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 宣传赠品",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "赠送"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "summer_loss",
+      "source": "booth",
+      "destination": "loss",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "3"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "1"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 闭展确认遗失",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "丢失"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "summer_return_BAD",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "63"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "6"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 未售徽章返仓",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "summer_return_ARC",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "6"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 未售立牌返仓",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "summer_return_BOK",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "6"
+        }
+      ],
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 未售同人本返仓",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "summer_su_expense",
+      "source": "su",
+      "destination": "daily",
+      "amount": "100.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 收银杂费垫付",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "summer_su_refund",
+      "source": "public",
+      "destination": "su",
+      "amount": "100.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 收银杂费报销",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "summer_su_refund",
+      "item": "summer_su_expense",
+      "amount": "100.00"
+    },
+    {
+      "type": "fund",
+      "key": "summer_shen_expense",
+      "source": "shen",
+      "destination": "daily",
+      "amount": "140.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 运输费垫付",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "summer_shen_refund",
+      "source": "public",
+      "destination": "shen",
+      "amount": "140.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 运输费报销",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "summer_shen_refund",
+      "item": "summer_shen_expense",
+      "amount": "140.00"
+    },
+    {
+      "type": "fund",
+      "key": "summer_zhou_expense",
+      "source": "zhou",
+      "destination": "daily",
+      "amount": "180.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 摊位杂费垫付",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "summer_zhou_refund",
+      "source": "public",
+      "destination": "zhou",
+      "amount": "180.00",
+      "date": "2026-08-16",
+      "description": "夏日幻想乡同人交流会 摊位杂费报销",
+      "tags": [
+        "展会:夏日幻想乡同人交流会",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "summer_zhou_refund",
+      "item": "summer_zhou_expense",
+      "amount": "180.00"
+    },
+    {
+      "type": "fund",
+      "key": "buy_3_badge_payment",
+      "source": "public",
+      "destination": "badge",
+      "amount": "4600.00",
+      "date": "2026-09-25",
+      "description": "采购PO-03-badge已付，混合批含立牌和印刷配送",
+      "tags": [
+        "采购",
+        "采购轮次:3"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "buy_3_badge",
+      "source": "supplier",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "200"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "40"
+        }
+      ],
+      "date": "2026-09-25",
+      "description": "采购PO-03-badge整批验收",
+      "tags": [
+        "采购",
+        "采购轮次:3"
+      ],
+      "state": "completed",
+      "funds": [
+        "buy_3_badge_payment"
+      ],
+      "related": null,
+      "reference": "PO-03-badge"
+    },
+    {
+      "type": "fund",
+      "key": "buy_3_mixed_payment",
+      "source": "public",
+      "destination": "acrylic",
+      "amount": "3600.00",
+      "date": "2026-09-25",
+      "description": "采购PO-03-mixed已付，混合批含立牌和印刷配送",
+      "tags": [
+        "采购",
+        "采购轮次:3"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "buy_3_mixed",
+      "source": "supplier",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "40"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "40"
+        }
+      ],
+      "date": "2026-09-25",
+      "description": "采购PO-03-mixed整批验收",
+      "tags": [
+        "采购",
+        "采购轮次:3"
+      ],
+      "state": "completed",
+      "funds": [
+        "buy_3_mixed_payment"
+      ],
+      "related": null,
+      "reference": "PO-03-mixed"
+    },
+    {
+      "type": "stock",
+      "key": "autumn_prepare_BAD",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "200"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "15"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 徽章备货",
+      "tags": [
+        "展会:秋灯东方Only",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "autumn_sales_BAD",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "135"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "5"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 徽章销售",
+      "tags": [
+        "展会:秋灯东方Only",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "autumn_sales_BAD_cash",
+      "source": "customers",
+      "destination": "su",
+      "amount": "4200.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 苏禾现金及个人码代收",
+      "tags": [
+        "展会:秋灯东方Only",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "autumn_handover",
+      "source": "su",
+      "destination": "public",
+      "amount": "4200.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 苏禾代收交回",
+      "tags": [
+        "展会:秋灯东方Only",
+        "交回"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "autumn_handover",
+      "item": "autumn_sales_BAD_cash",
+      "amount": "4200.00"
+    },
+    {
+      "type": "stock",
+      "key": "autumn_prepare_ARC",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "15"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 立牌备货",
+      "tags": [
+        "展会:秋灯东方Only",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "autumn_sales_ARC",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "5"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 立牌销售",
+      "tags": [
+        "展会:秋灯东方Only",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "autumn_sales_ARC_cash",
+      "source": "customers",
+      "destination": "public",
+      "amount": "2800.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 苏禾收银，社团公账二维码直收立牌",
+      "tags": [
+        "展会:秋灯东方Only",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "autumn_prepare_BOK",
+      "source": "main",
+      "destination": "booth",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "15"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "15"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 同人本备货",
+      "tags": [
+        "展会:秋灯东方Only",
+        "备货"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "autumn_sales_BOK",
+      "source": "booth",
+      "destination": "customers",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "5"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "5"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 同人本销售",
+      "tags": [
+        "展会:秋灯东方Only",
+        "销售"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "autumn_sales_BOK_cash",
+      "source": "customers",
+      "destination": "public",
+      "amount": "2400.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 苏禾收银，社团公账二维码直收同人本",
+      "tags": [
+        "展会:秋灯东方Only",
+        "销售"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "autumn_gift",
+      "source": "booth",
+      "destination": "gifts",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "6"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "1"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 宣传赠品",
+      "tags": [
+        "展会:秋灯东方Only",
+        "赠送"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "autumn_loss",
+      "source": "booth",
+      "destination": "loss",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "4"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "1"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "1"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 闭展确认遗失",
+      "tags": [
+        "展会:秋灯东方Only",
+        "丢失"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "autumn_return_BAD",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "55"
+        },
+        {
+          "sku_code": "BAD-01-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-02-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-03-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-03-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-04-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-04-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-05-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-05-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-06-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-06-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-07-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-07-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-08-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BAD-08-B",
+          "quantity": "8"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 未售徽章返仓",
+      "tags": [
+        "展会:秋灯东方Only",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "autumn_return_ARC",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "ARC-04-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "ARC-06-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "ARC-07-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "ARC-08-A",
+          "quantity": "8"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 未售立牌返仓",
+      "tags": [
+        "展会:秋灯东方Only",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "autumn_return_BOK",
+      "source": "booth",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BOK-01-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BOK-02-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "8"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "8"
+        }
+      ],
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 未售同人本返仓",
+      "tags": [
+        "展会:秋灯东方Only",
+        "返仓"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "autumn_su_expense",
+      "source": "su",
+      "destination": "daily",
+      "amount": "110.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 收银杂费垫付",
+      "tags": [
+        "展会:秋灯东方Only",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "autumn_su_refund",
+      "source": "public",
+      "destination": "su",
+      "amount": "110.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 收银杂费报销",
+      "tags": [
+        "展会:秋灯东方Only",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "autumn_su_refund",
+      "item": "autumn_su_expense",
+      "amount": "110.00"
+    },
+    {
+      "type": "fund",
+      "key": "autumn_shen_expense",
+      "source": "shen",
+      "destination": "daily",
+      "amount": "160.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 运输费垫付",
+      "tags": [
+        "展会:秋灯东方Only",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "autumn_shen_refund",
+      "source": "public",
+      "destination": "shen",
+      "amount": "160.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 运输费报销",
+      "tags": [
+        "展会:秋灯东方Only",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "autumn_shen_refund",
+      "item": "autumn_shen_expense",
+      "amount": "160.00"
+    },
+    {
+      "type": "fund",
+      "key": "autumn_zhou_expense",
+      "source": "zhou",
+      "destination": "daily",
+      "amount": "200.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 摊位杂费垫付",
+      "tags": [
+        "展会:秋灯东方Only",
+        "垫付"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "autumn_zhou_refund",
+      "source": "public",
+      "destination": "zhou",
+      "amount": "200.00",
+      "date": "2026-10-18",
+      "description": "秋灯东方Only 摊位杂费报销",
+      "tags": [
+        "展会:秋灯东方Only",
+        "报销"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "autumn_zhou_refund",
+      "item": "autumn_zhou_expense",
+      "amount": "200.00"
+    },
+    {
+      "type": "stock",
+      "key": "autumn_found",
+      "source": "loss",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "1"
+        }
+      ],
+      "date": "2026-10-20",
+      "description": "秋灯展后找回一枚灵梦徽章，关联原遗失单",
+      "tags": [
+        "找回"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": "autumn_loss",
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "store_ye",
+      "source": "main",
+      "destination": "ye",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "50"
+        },
+        {
+          "sku_code": "BOK-01-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "10"
+        }
+      ],
+      "date": "2026-10-21",
+      "description": "储藏室容量不足，分散保管，仍属社团库存",
+      "tags": [
+        "长期代管"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "store_temporary",
+      "source": "main",
+      "destination": "temporary",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "20"
+        },
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "15"
+        }
+      ],
+      "date": "2026-10-21",
+      "description": "储藏室容量不足，分散保管，仍属社团库存",
+      "tags": [
+        "长期代管"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "store_shen",
+      "source": "main",
+      "destination": "shen",
+      "lines": [
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "14"
+        },
+        {
+          "sku_code": "BOK-03-A",
+          "quantity": "12"
+        }
+      ],
+      "date": "2026-10-21",
+      "description": "储藏室容量不足，分散保管，仍属社团库存",
+      "tags": [
+        "长期代管"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "stock",
+      "key": "store_chen",
+      "source": "main",
+      "destination": "chen",
+      "lines": [
+        {
+          "sku_code": "BAD-02-B",
+          "quantity": "18"
+        },
+        {
+          "sku_code": "BOK-04-B",
+          "quantity": "12"
+        }
+      ],
+      "date": "2026-10-21",
+      "description": "储藏室容量不足，分散保管，仍属社团库存",
+      "tags": [
+        "长期代管"
+      ],
+      "state": "completed",
+      "funds": [],
+      "related": null,
+      "reference": null
+    },
+    {
+      "type": "fund",
+      "key": "chen_print",
+      "source": "chen",
+      "destination": "print",
+      "amount": "460.00",
+      "date": "2026-10-22",
+      "description": "陈墨垫付红枫印刷社追加印刷款460元",
+      "tags": [
+        "垫付",
+        "待结样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "chen_logistics",
+      "source": "chen",
+      "destination": "daily",
+      "amount": "180.00",
+      "date": "2026-10-23",
+      "description": "陈墨垫付物流费180元",
+      "tags": [
+        "垫付",
+        "待结样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "chen_refund",
+      "source": "public",
+      "destination": "chen",
+      "amount": "320.00",
+      "date": "2026-10-24",
+      "description": "陈墨已实际报销320元，印刷已匹配200元",
+      "tags": [
+        "报销",
+        "待结样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "chen_refund",
+      "item": "chen_print",
+      "amount": "200.00"
+    },
+    {
+      "type": "fund",
+      "key": "su_expense",
+      "source": "su",
+      "destination": "daily",
+      "amount": "280.00",
+      "date": "2026-10-22",
+      "description": "秋灯展苏禾垫付追加杂费280元，尚未报销",
+      "tags": [
+        "垫付",
+        "待结样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "su_receipt",
+      "source": "customers",
+      "destination": "su",
+      "amount": "280.00",
+      "date": "2026-10-22",
+      "description": "秋灯展苏禾个人码代收尾款280元，尚未交回",
+      "tags": [
+        "代收",
+        "待结样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "zhou_expense",
+      "source": "zhou",
+      "destination": "daily",
+      "amount": "420.00",
+      "date": "2026-10-23",
+      "description": "周宁垫付下次展会摊位费420元",
+      "tags": [
+        "垫付",
+        "待结样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "zhou_refund",
+      "source": "public",
+      "destination": "zhou",
+      "amount": "260.00",
+      "date": "2026-10-24",
+      "description": "周宁摊位费已报销260元",
+      "tags": [
+        "报销",
+        "待结样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "zhou_refund",
+      "item": "zhou_expense",
+      "amount": "260.00"
+    },
+    {
+      "type": "fund",
+      "key": "ye_wrong",
+      "source": "ye",
+      "destination": "daily",
+      "amount": "300.00",
+      "date": "2026-10-23",
+      "description": "叶青包装支出误记300元，实际280元，待正式更正",
+      "tags": [
+        "垫付",
+        "更正样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "fund",
+      "key": "ye_refund",
+      "source": "public",
+      "destination": "ye",
+      "amount": "300.00",
+      "date": "2026-10-24",
+      "description": "叶青包装支出已报销300元，余20元尚未退回",
+      "tags": [
+        "报销",
+        "更正样本"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "match",
+      "payment": "ye_refund",
+      "item": "ye_wrong",
+      "amount": "300.00"
+    },
+    {
+      "type": "fund",
+      "key": "unarrived_payment",
+      "source": "public",
+      "destination": "badge",
+      "amount": "960.00",
+      "date": "2026-10-25",
+      "description": "PO-07 已付灵梦58mm哑光常服A款120枚，每枚8元，尚未到货",
+      "tags": [
+        "采购",
+        "已付未到"
+      ],
+      "state": "posted"
+    },
+    {
+      "type": "stock",
+      "key": "unarrived",
+      "source": "supplier",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "120"
+        }
+      ],
+      "date": "2026-10-25",
+      "description": "PO-07 灵梦徽章120枚待到货",
+      "tags": [
+        "采购",
+        "已付未到"
+      ],
+      "state": "in_transit",
+      "funds": [
+        "unarrived_payment"
+      ],
+      "related": null,
+      "reference": "PO-07"
+    },
+    {
+      "type": "stock",
+      "key": "outbound",
+      "source": "main",
+      "destination": "shen",
+      "lines": [
+        {
+          "sku_code": "BAD-01-A",
+          "quantity": "10"
+        }
+      ],
+      "date": "2026-10-26",
+      "description": "MOVE-10 灵梦徽章10枚转沈言宿舍，尚未到达",
+      "tags": [
+        "调拨",
+        "待到货"
+      ],
+      "state": "in_transit",
+      "funds": [],
+      "related": null,
+      "reference": "MOVE-10"
+    },
+    {
+      "type": "stock",
+      "key": "confirmation_pending",
+      "source": "supplier",
+      "destination": "temporary",
+      "lines": [
+        {
+          "sku_code": "ARC-02-A",
+          "quantity": "12"
+        },
+        {
+          "sku_code": "BOK-03-B",
+          "quantity": "8"
+        }
+      ],
+      "date": "2026-10-26",
+      "description": "PO-08 魔理沙立牌12个与白玉楼再版8本；整笔实到，普通经办已申请完成待仓管审核",
+      "tags": [
+        "采购",
+        "完成待审"
+      ],
+      "state": "confirmation_pending",
+      "funds": [],
+      "related": null,
+      "reference": "PO-08"
+    },
+    {
+      "type": "stock",
+      "key": "partial_arrival",
+      "source": "supplier",
+      "destination": "temporary",
+      "lines": [
+        {
+          "sku_code": "ARC-03-A",
+          "quantity": "9"
+        },
+        {
+          "sku_code": "BOK-02-B",
+          "quantity": "6"
+        }
+      ],
+      "date": "2026-10-26",
+      "description": "PO-09 咲夜立牌9个与红魔馆再版6本，只有立牌送到；未申请完成",
+      "tags": [
+        "采购",
+        "部分到货"
+      ],
+      "state": "in_transit",
+      "funds": [],
+      "related": null,
+      "reference": "PO-09"
+    },
+    {
+      "type": "fund",
+      "key": "pending_expense",
+      "source": "public",
+      "destination": "daily",
+      "amount": "88.00",
+      "date": "2026-10-27",
+      "description": "PEND-88 待审批包装耗材支出",
+      "tags": [
+        "待审批"
+      ],
+      "state": "pending"
+    },
+    {
+      "type": "stock",
+      "key": "pending_move",
+      "source": "main",
+      "destination": "chen",
+      "lines": [
+        {
+          "sku_code": "ARC-01-A",
+          "quantity": "5"
+        }
+      ],
+      "date": "2026-10-27",
+      "description": "MOVE-PENDING 灵梦立牌5个调陈墨宿舍待审",
+      "tags": [
+        "调拨",
+        "待审批"
+      ],
+      "state": "pending",
+      "funds": [],
+      "related": null,
+      "reference": "MOVE-PENDING"
+    },
+    {
+      "type": "stock",
+      "key": "cancelled_order",
+      "source": "supplier",
+      "destination": "main",
+      "lines": [
+        {
+          "sku_code": "ARC-05-A",
+          "quantity": "10"
+        }
+      ],
+      "date": "2026-10-24",
+      "description": "PO-CANCEL 供应商无货已取消",
+      "tags": [
+        "历史取消"
+      ],
+      "state": "cancelled",
+      "funds": [],
+      "related": null,
+      "reference": "PO-CANCEL"
+    },
+    {
+      "type": "stock",
+      "key": "rejected_move",
+      "source": "main",
+      "destination": "ye",
+      "lines": [
+        {
+          "sku_code": "BOK-04-A",
+          "quantity": "5"
+        }
+      ],
+      "date": "2026-10-24",
+      "description": "MOVE-REJECT 重复备货被拒绝",
+      "tags": [
+        "历史拒绝"
+      ],
+      "state": "rejected",
+      "funds": [],
+      "related": null,
+      "reference": "MOVE-REJECT"
+    },
+    {
+      "type": "fund",
+      "key": "rejected_expense",
+      "source": "public",
+      "destination": "daily",
+      "amount": "66.00",
+      "date": "2026-10-24",
+      "description": "重复耗材申请已拒绝",
+      "tags": [
+        "历史拒绝"
+      ],
+      "state": "rejected"
+    },
+    {
+      "type": "custody",
+      "account": "main",
+      "member": "xu"
+    }
+  ]
+}

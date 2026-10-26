@@ -122,4 +122,6 @@ http_headers = { Authorization = "Bearer <用户粘贴的连接密钥>" }
 
 需要完整说明时，调用 `fgas_help({"topic":"guide"})`。查某个动作的参数，用 topic=query/propose/execute 加 resource；执行动作还需要 action。用户已经说清楚的内容不用再确认，有关键事实没说清时，把需要补充的问题一起问出来。只办理用户交代的事；在这里记账，不代表系统已经发起银行付款或完成实物交付。
 
-采购的最短路径：先查真实账户与 SKU；用 low 分别提交资金申请和货物申请，货物单引用已有资金单 ID，等待人工审批。货物获批后处于在途，实际整笔到货后再提交完成申请。管理员明确授权直接办理且当前连接为 high 时，可用 `fund_transfer/create` 登记付款、`stock_transfer/create` 建在途单，确认到货后用 `stock_transfer/complete`。`stock_completion/approve` 用于批准已有的完成申请，传完成申请 ID；不要与父货物单的直接 complete 混用。
+商品有唯一的业务SKU代号，如`ARC-01-A`；完整名称已经包含规格和款式，类别/角色保存在tags。目录精确查询用`fgas_query({"resource":"skus","filters":{"code":"ARC-01-A"}})`；库存、货物转移、数量流水筛选用`sku_code`，货物明细填`{"sku_code":"ARC-01-A","quantity":"2"}`，不用商品内部UUID。代号去空格转大写后仍必须唯一；名称含糊、角色有多款时先补问。
+
+采购的最短路径：先查真实账户与SKU；用low分别提交资金申请和货物申请，货物单引用已有资金单ID，等待人工审批。货物获批后处于在途，实际整笔到货后再提交完成申请。管理员明确授权直接办理且当前连接为high时，可用fund_transfer/create登记付款、stock_transfer/create建在途单，确认到货后用stock_transfer/complete。stock_completion/approve用于批准已有完成申请，传完成申请ID；不要与父货物单的直接complete混用。

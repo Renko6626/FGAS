@@ -31,12 +31,13 @@ let filterTimer: number | undefined;
 async function load() {
   loading.value = true;
   try {
-    const { search, status, tag } = filters.value;
+    const { search, status, tag, skuCode } = filters.value;
     const result = await warehouse.transfers({
       page: page.value,
       limit: limit.value,
       ...(props.approvals ? { attention: true } : { status: status || undefined }),
       tag: tag || undefined,
+      sku_code: skuCode || undefined,
       q: search.trim() || undefined,
     });
     items.value = result.items;
@@ -74,7 +75,7 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
     <h2>{{ approvals ? "货物审批与完成申报" : "货物转移记录" }}</h2>
     <NButton :disabled="records?.busy" @click="emit('changed')">刷新</NButton>
   </div>
-  <StockTransferFilters v-model="filters" :items="items" />
+  <StockTransferFilters v-model="filters" :items="items" :skus="skus" />
   <StockTransferRecords ref="records" :items="items" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
     :approvals="approvals" :loading="loading" :error="error" @changed="emit('changed')" />
   <PaginationBar :page="page" :limit="limit" :total="total" @update:page="page = $event" @update:limit="limit = $event" />

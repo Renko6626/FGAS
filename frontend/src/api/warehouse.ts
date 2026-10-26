@@ -4,7 +4,8 @@ import type { AgentSource, AgentAudit } from './audit';
 export interface Sku {
   id: string;
   name: string;
-  specification: string;
+  code: string;
+  tags: string[];
   unit: string;
   avatar_url: string | null;
   active: boolean;
@@ -12,6 +13,7 @@ export interface Sku {
 export interface StockLine {
   id: string;
   sku_id: string;
+  sku_code: string;
   sku_name: string;
   unit: string;
   quantity: string;
@@ -28,6 +30,7 @@ export interface RelatedTransfer {
   status: string;
   lines: {
     sku_id: string;
+    sku_code: string;
     quantity: string;
   }[];
   source_account_id: string;
@@ -74,7 +77,8 @@ export interface StockTransfer extends AgentSource {
 }
 export interface SkuCreateInput {
   name: string;
-  specification?: string;
+  code: string;
+  tags?: string[];
   unit: string;
   avatar_url?: string | null;
   active?: boolean;
@@ -89,7 +93,7 @@ export interface StockInput {
   source_reference: string | null;
   fund_transfer_ids: string[];
   lines: {
-    sku_id: string;
+    sku_code: string;
     quantity: string;
   }[];
   related_transfer_id?: string | null;
@@ -103,6 +107,7 @@ export interface InventoryRow {
   account_name: string;
   member_name: string | null;
   sku_id: string;
+  sku_code: string;
   sku_name: string;
   unit: string;
   quantity: string;
@@ -111,6 +116,7 @@ export interface InventoryRow {
 }
 export interface InventoryTotals {
   sku_id: string;
+  sku_code: string;
   quantity: string;
   valuation: string;
 }
@@ -121,8 +127,9 @@ export interface InventoryPage extends Page<InventoryRow> {
 
 export const warehouse = {
   createSku: (body: SkuCreateInput) => request<Sku>("/skus", "POST", body),
-  updateSku: (id: string, body: SkuUpdateInput) => request<Sku>(`/skus/${id}`, "PATCH", body),
-  skus: () => request<Sku[]>("/skus"),
+  updateSku: (code: string, body: SkuUpdateInput) => request<Sku>(`/skus/${encodeURIComponent(code)}`, "PATCH", body),
+  skus: (filters: { code?: string; q?: string; tag?: string; active?: boolean } = {}) =>
+    request<Sku[]>("/skus" + query(filters)),
   transfers: (params: Record<string, string | number | boolean | undefined> = {}) =>
     request<Page<StockTransfer>>("/stock-transfers" + query(params)),
   detail: (id: string) => request<StockTransfer>("/stock-transfers/" + id),

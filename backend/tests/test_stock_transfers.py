@@ -10,12 +10,19 @@ from backend.infrastructure.models import StockTransfer, StockTransferLine, Jour
 
 def test_sku_thumbnail_url(client):
     image = 'https://example.com/book.png'
-    response = client.post('/api/skus', json=dict(name='书', unit='本', avatar_url=image))
+    response = client.post('/api/skus', json=dict(code=' bad-01-a ', name='博丽灵梦徽章 58mm哑光A款', unit='枚', tags=['类别:徽章', '角色:博丽灵梦'], avatar_url=image))
     assert response.status_code == 201
     item = response.json()
+    assert item['code'] == 'BAD-01-A'
+    assert client.post('/api/skus', json=dict(code='bad-01-a', name='另一商品', unit='个')).status_code == 409
+    other = client.post('/api/skus', json=dict(code='ARC-01-A', name='博丽灵梦立牌 10cm A款', unit='个', tags=['类别:立牌', '角色:博丽灵梦'])).json()
+    assert client.patch('/api/skus/ARC-01-A', json={'code': 'BAD-01-A'}).status_code == 409
+    assert [s['code'] for s in client.get('/api/skus', params={'code': 'bad-01-a'}).json()] == ['BAD-01-A']
+    assert [s['code'] for s in client.get('/api/skus', params={'tag': '类别:立牌'}).json()] == ['ARC-01-A']
+    assert {s['code'] for s in client.get('/api/skus', params={'q': '博丽灵梦'}).json()} == {'BAD-01-A', 'ARC-01-A'}
     assert item['avatar_url'] == image
     assert next(s for s in client.get('/api/skus').json() if s['id'] == item['id'])['avatar_url'] == image
-    cleared = client.patch(f"/api/skus/{item['id']}", json={'avatar_url': None})
+    cleared = client.patch('/api/skus/BAD-01-A', json={'avatar_url': None})
     assert cleared.status_code == 200 and cleared.json()['avatar_url'] is None
     assert next(s for s in client.get('/api/skus').json() if s['id'] == item['id'])['avatar_url'] is None
 
@@ -23,13 +30,13 @@ def test_sku_thumbnail_url(client):
 def test_stock_submission_and_approval(client):
     source = client.post('/api/stock-accounts', json=dict(name='商家', kind='external')).json()['id']
     target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='internal')).json()['id']
-    skus = [client.post('/api/skus', json=dict(name=name, unit=unit)).json()['id'] for name, unit in [('书', '本'), ('材料', '件')]]
-    payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', source_reference='receipt:A', lines=[dict(sku_id=skus[0], quantity='2'), dict(sku_id=skus[1], quantity='125')])
+    skus = [client.post('/api/skus', json=dict(code=f'ITEM-{index}', name=name, unit=unit)).json()['code'] for index, (name, unit) in enumerate( [('书', '本'), ('材料', '件')])]
+    payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', source_reference='receipt:A', lines=[dict(sku_code=skus[0], quantity='2'), dict(sku_code=skus[1], quantity='125')])
     trusted = client.post('/api/stock-transfers', json=payload)
     assert trusted.status_code == 201
     trusted = trusted.json()
     assert trusted['status'] == 'in_transit' and trusted['approval_mode'] == 'automatic'
-    assert {line['sku_id']: line['quantity'] for line in trusted['lines']} == {skus[0]: '2', skus[1]: '125'}
+    assert {line['sku_code']: line['quantity'] for line in trusted['lines']} == {skus[0]: '2', skus[1]: '125'}
     assert client.patch(f'/api/skus/{skus[0]}', json={'unit': '套'}).status_code == 409
     assert client.patch(f'/api/skus/{skus[1]}', json={'quantity_scale': 2}).status_code == 422
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
@@ -65,11 +72,11 @@ def test_stock_submission_and_approval(client):
 def stock_setup(client):
     opening = client.post('/api/stock-accounts', json=dict(name='期初', kind='external')).json()['id']
     a, b = [client.post('/api/stock-accounts', json=dict(name=name, kind='internal')).json()['id'] for name in ('A', 'B')]
-    skus = [client.post('/api/skus', json=dict(name=name, unit='本')).json()['id'] for name in ('书', '册')]
+    skus = [client.post('/api/skus', json=dict(code=f'BOOK-{index}', name=name, unit='本')).json()['code'] for index, name in enumerate(('书', '册'))]
     return (opening, a, b, skus)
 
 def stock_plan(client, source, target, skus, quantities, key, action='internal'):
-    response = client.post('/api/stock-transfers', json=dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', lines=[dict(sku_id=s, quantity=q) for s, q in zip(skus, quantities)]))
+    response = client.post('/api/stock-transfers', json=dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', lines=[dict(sku_code=s, quantity=q) for s, q in zip(skus, quantities)]))
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -80,7 +87,7 @@ def complete(client, item, key):
     return client.post(f"/api/stock-transfers/{item['id']}/completion", json=completion_data(item, key))
 
 def balances(client):
-    return {(q['account_id'], q['sku_id']): q['quantity'] for q in client.get('/api/inventory').json()['items']}
+    return {(q['account_id'], q['sku_code']): q['quantity'] for q in client.get('/api/inventory').json()['items']}
 
 def test_stock_completion_and_exact_inventory(client):
     opening, a, b, skus = stock_setup(client)
@@ -89,8 +96,8 @@ def test_stock_completion_and_exact_inventory(client):
     assert complete(client, incoming, 'opening-complete').json()['status'] == 'completed'
     from backend.infrastructure import stock_store
     with Session() as db:
-        actual = stock_store.available(db, a, skus[0])
-        zero = stock_store.available(db, b, skus[0])
+        actual = stock_store.available(db, a, stock_store.get_sku_by_code(db, skus[0]).id)
+        zero = stock_store.available(db, b, stock_store.get_sku_by_code(db, skus[0]).id)
         assert type(actual) is int and actual == 100
         assert type(zero) is int and zero == 0
     first = stock_plan(client, a, b, skus, ['30', '2'], 'batch1')
@@ -102,7 +109,7 @@ def test_stock_completion_and_exact_inventory(client):
     assert balances(client)[a, skus[1]] == '8' and balances(client)[b, skus[1]] == '2'
     assert complete(client, first, 'batch1-complete').status_code == 409
     assert complete(client, second, 'batch2-complete').status_code == 200
-    totals = {q['sku_id']: q['quantity'] for q in client.get('/api/inventory').json()['totals']}
+    totals = {q['sku_code']: q['quantity'] for q in client.get('/api/inventory').json()['totals']}
     assert totals == {skus[0]: '100', skus[1]: '10'}
     assert len(client.get('/api/stock-moves').json()['items']) == 6
     assert all((location != opening for location, sku in balances(client)))
@@ -204,17 +211,17 @@ def test_transfer_loss_adjustments_and_custody(client):
     loss = client.post('/api/stock-accounts', json=dict(name='盘亏', kind='external')).json()['id']
     assert complete(client, stock_plan(client, opening, a, skus[:1], ['100'], 'opening', 'opening'), 'open').status_code == 200
     original = complete(client, stock_plan(client, a, b, skus[:1], ['30'], 'move'), 'finished').json()
-    data = dict(source_account_id=b, destination_account_id=loss, effective_date='2026-10-13', related_transfer_id=original['id'], lines=[dict(sku_id=skus[0], quantity='2')])
+    data = dict(source_account_id=b, destination_account_id=loss, effective_date='2026-10-13', related_transfer_id=original['id'], lines=[dict(sku_code=skus[0], quantity='2')])
     adjustment = client.post('/api/stock-transfers', json=data).json()
     assert balances(client)[b, skus[0]] == '30'
     assert complete(client, adjustment, 'adjustment').status_code == 200
     assert balances(client)[a, skus[0]] == '70' and balances(client)[b, skus[0]] == '28'
-    assert client.get('/api/inventory', params={'sku_id': skus[0]}).json()['totals'][0]['quantity'] == '98'
+    assert client.get('/api/inventory', params={'sku_code': skus[0]}).json()['totals'][0]['quantity'] == '98'
     assert client.get(f"/api/stock-transfers/{original['id']}").json()['related_transfers'][0]['id'] == adjustment['id']
     members = [client.post('/api/members', json={'name': name}).json() for name in ('旧保管人', '新保管人')]
     for member in members:
         assert client.patch(f'/api/stock-accounts/{b}', json={'member_id': member['id']}).status_code == 200
-        current = client.get('/api/inventory', params={'member_id': member['id'], 'sku_id': skus[0]}).json()
+        current = client.get('/api/inventory', params={'member_id': member['id'], 'sku_code': skus[0]}).json()
         assert current['totals'][0]['quantity'] == '28' and current['items'][0]['member_name'] == member['name']
     assert client.get('/api/inventory', params={'member_id': members[0]['id']}).json()['items'] == []
 
@@ -248,7 +255,7 @@ def test_stock_responsible_history_and_inventory(client):
     assert history[0]['valid_to'] == history[1]['valid_from']
     assert history[0]['ended_by'] == 'trusted' and history[0]['ended_by_name'] == '受信任成员'
     assert history[1]['actor_name'] == '受信任成员'
-    current = client.get('/api/inventory', params={'member_id': people[1]['id'], 'sku_id': skus[0]}).json()
+    current = client.get('/api/inventory', params={'member_id': people[1]['id'], 'sku_code': skus[0]}).json()
     assert current['totals'][0]['quantity'] == '5'
     assert client.get('/api/inventory', params={'member_id': people[0]['id']}).json()['items'] == []
     listed = client.get('/api/stock-accounts', params={'member_id': people[1]['id']}).json()
@@ -275,16 +282,16 @@ def test_under_shipped_independent_endpoint_adjustments(client):
     original = complete(client, stock_plan(client, a, b, skus[:1], ['30'], 'move'), 'move-complete').json()
     for location, kind in ((a, 'adjustment_gain'), (b, 'adjustment_loss')):
         source, target = (boundaries[kind], location) if kind == 'adjustment_gain' else (location, boundaries[kind])
-        adjustment = client.post('/api/stock-transfers', json=dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', related_transfer_id=original['id'], lines=[dict(sku_id=skus[0], quantity='2')])).json()
+        adjustment = client.post('/api/stock-transfers', json=dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', related_transfer_id=original['id'], lines=[dict(sku_code=skus[0], quantity='2')])).json()
         assert complete(client, adjustment, kind).status_code == 200
     assert balances(client)[a, skus[0]] == '72' and balances(client)[b, skus[0]] == '28'
-    assert client.get('/api/inventory', params={'sku_id': skus[0]}).json()['totals'][0]['quantity'] == '100'
+    assert client.get('/api/inventory', params={'sku_code': skus[0]}).json()['totals'][0]['quantity'] == '100'
 
 def operation_payload(client):
     source = client.post('/api/stock-accounts', json=dict(name='供应商', kind='external')).json()['id']
     target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='internal')).json()['id']
-    sku = client.post('/api/skus', json=dict(name='书', unit='本')).json()['id']
-    return dict(stock=dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', lines=[dict(sku_id=sku, quantity='100')]), money=dict(source_account_id='fund_pool', destination_account_id='expense', amount='1000', effective_date='2026-10-13'))
+    sku = client.post('/api/skus', json=dict(code='BOOK-01-A', name='书', unit='本')).json()['code']
+    return dict(stock=dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13', lines=[dict(sku_code=sku, quantity='100')]), money=dict(source_account_id='fund_pool', destination_account_id='expense', amount='1000', effective_date='2026-10-13'))
 
 def test_money_first_operation_and_independent_completion(client):
     from backend.tests.test_funds import transfer
@@ -302,7 +309,7 @@ def test_money_first_operation_and_independent_completion(client):
     finished = complete(client, stock, 'arrived').json()
     assert finished['status'] == 'completed'
     assert complete(client, stock, 'arrived').status_code == 409
-    assert balances(client) == {('main', stock['lines'][0]['sku_id']): '0', (stock['destination_account_id'], stock['lines'][0]['sku_id']): '100'}
+    assert balances(client) == {('main', stock['lines'][0]['sku_code']): '0', (stock['destination_account_id'], stock['lines'][0]['sku_code']): '100'}
     assert client.get('/api/funds/summary').json()['total_minor'] == 100000
     assert client.post('/api/stock-operations', json=payload | {'stock': payload['stock'] | {'fund_transfer_ids': [money['id']]}}).status_code == 400
     with Session() as db:
@@ -335,7 +342,7 @@ def test_stock_stocktake_ordinary_completion_and_end(client, monkeypatch):
     from backend.application import stocktakes
     monkeypatch.setattr(stocktakes, 'ENABLED', True)
     target = client.post('/api/stock-accounts', json={'name': '书库', 'kind': 'internal'}).json()['id']
-    sku = client.post('/api/skus', json={'name': '书', 'unit': '本'}).json()['id']
+    sku = client.post('/api/skus', json={'code': 'BOOK-01-A', 'name': '书', 'unit': '本'}).json()['code']
     response = client.post('/api/stock-stocktakes', json={'name': '期末盘点'})
     assert response.status_code == 201
     item = response.json()
@@ -373,7 +380,7 @@ def test_stock_stocktake_ordinary_completion_and_end(client, monkeypatch):
 def test_free_tags_links_and_disabled_existing_completion(client):
     external,a,b,skus=stock_setup(client)
     original=stock_plan(client,external,a,skus[:1],['5'],'old')
-    linked=client.post('/api/stock-transfers',json={'source_account_id':external,'destination_account_id':b,'effective_date':'2026-10-14','related_transfer_id':original['id'],'tags':['游客','自由用途'],'lines':[{'sku_id':skus[1],'quantity':'3'}]})
+    linked=client.post('/api/stock-transfers',json={'source_account_id':external,'destination_account_id':b,'effective_date':'2026-10-14','related_transfer_id':original['id'],'tags':['游客','自由用途'],'lines':[{'sku_code':skus[1],'quantity':'3'}]})
     assert linked.status_code==201,linked.text
     item=linked.json()
     assert client.get('/api/stock-transfers?tag=自由用途').json()['items'][0]['id']==item['id']
@@ -382,25 +389,25 @@ def test_free_tags_links_and_disabled_existing_completion(client):
     assert client.patch(f'/api/skus/{skus[1]}',json={'active':False}).status_code==200
     assert complete(client,item,'done').status_code==200
     assert balances(client)[b,skus[1]]=='3'
-    assert client.post('/api/stock-transfers',json={'source_account_id':external,'destination_account_id':b,'effective_date':'2026-10-14','lines':[{'sku_id':skus[0],'quantity':'1'}]}).status_code==409
+    assert client.post('/api/stock-transfers',json={'source_account_id':external,'destination_account_id':b,'effective_date':'2026-10-14','lines':[{'sku_code':skus[0],'quantity':'1'}]}).status_code==409
 
 
 def test_stock_invalid_quantity_and_empty_or_duplicate_lines(client):
     external,a,b,skus=stock_setup(client)
     base={'source_account_id':external,'destination_account_id':a,'effective_date':'2026-10-14'}
     for quantity in ('0','-1','1.1','9007199254740992'):
-        assert client.post('/api/stock-transfers',json=base|{'lines':[{'sku_id':skus[0],'quantity':quantity}]}).status_code==400
+        assert client.post('/api/stock-transfers',json=base|{'lines':[{'sku_code':skus[0],'quantity':quantity}]}).status_code==400
     assert client.post('/api/stock-transfers',json=base|{'lines':[]}).status_code==422
-    assert client.post('/api/stock-transfers',json=base|{'lines':[{'sku_id':skus[0],'quantity':'1'}]*2}).status_code==400
+    assert client.post('/api/stock-transfers',json=base|{'lines':[{'sku_code':skus[0],'quantity':'1'}]*2}).status_code==400
     assert client.get('/api/stock-transfers').json()['items']==[]
 
 
 def test_stock_list_pagination_search_and_attention(client):
     source = client.post('/api/stock-accounts', json=dict(name='商家', kind='external')).json()['id']
     target = client.post('/api/stock-accounts', json=dict(name='仓库', kind='internal')).json()['id']
-    sku = client.post('/api/skus', json=dict(name='书', unit='本')).json()['id']
+    sku = client.post('/api/skus', json=dict(code='BOOK-01-A', name='书', unit='本')).json()['code']
     payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-13',
-                   lines=[dict(sku_id=sku, quantity='1')])
+                   lines=[dict(sku_code=sku, quantity='1')])
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
     first = client.post('/api/stock-transfers', json=payload).json()
     client.post('/api/stock-transfers', json=payload)

@@ -30,11 +30,11 @@ def fund_data(source='opening', destination='fund_pool', amount='120.50', date='
     return dict(source_account_id=source, destination_account_id=destination, amount=amount, effective_date=date)
 
 
-def stock_data(client):
+def stock_data(client, code='BOOK-01'):
     source = client.post('/api/stock-accounts', json={'name': '商家', 'kind': 'external'}).json()['id']
     target = client.post('/api/stock-accounts', json={'name': '仓库', 'kind': 'internal'}).json()['id']
-    sku = client.post('/api/skus', json={'name': '书', 'unit': '本'}).json()['id']
-    return dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_id': sku, 'quantity': '2'}])
+    sku = client.post('/api/skus', json={'code': code, 'name': '书', 'unit': '本'}).json()
+    return dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_code': sku['code'], 'quantity': '2'}])
 
 
 def test_credential_issue_limits_and_invalidation(client):
@@ -173,9 +173,11 @@ def test_high_direct_business_and_source(client):
         access = agent_access.resolve(db, connection['secret'])
         source = ops.create_stock_account(db, access, {'name': 'Agent商家', 'kind': 'external'})['data']['account_id']
         target = ops.create_stock_account(db, access, {'name': 'Agent仓库', 'kind': 'internal'})['data']['account_id']
-        sku = ops.create_sku(db, access, {'name': 'Agent书', 'unit': '本'})['data']['sku_id']
+        created_sku = ops.create_sku(db, access, {'code': 'AGENT-BOOK', 'name': 'Agent书', 'unit': '本'})['data']
+        sku = created_sku['sku_id']
+        assert created_sku['object']['code'] == 'AGENT-BOOK'
         assert queries.list_skus(db, access, {'q': 'Agent书'})['data']['items'][0]['id'] == sku
-        payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_id': sku, 'quantity': '2'}])
+        payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_code': 'AGENT-BOOK', 'quantity': '2'}])
         member = ops.create_member(db, access, {'name': '测试联系人'})['data']['member_id']
         account = ops.create_fund_account(db, access, {'name': '成员私账', 'kind': 'private', 'member_id': member, 'avatar_url': 'https://example.test/a.png'})['data']['account_id']
         assert queries.list_fund_accounts(db, access, {'q': '成员私账'})['data']['items'][0]['id'] == account
@@ -297,9 +299,9 @@ def test_mcp_auth_discovery_and_structured_results(client):
     stock = stock_data(client)
     responsible = client.post('/api/members', json={'name': '仓库负责人'}).json()['id']
     assert client.patch('/api/stock-accounts/' + stock['destination_account_id'], json={'member_id': responsible}).status_code == 200
-    sku_ids = {stock['lines'][0]['sku_id']}
+    sku_ids = {client.get('/api/skus', params={'code': stock['lines'][0]['sku_code']}).json()[0]['id']}
     for index in range(20):
-        response = client.post('/api/skus', json={'name': f'分页货物{index:02}', 'unit': '件'})
+        response = client.post('/api/skus', json={'code': f'PAGE-{index:02}', 'name': f'分页货物{index:02}', 'unit': '件'})
         assert response.status_code == 201
         sku_ids.add(response.json()['id'])
     private_id = client.post('/api/accounts', json={'name': '待匹配私账', 'kind': 'private'}).json()['id']
@@ -377,12 +379,28 @@ def test_mcp_auth_discovery_and_structured_results(client):
                         assert not full_help.is_error
                         Draft202012Validator(full_help.structured_content['data']['list']['output_schema']).validate(
                             {'api_version': '2', 'data': large})
+                        inventory = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {
+                            'account_id': stock['destination_account_id'], 'sku_code': 'BOOK-01',
+                        }})
+                        assert not inventory.is_error
+                        assert [(row['sku_code'], row['quantity']) for row in inventory.structured_content['data']['items']] == [('BOOK-01', '0')]
+                        stock_proposal = await session.call_tool('fgas_propose', {'resource': 'stock_transfer', 'data': stock})
+                        assert not stock_proposal.is_error, stock_proposal.structured_content
+                        stock_result = stock_proposal.structured_content['data']
+                        assert stock_result['status'] == 'pending' and stock_result['approval_required'] and not stock_result['ledger_effect_applied']
+                        stock_query = await session.call_tool('fgas_query', {'resource': 'stock_transfers', 'filters': {'sku_code': 'BOOK-01'}})
+                        assert not stock_query.is_error
+                        assert [(row['id'], row['lines'][0]['sku_code']) for row in stock_query.structured_content['data']['items']] == [(stock_result['stock_transfer_id'], 'BOOK-01')]
+                        other_stock = await session.call_tool('fgas_query', {'resource': 'stock_transfers', 'filters': {'sku_code': 'PAGE-00'}})
+                        assert not other_stock.is_error and other_stock.structured_content['data']['items'] == []
                         proposed = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': fund_data()})
                         assert not proposed.is_error and proposed.structured_content['data']['status'] == 'pending'
                         detail = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'identifier': proposed.structured_content['data']['transfer_id']})
                         assert detail.structured_content['data']['status'] == 'pending'
                         denied = await session.call_tool('fgas_execute', {'resource': 'member', 'action': 'create', 'data': {'name': '不能猜高权限工具'}})
                         assert denied.is_error and denied.structured_content['code'] == 'permission_denied'
+                        denied_sku = await session.call_tool('fgas_execute', {'resource': 'sku', 'action': 'create', 'data': {'code': 'DENIED-01', 'name': '禁止创建', 'unit': '本'}})
+                        assert denied_sku.is_error and denied_sku.structured_content['code'] == 'permission_denied'
                         old = await session.call_tool('fgas_propose_fund_transfer', fund_data())
                         assert old.is_error and old.structured_content['code'] == 'tool_migrated'
                         invalid = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': {}})
@@ -450,6 +468,15 @@ def test_mcp_high_execution_uses_real_business_services(client):
                             assert not result.is_error, result.structured_content
                             return result.structured_content['data']
 
+                        sku = await execute('sku', 'create', {'code': 'MCP-BOOK', 'name': 'MCP刊物', 'unit': '本', 'tags': ['角色:博丽灵梦']})
+                        assert sku['object']['code'] == 'MCP-BOOK'
+                        by_code = await session.call_tool('fgas_query', {'resource': 'skus', 'filters': {'code': 'MCP-BOOK'}})
+                        assert not by_code.is_error
+                        assert [(row['id'], row['code']) for row in by_code.structured_content['data']['items']] == [(sku['sku_id'], 'MCP-BOOK')]
+                        by_role = await session.call_tool('fgas_query', {'resource': 'skus', 'filters': {'tag': '角色:博丽灵梦'}})
+                        assert not by_role.is_error
+                        assert [row['code'] for row in by_role.structured_content['data']['items']] == ['MCP-BOOK']
+                        payload['lines'] = [{'sku_code': 'MCP-BOOK', 'quantity': '2'}]
                         responsible = await execute('member', 'create', {'name': 'MCP负责人'})
                         assigned = await execute('stock_account', 'update', {'identifier': payload['destination_account_id'], 'member_id': responsible['member_id']})
                         assert assigned['object']['member_id'] == responsible['member_id']
@@ -507,7 +534,7 @@ def test_event_lists_default_window_and_all_time(client):
     low = issue(client)
     old = datetime.now(timezone.utc) - timedelta(days=40)
     old_stock_payload = stock_data(client)
-    recent_stock_payload = stock_data(client)
+    recent_stock_payload = stock_data(client, 'BOOK-02')
     with Session() as db:
         access = agent_access.resolve(db, low['secret'])
         old_fund = ops.propose_fund_transfer(db, access, fund_data())['data']['transfer_id']
@@ -581,6 +608,7 @@ def test_fund_balance_as_of_and_reversal(client):
 def test_inventory_as_of_onhand_and_null_in_transit(client):
     high = issue(client, 'high')
     payload = stock_data(client)
+    sku = client.get('/api/skus', params={'code': payload['lines'][0]['sku_code']}).json()[0]
     target = payload['destination_account_id']
     as_of = datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
     with Session() as db:
@@ -600,7 +628,7 @@ def test_inventory_as_of_onhand_and_null_in_transit(client):
         assert before['items'][0]['quantity'] == '0' and before['items'][0]['in_transit_planned_quantity'] is None
         after = queries.get_inventory(db, access, {'account_id': target, 'as_of': (as_of + timedelta(seconds=1)).isoformat()})['data']
         assert after['items'][0]['quantity'] == '2' and after['items'][0]['in_transit_planned_quantity'] is None
-        assert after['totals'] == [{'sku_id': payload['lines'][0]['sku_id'], 'quantity': '2', 'valuation': '未估值'}]
+        assert after['totals'] == [{'sku_id': sku['id'], 'sku_code': sku['code'], 'quantity': '2', 'valuation': '未估值'}]
         current_after = queries.get_inventory(db, access, {'account_id': target})['data']['items'][0]
         assert current_after['quantity'] == '2' and current_after['in_transit_planned_quantity'] == '0'
 
@@ -608,7 +636,7 @@ def test_inventory_as_of_onhand_and_null_in_transit(client):
 def test_stock_move_filters_sql(client):
     high = issue(client, 'high')
     first_payload = stock_data(client)
-    second_payload = stock_data(client)
+    second_payload = stock_data(client, 'BOOK-02')
     old = datetime.now(timezone.utc) - timedelta(days=40)
     with Session() as db:
         access = agent_access.resolve(db, high['secret'])

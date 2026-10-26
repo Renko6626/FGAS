@@ -5,6 +5,7 @@ from backend.application.agent_access import AgentAccess, auto_apply, require_op
 from backend.infrastructure import store, stock_store
 from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit, now
 from backend.application.identity import authorize_write
+from backend.application import warehouse_catalogs
 from backend.kernel.accounting import DomainError
 from backend.kernel.stock import parse_quantity, quantity_string
 from backend.modules.warehouse.plans import build_moves
@@ -47,7 +48,7 @@ def transfer_view(db, item, *, detail=True):
     value['lines'] = []
     for line in stock_store.lines(db, item.id):
         sku = stock_store.get_sku(db, line.sku_id)
-        value['lines'].append(dict(id=line.id, sku_id=sku.id, sku_name=sku.name, specification=sku.specification, unit=sku.unit, quantity=quantity_string(line.quantity)))
+        value['lines'].append(dict(id=line.id, sku_id=sku.id, sku_code=sku.code, sku_name=sku.name, unit=sku.unit, quantity=quantity_string(line.quantity)))
     value['snapshot_at'] = now()
     if not detail:
         return value
@@ -57,7 +58,7 @@ def transfer_view(db, item, *, detail=True):
         fund = store.get_transfer(db, reference.fund_transfer_id)
         value['fund_references'].append(dict(id=fund.id,status=fund.status,description=fund.description,amount_minor=fund.amount_minor,reversal_of=fund.reversal_of,source_account_id=fund.source_account_id,destination_account_id=fund.destination_account_id))
     value['related_transfers']=[dict(id=a.id,status=a.status,source_account_id=a.source_account_id,destination_account_id=a.destination_account_id,
-        lines=[dict(sku_id=l.sku_id,quantity=quantity_string(l.quantity)) for l in stock_store.lines(db,a.id)]) for a in stock_store.related_transfers(db,item.id)]
+        lines=[dict(sku_id=l.sku_id,sku_code=stock_store.get_sku(db,l.sku_id).code,quantity=quantity_string(l.quantity)) for l in stock_store.lines(db,a.id)]) for a in stock_store.related_transfers(db,item.id)]
     value['audit'] = [dict(id=a.id, actor_id=a.actor_id, action=a.action, detail=a.detail, created_at=a.created_at, agent_credential_id=a.agent_credential_id, agent_credential_name=a.agent_credential_name) for a in stock_store.audit_events(db, item.id)]
     return value
 
@@ -76,6 +77,8 @@ def approve(db, item, user, mode, *, access=None):
 def submit_transfer(db, user, data, *, access: AgentAccess | None = None, submit_mode: Literal['propose', 'direct'] | None = None):
     authorize_write(db, user, trusted=False)
     apply = auto_apply(user, access=access, submit_mode=submit_mode)
+    data = data | dict(lines=[dict(sku_id=warehouse_catalogs.sku_by_code(db, line['sku_code']).id,
+                                   quantity=line['quantity']) for line in data['lines']])
     lines = validate(db, data)
     values = {key: data.get(key) for key in ('source_account_id','destination_account_id','description','tags','source_reference','related_transfer_id')}
     values['tags']=data.get('tags',[])
@@ -117,7 +120,7 @@ def transfer_detail(db, identifier):
         timestamp = store.snapshot_timestamp(snapshot)
         return transfer_view(snapshot,get_transfer(snapshot,identifier)) | dict(snapshot_at=timestamp)
 def list_transfers(db, status=None, filters=None, page=1, limit=20):
-    filters = filters or {}
+    filters = warehouse_catalogs.sku_filters(db, filters)
     with store.read_snapshot(db) as snapshot:
         timestamp = store.snapshot_timestamp(snapshot)
         items, total = stock_store.transfer_page(
@@ -189,6 +192,7 @@ def inventory(db, filters=None, page=1, limit=20):
 
 
 def list_moves_page(db, filters=None, page=1, limit=20, *, descending=False):
+    filters = warehouse_catalogs.sku_filters(db, filters)
     with store.read_snapshot(db) as snapshot:
         timestamp = store.snapshot_timestamp(snapshot)
         moves, total = stock_store.moves_page(snapshot, filters, page=page, limit=limit, descending=descending)
@@ -196,7 +200,7 @@ def list_moves_page(db, filters=None, page=1, limit=20, *, descending=False):
         for move in moves:
             confirmation = snapshot.get(StockConfirmation,move.confirmation_id)
             sku = stock_store.get_sku(snapshot,move.sku_id)
-            result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_account_id','destination_account_id','effective_date','created_at')} | dict(posted_at=move.created_at,quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
+            result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_account_id','destination_account_id','effective_date','created_at')} | dict(sku_code=sku.code,posted_at=move.created_at,quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
         return dict(items=result, total=total, page=page, limit=limit, snapshot_at=timestamp)
 
 
