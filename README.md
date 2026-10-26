@@ -2,7 +2,7 @@
 
 单社团、人民币的开发原型。以账户和 Transfer 表达资金、货物的变化；结算匹配记录成员支出报销及代收交回，薄盘点表组织普通盈亏转移。
 
-业务模型见 [transfer-model](docs/transfer-model.md)，架构见 [architecture](architecture.md)，实际验证状态见 [阶段记录](docs/prototype-status.md)。
+业务模型见 [transfer-model](docs/transfer-model.md)，架构见 [architecture](architecture.md)，实际验证状态见 [阶段记录](docs/prototype-status.md)。截至 2026-10-25，资金、结算、库存、薄盘点、首页、身份管理及 MCP v2 已实现；现状检查的后端 65 项测试与前端构建通过，生产验收仍未完成。
 
 ## 本地开发
 
@@ -102,7 +102,7 @@ npm run build
 
 测试脚本仅允许 `fgas_test`，每次集中运行先重建该测试库的 FGAS 表；不要把日常开发库传给测试。迁移测试会在同一 PostgreSQL 实例上创建并删除独立临时库，验证 upgrade、drift check 和 downgrade，不触碰 `fgas_test` 的共享表。测试使用真实数据库及 HTTP 生产路径，Casdoor 流程通过 mock IdP 覆盖，不访问外部服务。前端验证为 TypeScript 检查和生产构建，未经要求不做浏览器自动点击/填表。
 
-真实 Casdoor 联调、附件、生产部署、备份恢复尚未验收，本轮不实现估值、利润、订单、清点明细或请求恢复。
+真实 Casdoor、域名与 HTTPS、生产发布和备份恢复尚未验收；附件尚未实现。估值、成本、利润、订单、清点明细和请求恢复不在第一阶段范围。
 
 ## Agent 接入（MCP v2，开发阶段）
 
@@ -114,7 +114,7 @@ npm run build
 
 以下变量由启动客户端的运行时安全注入：`FGAS_MCP_URL` 为上述 URL，`FGAS_AGENT_TOKEN` 为一次性签发所得令牌。回环地址仅供与后端同机的客户端访问；另一台机器的 `127.0.0.1` 指向它自己。当前保留 SDK 默认回环 Host 校验；自定义域名、远程 HTTPS、OAuth 和部署尚未联调。
 
-DeepSeek Harness 0.1.5-rc.3 的 `cordis.yml` 插件条目如下。字段及 `!!js` 环境变量写法依据其已安装官方包 README/Config；工具名称在 Harness 中为 `mcp__fgas__fgas_*`；2026-10-15 曾用实际 MCP 插件/ToolRuntime 在专用测试库验证 v1 的两档发现、读取、待审提交及 high 直接过账，未调用模型；该历史结果不代表 v2 已完成外部客户端联调。将条目加入现有配置，不需要改变模型或调用模型完成连接验证。
+DeepSeek Harness 0.1.5-rc.3 的 `cordis.yml` 插件条目如下。字段及 `!!js` 环境变量写法依据其已安装官方包 README/Config；工具名称在 Harness 中为 `mcp__fgas__fgas_*`；2026-10-15 曾用实际 MCP 插件/ToolRuntime 在专用测试库验证 v1 的两档发现、读取、待审提交及 high 直接过账，未调用模型；该历史结果不代表 v2 已验收；2026-10-23 已另用本机 DSH 完成 v2 真实模型查询与写入体验，具体范围见阶段记录，远程 HTTPS 及其他客户端仍待联调。将条目加入现有配置，不需要改变模型或调用模型完成连接验证。
 
 ```yaml
 - id: mcp-fgas

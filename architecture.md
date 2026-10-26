@@ -1,6 +1,6 @@
 # FGAS 第一阶段架构
 
-2026-10-14，自由账户与 Transfer 整理。模块化单体，单社团、人民币、独立实例。业务定义见 [Transfer 模型](docs/transfer-model.md)，实施边界见 [实施计划](docs/superpowers/plans/2026-10-14-flexible-transfer-core-plan.md)，验证与运行状态见 [阶段记录](docs/prototype-status.md)。旧阶段设计文件保留当时方案，新代码以本文及当前 Transfer 模型为准。
+2026-10-14 建立自由账户与 Transfer 架构，当前状态核对至 2026-10-25。模块化单体，单社团、人民币、独立实例。业务定义见 [Transfer 模型](docs/transfer-model.md)，实施边界见 [实施计划](docs/superpowers/plans/2026-10-14-flexible-transfer-core-plan.md)，验证与运行状态见 [阶段记录](docs/prototype-status.md)。旧阶段设计文件保留当时方案，新代码以本文及当前 Transfer 模型为准。
 
 ## 1 核心目标与第一阶段范围
 
@@ -115,9 +115,9 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 ## 7 重建、上线配套与后续边界
 
-2026-10-22 以当前模型重建开发 FGAS 应用表，并以 Alembic `0001` 作为基线；此后 schema 只通过 revision 演进，不再用 `create_all` 或手写 SQL 升级。普通启动不自动迁移，迁移由发布阶段或显式本地初始化执行；测试仅运行于 `fgas_test`，迁移测试使用独立临时库。当前权威账本是单数据库，不将成员散放货物解释为数据库分布式同步。
+2026-10-22 以当前模型重建开发 FGAS 应用表，并以 Alembic `0001` 作为基线；此后 schema 只通过 revision 演进，不再用 `create_all` 或手写 SQL 升级。开发入口 `npm run dev` 经 `scripts/run-backend.sh` 执行初始化与 `alembic upgrade head`，保留已有业务数据；直接启动 Uvicorn 不执行迁移。Compose 发布脚本先备份，再由一次性 `migrate` 服务执行迁移；原生部署按其独立步骤操作。测试仅运行于 `fgas_test`，迁移测试使用独立临时库。当前权威账本是单数据库，不将成员散放货物解释为数据库分布式同步。
 
-正式使用前需确认期初日期、公账资金、私账往来及各账户 SKU 数量，通过普通期初记录建立，并保留不足的原始依据。正式 SSO、票据附件、生产部署和备份恢复仍需后续落实。附件按既有私有存储方向实施，不能随意公开；数据库与附件备份应保存对应恢复时点和版本信息，在空环境验证基本恢复，不把开发备份搬成正式账本。不在本次新增实现。
+正式使用前需确认期初日期、公账资金、私账往来及各账户 SKU 数量，通过普通期初记录建立，并保留不足的原始依据。Casdoor 登录代码与 mock IdP 测试已实现，真实 SSO、域名与 HTTPS、生产发布和备份恢复仍未验收；票据附件尚未实现。附件按既有私有存储方向实施，不能随意公开；数据库与附件备份应保存对应恢复时点和版本信息，在空环境验证基本恢复，不把开发备份搬成正式账本。不在本次新增实现。
 
 第二阶段再设计取得成本、批次、估值及销售成本，后续再设计经营归属、分摊和管理分析，不根据第一阶段付款自动推库存价值。正式事实不能因分析口径变化自动重写。第一阶段不建立订单、完整报表、复杂寄售结算、备用金专用流程、CRM、人事、自动 POS 导入。Agent/MCP 接入按下节实现，外部集成必须经过相同服务与账本校验，不直接写数据库或绕过授权。
 
@@ -137,4 +137,4 @@ low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具�
 
 v2 直接替换旧公开工具名；旧名只返回 tool_migrated，不调用旧动作。客户端重连/重新发现，固定旧名脚本需更新；地址、凭据与业务数据不变。仍未正式发布。
 
-新装与升级统一执行 Alembic revision；`0001_baseline_schema.py` 包含 Agent 凭据、SSO、`transfers.posted_at` 等全部当前结构。旧库若不可丢弃，先备份并显式执行 `scripts/upgrade-agent-access.sql`、`scripts/upgrade-user-auth.sql`、`scripts/upgrade-posted-at.sql`，校验 schema 与基线一致后 `alembic stamp 0001`；可丢弃的旧库直接重建。普通启动不升级旧表，不自动降级。具体命令、客户端版本和联调限制见阶段记录。
+新装与升级统一执行 Alembic revision；`0001_baseline_schema.py` 包含 Agent 凭据、SSO、`transfers.posted_at` 等全部当前结构。旧库若不可丢弃，先备份并显式执行 `scripts/upgrade-agent-access.sql`、`scripts/upgrade-user-auth.sql`、`scripts/upgrade-posted-at.sql`，校验 schema 与基线一致后 `alembic stamp 0001`；可丢弃的旧库直接重建。有 FGAS 表但无 Alembic 版本记录的旧库不会在普通启动时自动收养；迁移失败即停止，不自动降级。具体命令、客户端版本和联调限制见阶段记录。
