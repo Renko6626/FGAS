@@ -465,4 +465,4 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 
 验证：fgas_test重建前备份到.runtime/backups/fgas-20261026T200113Z.dump；显式DATABASE_URL指向fgas_test执行./tools/run_tests.sh，74 passed in 30.28s。npm run build的vue-tsc/Vite通过（保留既有主JS超过500kB提示）。基准脚本reset成功备份并加载，独立check再次通过：公账16100元、BAD-01-A正式297（社团储藏室227/叶青宿舍50/临时储藏室20），入途120/出途10、结算与负责人历史及四种连接正确；再次init按预期拒绝非空库，未重复灌入。初次加载遇本机代理、备份DSN传递问题，已分别改为回环直连和显式无密码DSN，随后实际reset/check通过。只读审阅修正一处F01黄金答案账户名，其余无重要问题。
 
-未运行外部模型的24张任务、浏览器自动交互、真实SSO、公网或生产部署。数据已加载与软件检查通过，不代表Agent已通过任务。工作保留在codex/agent-benchmark工作目录，独立库可用于后续试验。
+未运行外部模型的24张任务、浏览器自动交互、真实SSO、公网或生产部署。数据已加载与软件检查通过，不代表Agent已通过任务。实现已按用户要求提交并归并至main；历史分支提交均已包含于main，旧工作目录解除分支绑定并保留未提交文件。独立基准库可用于后续试验。

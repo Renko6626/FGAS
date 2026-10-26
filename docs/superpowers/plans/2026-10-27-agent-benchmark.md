@@ -62,6 +62,6 @@ Consumes: Task1契约及现有人工API。Produces: init/reset/serve/check、固
 
 ## 执行记录
 
-工作目录`.worktrees/agent-benchmark`、分支`codex/agent-benchmark`；原目录已有.gitignore修改不变。后端、前端、数据包按明确文件所有权并行；主agent负责集成与集中验证。
+实施时使用工作目录`.worktrees/agent-benchmark`、分支`codex/agent-benchmark`，完成后按用户要求归并至main；原目录已有.gitignore修改不变。后端、前端、数据包按明确文件所有权并行；主agent负责集成与集中验证。
 
 集中结果：后端74 passed（30.28s）、前端vue-tsc/Vite通过；基准reset和独立check通过，非空init按预期拒绝；一次最终只读审阅的F01账户名问题已修正。数据已保留，模型任务未运行。
