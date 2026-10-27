@@ -341,6 +341,17 @@ def test_mcp_auth_discovery_and_structured_results(client, owner, level):
                         Draft202012Validator(contract['output_schema']).validate(identity.structured_content)
                         _, prepared = catalog.prepare_call('fgas_query', contract['example'])
                         assert prepared == {}
+                        bad_search = await session.call_tool('fgas_query', {
+                            'resource': 'members', 'filters': {'keyword': '叶青'},
+                        })
+                        assert bad_search.is_error
+                        search_error = bad_search.structured_content
+                        query_schema = next(tool.output_schema for tool in tools if tool.name == 'fgas_query')
+                        Draft202012Validator(query_schema).validate(search_error)
+                        assert search_error['code'] == 'validation_error'
+                        assert search_error['fields'][0]['field'] == 'filters.keyword'
+                        assert 'q' in search_error['fields'][0]['message']
+                        assert search_error['help']['arguments'] == {'topic': 'query', 'resource': 'members'}
                         for unsupported in ({'identifier': 'admin'}, {'filters': {'user_id': 'admin'}},
                                             {'filters': {'page': 1}}, {'filters': {'as_of': '2026-10-01T00:00:00+08:00'}}):
                             rejected = await session.call_tool('fgas_query', {'resource': 'me', **unsupported})

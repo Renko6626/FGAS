@@ -180,9 +180,15 @@ def validate(model, values, hint, prefix=''):
         return model.model_validate(values)
     except ValidationError as exc:
         messages = {'missing': '必须填写', 'extra_forbidden': '此操作不支持该字段'}
-        fields = [dict(field='.'.join(filter(None, [prefix, *map(str, error['loc'])])) or 'arguments',
-                       message=messages.get(error['type'], error['msg']))
-                  for error in exc.errors(include_url=False, include_context=False, include_input=False)]
+        fields = []
+        for error in exc.errors(include_url=False, include_context=False, include_input=False):
+            message = messages.get(error['type'], error['msg'])
+            if error['type'] == 'extra_forbidden' and len(error['loc']) == 1 and model.model_fields:
+                message += '；可用字段：' + '、'.join(model.model_fields)
+            fields.append(dict(
+                field='.'.join(filter(None, [prefix, *map(str, error['loc'])])) or 'arguments',
+                message=message,
+            ))
         raise InputProblem(fields, hint) from exc
 
 

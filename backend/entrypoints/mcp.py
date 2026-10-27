@@ -20,8 +20,23 @@ _bearer: ContextVar[str | None] = ContextVar('fgas_mcp_bearer', default=None)
 _DOCS = Path(__file__).resolve().parents[2] / 'docs/ai'
 GUIDE = (_DOCS / 'guide.md').read_text()
 OVERVIEW = (_DOCS / 'overview.md').read_text()
-GUIDE_VERSION = '2026-10-27-v9'
-RESULT_SCHEMA = QueryResult[dict].model_json_schema()
+GUIDE_VERSION = '2026-10-27-v11'
+# Clients may validate structured error results as well as successful results.
+RESULT_SCHEMA = {
+    'type': 'object',
+    'anyOf': [
+        QueryResult[dict].model_json_schema(),
+        {
+            'type': 'object',
+            'properties': {
+                'api_version': {'const': '2', 'type': 'string'},
+                'code': {'type': 'string'},
+                'message': {'type': 'string'},
+            },
+            'required': ['api_version', 'code', 'message'],
+        },
+    ],
+}
 logger = logging.getLogger(__name__)
 LEGACY_TOOLS = {'fgas_get_context'} | {
     'fgas_' + name for name in catalog.schemas.QUERY_INPUT_SCHEMAS | catalog.schemas.OPERATION_INPUT_SCHEMAS
