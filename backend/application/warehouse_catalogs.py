@@ -1,6 +1,6 @@
 import re
 from backend.infrastructure import store, stock_store, stocktake_store
-from backend.infrastructure.models import Sku, StockAccountCustody, now
+from backend.infrastructure.models import Sku, StockAccount, StockAccountCustody, now
 from backend.application import directory_views
 from backend.application.identity import authorize_write
 from backend.kernel.accounting import DomainError
@@ -21,7 +21,7 @@ def sku_by_code(db, code):
     return item
 
 def sku_filters(db, filters):
-    result = dict(filters or {})
+    result = directory_views.code_filters(db, filters, stock=True)
     code = result.pop('sku_code', None)
     if code: result['sku_id'] = sku_by_code(db, code).id
     return result
@@ -77,11 +77,11 @@ def set_responsible(db,user,account_id,member_id):
 
 def account_detail(db, identifier):
     with store.read_snapshot(db) as snapshot:
-        item = store.get_stock_account(snapshot, identifier)
+        item = directory_views.by_code(snapshot, StockAccount, identifier)
         if item is None: raise DomainError('账户不存在', 404)
         history = []
-        for row in stock_store.responsibility_history(snapshot, identifier):
-            history.append(dict(id=row.id, member_id=row.member_id,
+        for row in stock_store.responsibility_history(snapshot, item.id):
+            history.append(dict(member_code=store.get_member(snapshot, row.member_id).code,
                 member_name=store.get_member(snapshot, row.member_id).name,
                 valid_from=row.valid_from, valid_to=row.valid_to,
                 actor_id=row.actor_id, actor_name=store.get_user(snapshot, row.actor_id).display_name,

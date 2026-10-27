@@ -49,6 +49,7 @@ class FundAccount(Base):
     __tablename__ = 'fund_accounts'
     __table_args__ = (CheckConstraint("kind IN ('public','private','external')", name='kind_valid'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, server_default=text("'FA-' || repeat('0', greatest(0, 4 - length(nextval('fund_accounts_code_seq')::text))) || currval('fund_accounts_code_seq')::text"))
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
     member_id: Mapped[str | None] = mapped_column(ForeignKey('members.id'), nullable=True)
@@ -59,6 +60,7 @@ class StockAccount(Base):
     __tablename__ = 'stock_accounts'
     __table_args__ = (CheckConstraint("kind IN ('internal','external')", name='kind_valid'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, server_default=text("'SA-' || repeat('0', greatest(0, 4 - length(nextval('stock_accounts_code_seq')::text))) || currval('stock_accounts_code_seq')::text"))
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -70,6 +72,7 @@ class Transfer(Base):
                       Index('transfers_posted_at_key', 'posted_at'),
                       Index('transfers_effective_date_key', 'effective_date'))
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, server_default=text("'FT-' || repeat('0', greatest(0, 6 - length(nextval('transfers_code_seq')::text))) || currval('transfers_code_seq')::text"))
     source_account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'))
     destination_account_id: Mapped[str] = mapped_column(ForeignKey('fund_accounts.id'))
     amount_minor: Mapped[int] = mapped_column(BigInteger)
@@ -113,6 +116,7 @@ class Audit(Base):
 class Member(Base):
     __tablename__ = 'members'
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, server_default=text("'M-' || repeat('0', greatest(0, 4 - length(nextval('members_code_seq')::text))) || currval('members_code_seq')::text"))
     name: Mapped[str] = mapped_column(String)
     note: Mapped[str] = mapped_column(String, default='')
 
@@ -151,6 +155,7 @@ class StockTransfer(Base):
     __tablename__ = 'stock_transfers'
     __table_args__ = (CheckConstraint("status IN ('pending','in_transit','completed','rejected','cancelled')", name='status_valid'),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, server_default=text("'ST-' || repeat('0', greatest(0, 6 - length(nextval('stock_transfers_code_seq')::text))) || currval('stock_transfers_code_seq')::text"))
     source_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
     destination_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'))
     effective_date: Mapped[object] = mapped_column(Date)
@@ -201,6 +206,7 @@ class StockConfirmation(Base):
         Index('one_completed_stock_confirmation', 'transfer_id', unique=True, postgresql_where=text("status = 'completed'")),
     )
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, server_default=text("'SC-' || repeat('0', greatest(0, 6 - length(nextval('stock_confirmations_code_seq')::text))) || currval('stock_confirmations_code_seq')::text"))
     transfer_id: Mapped[str] = mapped_column(ForeignKey('stock_transfers.id'))
     actor_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     effective_date: Mapped[object] = mapped_column(Date)

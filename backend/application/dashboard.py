@@ -25,7 +25,7 @@ def overview(db):
 
     fund_operations, stock_operations = dashboard_queries.recent_operations(db)
     operations = sorted(fund_operations + stock_operations,
-                        key=lambda row: (row['created_at'], row['kind'], row['id']), reverse=True)[:10]
+                        key=lambda row: (row['created_at'], row['kind'], row['code']), reverse=True)[:10]
     return dict(snapshot_at=snapshot_at, window_start=since,
                 funds=funds, stock=dict(skus=skus, recent=stock_recent),
                 counts=dashboard_queries.pending_counts(db),

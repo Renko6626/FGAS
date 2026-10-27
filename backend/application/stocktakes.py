@@ -3,7 +3,8 @@
 ENABLED = False
 
 from backend.infrastructure import store, stocktake_store
-from backend.application import catalogs, funds, warehouse
+from backend.application import catalogs, funds, warehouse, directory_views
+from backend.infrastructure.models import FundAccount, StockAccount
 from backend.application.identity import authorize_write
 from backend.kernel.accounting import DomainError
 
@@ -14,8 +15,9 @@ def stocktake_view(db, kind, item):
     getter = store.get_account if kind == 'fund' else store.get_stock_account
     for side in ('gain', 'loss'):
         key = side + '_' + endpoint + '_id'
-        value[key] = getattr(item, key)
-        value[side + '_' + endpoint + '_name'] = getter(db, value[key]).name
+        account = getter(db,getattr(item,key))
+        value[side + '_' + endpoint + '_code'] = account.code
+        value[side + '_' + endpoint + '_name'] = account.name
     return value
 
 def list_stocktakes(db, kind, status=None):
@@ -41,7 +43,7 @@ def create_stocktake(db, user, kind, data):
             value = catalogs.create_account(db, user, dict(name=f'{name}（资金{label}）', kind='external', tags=[label]))
         else:
             value = catalogs.create_stock_account(db, user, dict(name=f'{name}（货物{label}）', tags=[label], kind='external', active=True))
-        endpoints[side + '_' + endpoint + '_id'] = value['id']
+        endpoints[side + '_' + endpoint + '_id'] = directory_views.by_code(db,FundAccount if kind == 'fund' else StockAccount,value['code']).id
     item = stocktake_store.create(db, kind, dict(name=name, description=data.get('description', ''), created_by=user.id, **endpoints))
     return stocktake_view(db, kind, item)
 

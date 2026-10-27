@@ -46,7 +46,7 @@ def transfers(db, status=None, filters=None):
         else: query = query.where(getattr(StockTransfer,name) == value)
     return [t for t in db.scalars(query) if not (filters or {}).get('tag') or filters['tag'] in t.tags]
 def transfer_page(db, *, status=None, tag=None, q=None, date_from=None, date_to=None, attention=False,
-                  source_account_id=None, destination_account_id=None, sku_id=None, page=1, limit=20):
+                  source_account_id=None, destination_account_id=None, sku_id=None, source_reference=None, page=1, limit=20):
     source, destination = aliased(StockAccount), aliased(StockAccount)
     query = (select(StockTransfer)
              .join(source, StockTransfer.source_account_id == source.id)
@@ -61,13 +61,14 @@ def transfer_page(db, *, status=None, tag=None, q=None, date_from=None, date_to=
     if source_account_id: query = query.where(StockTransfer.source_account_id == source_account_id)
     if destination_account_id: query = query.where(StockTransfer.destination_account_id == destination_account_id)
     if sku_id: query = query.where(StockTransfer.id.in_(select(StockTransferLine.transfer_id).where(StockTransferLine.sku_id == sku_id)))
+    if source_reference is not None: query = query.where(StockTransfer.source_reference == source_reference)
     if q:
         pattern = f'%{q}%'
         sku_matches = (select(StockTransferLine.transfer_id)
                        .join(Sku, Sku.id == StockTransferLine.sku_id)
                        .where(or_(Sku.name.ilike(pattern), Sku.code.ilike(pattern))))
         query = query.where(or_(source.name.ilike(pattern), destination.name.ilike(pattern),
-                                StockTransfer.description.ilike(pattern), StockTransfer.id.ilike(pattern),
+                                StockTransfer.description.ilike(pattern), StockTransfer.code.ilike(pattern), StockTransfer.source_reference.ilike(pattern), source.code.ilike(pattern), destination.code.ilike(pattern),
                                 StockTransfer.id.in_(sku_matches)))
     total = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
     items = list(db.scalars(query.order_by(StockTransfer.created_at.desc(), StockTransfer.id.desc())

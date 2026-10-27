@@ -43,3 +43,12 @@ def casdoor_client(monkeypatch):
     initialize()
     with TestClient(create_app()) as client:
         yield client
+
+
+def seed_code(identifier):
+    from backend.infrastructure.database import Session
+    from backend.infrastructure.models import FundAccount, StockAccount
+    if identifier not in {'fund_pool', 'opening', 'expense', 'income', 'main'}:
+        return identifier
+    with Session() as db:
+        return db.get(StockAccount if identifier == 'main' else FundAccount, identifier).code

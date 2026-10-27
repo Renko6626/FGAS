@@ -106,7 +106,7 @@ def transfer_page(db, *, status=None, tag=None, q=None, date_from=None, date_to=
     if q:
         pattern = f'%{q}%'
         query = query.where(or_(source.name.ilike(pattern), destination.name.ilike(pattern),
-                                Transfer.description.ilike(pattern), Transfer.counterparty.ilike(pattern),
+                                Transfer.code.ilike(pattern), source.code.ilike(pattern), destination.code.ilike(pattern), Transfer.description.ilike(pattern), Transfer.counterparty.ilike(pattern),
                                 actor.display_name.ilike(pattern), cast(cast(Transfer.tags, JSONB), String).ilike(pattern)))
     total = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
     order = Transfer.effective_date.desc() if sort == 'effective_date' else Transfer.created_at.desc()

@@ -101,8 +101,8 @@ def patch_agent_credential(identifier: str, data: CredentialPatch, user=Depends(
     return agent_access.update_credential(db, user, identifier, data.model_dump(exclude_unset=True))
 
 @router.get('/api/accounts')
-def accounts(tag: str | None=None, kind: str | None=None, member_id: str | None=None, user=Depends(identity), db=database_dependency):
-    return catalogs.accounts(db, tag, kind, member_id)
+def accounts(tag: str | None=None, kind: str | None=None, member_code: str | None=None, user=Depends(identity), db=database_dependency):
+    return catalogs.accounts(db, tag, kind, member_code)
 @router.post('/api/accounts', status_code=201)
 def create_account(data: AccountCreate, user=Depends(identity), db=database_dependency):
     return catalogs.create_account(db, user, data.model_dump())
@@ -110,8 +110,8 @@ def create_account(data: AccountCreate, user=Depends(identity), db=database_depe
 def patch_account(identifier: str, data: AccountPatch, user=Depends(identity), db=database_dependency):
     return catalogs.update_account(db, user, identifier, data.model_dump(exclude_unset=True))
 @router.get('/api/stock-accounts')
-def stock_accounts(tag: str | None=None, kind: Literal['internal', 'external'] | None=None, member_id: str | None=None, user=Depends(identity), db=database_dependency):
-    return catalogs.stock_accounts(db, tag, kind, member_id)
+def stock_accounts(tag: str | None=None, kind: Literal['internal', 'external'] | None=None, member_code: str | None=None, user=Depends(identity), db=database_dependency):
+    return catalogs.stock_accounts(db, tag, kind, member_code)
 @router.get('/api/stock-accounts/{identifier}')
 def stock_account_detail(identifier: str, user=Depends(identity), db=database_dependency):
     return warehouse_catalogs.account_detail(db, identifier)
@@ -168,12 +168,12 @@ def patch_member(identifier: str, data: MemberPatch, user=Depends(identity), db=
 def settlement_overview(identifier: str,user=Depends(identity),db=database_dependency):
     return settlements.overview(db,identifier)
 @router.get('/api/settlement-outstanding')
-def settlement_outstanding(account_id: str | None=None,
+def settlement_outstanding(account_code: str | None=None,
                            direction: Literal['expense', 'receipt'] | None=None,
                            kind: Literal['item', 'payment'] | None=None,
                            page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
                            user=Depends(identity), db=database_dependency):
-    return settlements.outstanding(db, account_id, direction, kind, page, limit)
+    return settlements.outstanding(db, account_code, direction, kind, page, limit)
 @router.post('/api/settlements',status_code=201)
 def create_settlement(data: SettlementCreate,user=Depends(identity),db=database_dependency):
     return settlements.create(db,user,data.model_dump(mode='json'))
@@ -197,11 +197,11 @@ from backend.application import warehouse
 def submit_stock_transfer(data: StockTransferInput, user=Depends(identity), db=database_dependency):
     return warehouse.submit_transfer(db, user, data.model_dump(mode='json'))
 @router.get('/api/stock-transfers')
-def stock_transfers(status: str | None=None, tag: str | None=None, source_account_id: str | None=None, destination_account_id: str | None=None, sku_code: str | None=None,
-                    q: str | None=None, date_from: date | None=None, date_to: date | None=None, attention: bool=False,
+def stock_transfers(status: str | None=None, tag: str | None=None, source_account_code: str | None=None, destination_account_code: str | None=None, sku_code: str | None=None,
+                    q: str | None=None, source_reference: str | None=None, date_from: date | None=None, date_to: date | None=None, attention: bool=False,
                     page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
                     user=Depends(identity), db=database_dependency):
-    return warehouse.list_transfers(db, status, dict(tag=tag,source_account_id=source_account_id,destination_account_id=destination_account_id,sku_code=sku_code,q=q,date_from=date_from,date_to=date_to,attention=attention), page=page, limit=limit)
+    return warehouse.list_transfers(db, status, dict(tag=tag,source_account_code=source_account_code,destination_account_code=destination_account_code,sku_code=sku_code,q=q,source_reference=source_reference,date_from=date_from,date_to=date_to,attention=attention), page=page, limit=limit)
 @router.get('/api/stock-transfers/{identifier}')
 def stock_transfer_detail(identifier: str, user=Depends(identity), db=database_dependency):
     return warehouse.transfer_detail(db, identifier)
@@ -225,15 +225,15 @@ def approve_stock_completion(identifier: str, data: StockApproval, user=Depends(
 def reject_stock_completion(identifier: str, data: StockRejection, user=Depends(identity), db=database_dependency):
     return warehouse.decide_completion(db, user, identifier, data.model_dump(mode='json'), rejection=True)
 @router.get('/api/inventory')
-def stock_inventory(sku_code: str | None=None, account_id: str | None=None, member_id: str | None=None,
+def stock_inventory(sku_code: str | None=None, account_code: str | None=None, member_code: str | None=None,
                     page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
                     user=Depends(identity), db=database_dependency):
-    return warehouse.inventory(db, dict(sku_code=sku_code, account_id=account_id, member_id=member_id), page=page, limit=limit)
+    return warehouse.inventory(db, dict(sku_code=sku_code, account_code=account_code, member_code=member_code), page=page, limit=limit)
 @router.get('/api/stock-moves')
-def stock_moves(sku_code: str | None=None, source_account_id: str | None=None, destination_account_id: str | None=None, transfer_id: str | None=None,
+def stock_moves(sku_code: str | None=None, source_account_code: str | None=None, destination_account_code: str | None=None, transfer_code: str | None=None,
                 page: int=Query(1, ge=1), limit: int=Query(20, ge=1, le=100),
                 user=Depends(identity), db=database_dependency):
-    return warehouse.list_moves_page(db,dict(sku_code=sku_code,source_account_id=source_account_id,destination_account_id=destination_account_id,transfer_id=transfer_id),page=page,limit=limit)
+    return warehouse.list_moves_page(db,dict(sku_code=sku_code,source_account_code=source_account_code,destination_account_code=destination_account_code,transfer_code=transfer_code),page=page,limit=limit)
 
 @router.post('/api/stock-transfers/{identifier}/fund-references')
 def add_stock_fund_reference(identifier: str, data: StockFundReferenceInput, user=Depends(identity), db=database_dependency):

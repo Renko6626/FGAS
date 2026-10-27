@@ -1,6 +1,8 @@
 """Shared low/high business reads. Query conditions never confer authorization."""
 from datetime import datetime, timedelta, timezone
 from backend.application.agent_access import AgentAccess
+from backend.application.directory_views import by_code
+from backend.infrastructure.models import FundAccount
 from backend.application import directory_views, funds, warehouse, warehouse_catalogs, stocktakes, settlements
 from backend.infrastructure import store, stock_store, agent_store
 from backend.infrastructure.models import Transfer, StockTransfer
@@ -78,12 +80,12 @@ def _database_page(value, filters, **extra):
 def _accounts(db, filters, stock=False):
     getter = store.stock_accounts if stock else store.accounts
     result = []
-    for item in getter(db, filters.get('tag'), filters.get('kind'), filters.get('member_id')):
-        if filters.get('q') is not None and filters['q'].casefold() not in item.name.casefold(): continue
+    for item in getter(db, filters.get('tag'), filters.get('kind'), by_code(db,directory_views.Member,filters['member_code']).id if filters.get('member_code') else None):
+        if filters.get('q') is not None and all(filters['q'].casefold() not in value.casefold() for value in (item.name,item.code)): continue
         if 'active' in filters and item.active != filters['active']: continue
         row = directory_views.account_view(db, item, stock=stock)
         result.append(row)
-    return sorted(result, key=lambda row: (row['name'], row['id']))
+    return sorted(result, key=lambda row: (row['name'], row['code']))
 
 
 def me(db, access: AgentAccess, filters: dict) -> dict:
@@ -121,10 +123,10 @@ def get_fund_balances(db, access: AgentAccess, filters: dict) -> dict:
     as_of = filters.get('as_of')
     basis = filters.get('basis', 'posted')
     rows = _accounts(db, filters)
-    if filters.get('account_id') is not None:
-        rows = [row for row in rows if row['id'] == filters['account_id']]
+    if filters.get('account_code') is not None:
+        rows = [row for row in rows if row['code'] == filters['account_code']]
     for row in rows:
-        row['balance_minor'] = funds.balance(db, store.get_account(db, row['id']), as_of=as_of, basis=basis)
+        row['balance_minor'] = funds.balance(db, by_code(db,FundAccount,row['code']), as_of=as_of, basis=basis)
     # Existing summary means the public funds total, even when private rows are read.
     summary = funds.summary(db, as_of=as_of, basis=basis)
     return _page(rows, filters, total_minor=summary['total_minor'], currency='CNY',
@@ -139,7 +141,7 @@ def _transfers(db, access, filters, stock=False):
     filters = _event_filters(filters)
     filters.setdefault('submitted_by_current_connection', False)
     rows = agent_store.transfer_page(db, StockTransfer if stock else Transfer,
-                                    warehouse_catalogs.sku_filters(db, filters) if stock else filters,
+                                    warehouse_catalogs.sku_filters(db, filters) if stock else directory_views.code_filters(db,filters),
                                     access.credential_id)
     return _page([_stock_view(db, row) if stock else funds.transfer_view(db, row) for row in rows], filters, sliced=True)
 
@@ -164,7 +166,7 @@ def get_inventory(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
     as_of = filters.get('as_of')
     basis = filters.get('basis', 'posted')
-    value = warehouse.inventory(db, {key: filters[key] for key in ('account_id','sku_code','member_id','as_of','basis') if key in filters},
+    value = warehouse.inventory(db, {key: filters[key] for key in ('account_code','sku_code','member_code','as_of','basis') if key in filters},
                                 page=filters['page'], limit=filters['limit'])
     return _database_page(value, filters, totals=value['totals'],
                  as_of=as_of, basis=basis if as_of is not None else None)
@@ -172,13 +174,13 @@ def get_inventory(db, access: AgentAccess, filters: dict) -> dict:
 
 def list_stock_moves(db, access: AgentAccess, filters: dict) -> dict:
     filters = _event_filters(filters)
-    value = warehouse.list_moves_page(db, {key: filters[key] for key in ('transfer_id','sku_code','source_account_id','destination_account_id','effective_date_from','effective_date_to','created_at_from','created_at_to','posted_at_from','posted_at_to') if key in filters},
+    value = warehouse.list_moves_page(db, {key: filters[key] for key in ('transfer_code','sku_code','source_account_code','destination_account_code','effective_date_from','effective_date_to','created_at_from','created_at_to','posted_at_from','posted_at_to') if key in filters},
                                       page=filters['page'], limit=filters['limit'], descending=True)
     return _database_page(value, filters)
 
 
-def get_settlement_overview(db, access: AgentAccess, filters: dict) -> dict:
-    return _result(settlements.overview(db, filters['account_id']))
+def get_settlement_overview(db, access: AgentAccess, identifier: str) -> dict:
+    return _result(settlements.overview(db, identifier))
 
 
 def list_settlement_outstanding(db, access: AgentAccess, filters: dict) -> dict:

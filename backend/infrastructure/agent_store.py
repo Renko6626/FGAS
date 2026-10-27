@@ -26,7 +26,7 @@ def save(db, credential):
 def transfer_page(db, model, filters, credential_id):
     """Filter parent rows before pagination; EXISTS keeps completion matches unique."""
     from datetime import date, datetime
-    from sqlalchemy import exists, or_
+    from sqlalchemy import exists, or_, cast, String
     from backend.infrastructure.models import StockTransfer, StockTransferLine, StockConfirmation
     statement = select(model)
     for key in ('status', 'source_account_id', 'destination_account_id'):
@@ -46,6 +46,20 @@ def transfer_page(db, model, filters, credential_id):
                 continue
             value = date.fromisoformat(value) if key == 'effective_date' and isinstance(value, str) else datetime.fromisoformat(value.replace('Z', '+00:00')) if isinstance(value, str) else value
             statement = statement.where(column >= value if endpoint == 'from' else column <= value if inclusive else column < value)
+    if filters.get('q') is not None:
+        from backend.infrastructure.models import FundAccount, StockAccount, Sku, User
+        account = StockAccount if model is StockTransfer else FundAccount
+        pattern = f"%{filters['q']}%"
+        conditions = [model.code.ilike(pattern), model.description.ilike(pattern),
+            model.source_account_id.in_(select(account.id).where(or_(account.name.ilike(pattern),account.code.ilike(pattern)))),
+            model.destination_account_id.in_(select(account.id).where(or_(account.name.ilike(pattern),account.code.ilike(pattern))))]
+        if model is StockTransfer:
+            conditions += [model.source_reference.ilike(pattern),model.id.in_(select(StockTransferLine.transfer_id).join(Sku,Sku.id==StockTransferLine.sku_id).where(or_(Sku.name.ilike(pattern),Sku.code.ilike(pattern))))]
+        else:
+            conditions += [cast(model.tags,String).ilike(pattern),model.counterparty.ilike(pattern),model.actor_id.in_(select(User.id).where(User.display_name.ilike(pattern)))]
+        statement = statement.where(or_(*conditions))
+    if model is StockTransfer and filters.get('source_reference') is not None:
+        statement = statement.where(model.source_reference == filters['source_reference'])
     if model is StockTransfer and filters.get('sku_id'):
         statement = statement.where(exists().where(StockTransferLine.transfer_id == model.id, StockTransferLine.sku_id == filters['sku_id']))
     if filters.get('submitted_by_current_connection'):

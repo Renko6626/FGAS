@@ -33,7 +33,7 @@ def fund_overview(db, window):
  FROM changes
  '''), window).mappings().one())
     recent = db.execute(text(FUND_CHANGES + '''
- SELECT t.id, t.description, t.reversal_of, c.posted_at, c.delta_minor,
+ SELECT t.code, t.description, (SELECT r.code FROM transfers r WHERE r.id=t.reversal_of) AS reversal_of_code, c.posted_at, c.delta_minor,
    s.name AS source_account_name, d.name AS destination_account_name
  FROM changes c JOIN transfers t ON t.id=c.id
  JOIN fund_accounts s ON s.id=t.source_account_id
@@ -46,7 +46,7 @@ def fund_overview(db, window):
 
 def stock_overview(db, window):
     rows = db.execute(text(STOCK_CHANGES + '''
- SELECT s.id AS sku_id, s.code AS sku_code, s.name AS sku_name, s.unit, s.avatar_url,
+ SELECT s.code AS sku_code, s.name AS sku_name, s.unit, s.avatar_url,
    SUM(c.delta) AS quantity,
    COALESCE(SUM(c.delta) FILTER (WHERE c.delta>0 AND c.created_at>=:since AND c.created_at<=:until),0) AS incoming_quantity,
    COALESCE(SUM(-c.delta) FILTER (WHERE c.delta<0 AND c.created_at>=:since AND c.created_at<=:until),0) AS outgoing_quantity
@@ -55,9 +55,9 @@ def stock_overview(db, window):
  ORDER BY MAX(c.created_at) FILTER (WHERE c.delta<>0) DESC NULLS LAST, s.name, s.id
  '''), window).mappings()
     recent = db.execute(text(STOCK_CHANGES + '''
- SELECT t.id, t.description, MAX(c.created_at) AS posted_at,
+ SELECT t.code, t.description, MAX(c.created_at) AS posted_at,
    s.name AS source_account_name, d.name AS destination_account_name,
-   jsonb_agg(jsonb_build_object('sku_id',sku.id,'sku_code',sku.code,'sku_name',sku.name,'unit',sku.unit,
+   jsonb_agg(jsonb_build_object('sku_code',sku.code,'sku_name',sku.name,'unit',sku.unit,
      'delta_quantity',c.delta::text) ORDER BY sku.name,sku.id) AS lines
  FROM changes c JOIN stock_transfers t ON t.id=c.transfer_id
  JOIN stock_accounts s ON s.id=t.source_account_id
@@ -72,26 +72,26 @@ def stock_overview(db, window):
 
 def recent_operations(db):
     funds = db.execute(text('''
- SELECT 'funds' AS kind,t.id,t.created_at,t.effective_date,t.description,t.status,
+ SELECT 'funds' AS kind,t.code,t.created_at,t.effective_date,t.description,t.status,
    s.name AS source_account_name,d.name AS destination_account_name,
-   u.display_name AS actor_name,t.amount_minor,t.reversal_of
+   u.display_name AS actor_name,t.amount_minor,(SELECT r.code FROM transfers r WHERE r.id=t.reversal_of) AS reversal_of_code
  FROM transfers t JOIN fund_accounts s ON s.id=t.source_account_id
  JOIN fund_accounts d ON d.id=t.destination_account_id
  JOIN users u ON u.id=t.actor_id
  ORDER BY t.created_at DESC,t.id DESC LIMIT 10
  ''')).mappings()
     stock = db.execute(text('''
- SELECT 'stock' AS kind,t.id,t.created_at,t.effective_date,t.description,t.status,
+ SELECT 'stock' AS kind,t.code,t.created_at,t.effective_date,t.description,t.status,
    s.name AS source_account_name,d.name AS destination_account_name,
    u.display_name AS actor_name,
-   jsonb_agg(jsonb_build_object('sku_id',sku.id,'sku_code',sku.code,'sku_name',sku.name,
+   jsonb_agg(jsonb_build_object('sku_code',sku.code,'sku_name',sku.name,
      'unit',sku.unit,'quantity',l.quantity::text) ORDER BY sku.name,sku.id) AS lines
  FROM (SELECT * FROM stock_transfers ORDER BY created_at DESC,id DESC LIMIT 10) t
  JOIN stock_accounts s ON s.id=t.source_account_id
  JOIN stock_accounts d ON d.id=t.destination_account_id
  JOIN users u ON u.id=t.actor_id
  JOIN stock_transfer_lines l ON l.transfer_id=t.id JOIN skus sku ON sku.id=l.sku_id
- GROUP BY t.id,t.created_at,t.effective_date,t.description,t.status,s.name,d.name,u.display_name
+ GROUP BY t.id,t.code,t.created_at,t.effective_date,t.description,t.status,s.name,d.name,u.display_name
  ORDER BY t.created_at DESC,t.id DESC
  ''')).mappings()
     return [dict(row) for row in funds], [dict(row) for row in stock]

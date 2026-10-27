@@ -2,14 +2,14 @@ from typing import Literal
 from backend.application.agent_access import AgentAccess, auto_apply, require_operator, source_fields
 from backend.application.identity import require_trusted
 from backend.infrastructure import store
-from backend.infrastructure.models import now
+from backend.infrastructure.models import now, Transfer, FundAccount
+from backend.application.directory_views import by_code
 from backend.kernel.accounting import DomainError, balanced_transfer
 from backend.modules.funds.plans import transfer_plan
 
 
 def get_transfer(db, identifier):
-    item = store.get_transfer(db, identifier)
-    if not item: raise DomainError('流水不存在', 404)
+    item = by_code(db, Transfer, identifier)
     return item
 
 def validate(db, source, destination, amount):
@@ -26,7 +26,7 @@ def post(db, item, user, mode, *, access=None):
     if not all(store.get_account(db, aid) for aid in (item.source_account_id, item.destination_account_id)):
         raise DomainError('记账对象不存在', 404)
     if item.reversal_of:
-        original = get_transfer(db, item.reversal_of)
+        original = store.get_transfer(db, item.reversal_of)
         if original.status != 'posted': raise DomainError('原流水已冲销或不可冲销', 409)
         original.status = 'reversed'
         original.version += 1
@@ -45,11 +45,12 @@ def submit(db, user, data, reversal_of=None, reason=None, *, access: AgentAccess
     store.refresh(db,user)
     if not user.active: raise DomainError('用户已停用',403)
     apply = auto_apply(user, access=access, submit_mode=submit_mode)
+    data = data | {side + '_account_id': by_code(db, FundAccount, data[side + '_account_code']).id for side in ('source', 'destination')}
     lines=validate(db,data['source_account_id'],data['destination_account_id'],data['amount'])
     if not reversal_of and any(not store.get_account(db,aid).active for aid in (data['source_account_id'],data['destination_account_id'])):
         raise DomainError('账户已停用',409)
     if reversal_of:
-        original=get_transfer(db,reversal_of)
+        original=store.get_transfer(db,reversal_of)
         store.refresh(db,original)
         if original.status != 'posted' or store.existing_reversal(db,reversal_of): raise DomainError('流水已有冲销或不可冲销',409)
     from datetime import date
@@ -82,20 +83,24 @@ def balance(db, account, *, as_of=None, basis='posted'):
     return store.balance_delta(db, account.id, as_of=as_of, basis=basis)
 
 def transfer_view(db, item, detail=False):
-    value = {key: getattr(item, key) for key in ('id', 'source_account_id', 'destination_account_id', 'amount_minor', 'effective_date', 'description', 'tags', 'counterparty', 'actor_id', 'approved_by', 'approval_mode', 'status', 'version', 'reversal_of', 'reason', 'created_at', 'posted_at', 'submitted_credential_id', 'submitted_credential_name')}
+    value = {key: getattr(item, key) for key in ('code', 'amount_minor', 'effective_date', 'description', 'tags', 'counterparty', 'actor_id', 'approved_by', 'approval_mode', 'status', 'version', 'reason', 'created_at', 'posted_at', 'submitted_credential_id', 'submitted_credential_name')}
     for side in ('source', 'destination'):
-        value[side + '_account_name'] = store.get_account(db, getattr(item, side + '_account_id')).name
+        account = store.get_account(db, getattr(item, side + '_account_id'))
+        value[side + '_account_code'] = account.code
+        value[side + '_account_name'] = account.name
+    value['reversal_of_code'] = store.get_transfer(db, item.reversal_of).code if item.reversal_of else None
     value['actor_name'] = store.get_user(db, item.actor_id).display_name
     value['approved_by_name'] = store.get_user(db, item.approved_by).display_name if item.approved_by else None
     if detail:
-        value['journal_lines'] = store.journal(db, item.id)
+        value['journal_lines'] = [dict(account_code=store.get_account(db, line['account_id']).code, debit_minor=line['debit_minor'], credit_minor=line['credit_minor']) for line in store.journal(db, item.id)]
         value['audit'] = store.audit_events(db, item.id)
     return value
 
 def preview(db, user, data, *, access: AgentAccess | None = None, submit_mode: Literal['propose', 'direct'] | None = None):
     apply = auto_apply(user, access=access, submit_mode=submit_mode)
+    data = data | {side + '_account_id': by_code(db, FundAccount, data[side + '_account_code']).id for side in ('source', 'destination')}
     lines = validate(db, data['source_account_id'], data['destination_account_id'], data['amount'])
-    return {'amount_minor': lines[0].credit_minor, 'status': 'posted' if apply else 'pending', 'source_account_name': store.get_account(db, data['source_account_id']).name, 'destination_account_name': store.get_account(db, data['destination_account_id']).name, 'journal_lines': [vars(l) for l in lines]}
+    return {'amount_minor': lines[0].credit_minor, 'status': 'posted' if apply else 'pending', 'source_account_name': store.get_account(db, data['source_account_id']).name, 'destination_account_name': store.get_account(db, data['destination_account_id']).name, 'journal_lines': [dict(account_code=store.get_account(db,l.account_id).code,debit_minor=l.debit_minor,credit_minor=l.credit_minor) for l in lines]}
 
 def list_transfers(db, status=None, tag=None, q=None, date_from=None, date_to=None, sort='created_at', page=1, limit=20):
     items, total = store.transfer_page(db, status=status, tag=tag, q=q, date_from=date_from, date_to=date_to,
@@ -107,9 +112,10 @@ def reverse(db, user, identifier, reason, *, access=None):
     store.lock(db)
     original = get_transfer(db, identifier)
     store.refresh(db, original)
-    payload = dict(source_account_id=original.destination_account_id, destination_account_id=original.source_account_id, amount=f'{original.amount_minor // 100}.{original.amount_minor % 100:02d}', effective_date=original.effective_date.isoformat(), description=f'冲销：{original.description}', counterparty=original.counterparty, tags=original.tags)
+    payload = dict(source_account_code=store.get_account(db,original.destination_account_id).code, destination_account_code=store.get_account(db,original.source_account_id).code, amount=f'{original.amount_minor // 100}.{original.amount_minor % 100:02d}', effective_date=original.effective_date.isoformat(), description=f'冲销：{original.description}', counterparty=original.counterparty, tags=original.tags)
     return transfer_view(db, submit(db, user, payload, original.id, reason, access=access, submit_mode='direct' if access else None), True)
 
 def summary(db, *, as_of=None, basis='posted'):
     values = store.fund_balances(db, as_of=as_of, basis=basis)
+    values = [dict(code=store.get_account(db,row['id']).code, **{k:v for k,v in row.items() if k != 'id'}) for row in values]
     return {'accounts': values, 'total_minor': sum(r['balance_minor'] for r in values), 'currency': 'CNY'}

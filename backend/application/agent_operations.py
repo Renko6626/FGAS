@@ -9,31 +9,30 @@ def _result(data):
 
 
 def _resource(resource_type, identifier_key, value, *, applied=False, pending=False):
-    return dict(resource_type=resource_type, **{identifier_key: value['id']},
+    return dict(resource_type=resource_type, **{identifier_key: value['code']},
                 status=value['status'], ledger_effect_applied=applied, approval_required=pending)
 
 
 def _fund(db, item, *, applied=False):
     value = funds.transfer_view(db, item) if not isinstance(item, dict) else item
-    return _result(_resource('fund_transfer', 'transfer_id', value, applied=applied, pending=value['status']=='pending'))
+    return _result(_resource('fund_transfer', 'transfer_code', value, applied=applied, pending=value['status']=='pending'))
 
 
 def _stock(value):
-    return _result(_resource('stock_transfer', 'stock_transfer_id', value, pending=value['status']=='pending'))
+    return _result(_resource('stock_transfer', 'stock_transfer_code', value, pending=value['status']=='pending'))
 
 
 def _completion(value, confirmation_id, *, applied=False):
-    confirmation = next(row for row in value['confirmations'] if row['id'] == confirmation_id)
-    return _result(dict(resource_type='stock_confirmation', confirmation_id=confirmation_id,
-                        stock_transfer_id=value['id'], status=confirmation['status'],
+    confirmation = next(row for row in value['confirmations'] if row['code'] == confirmation_id)
+    return _result(dict(resource_type='stock_confirmation', confirmation_code=confirmation_id,
+                        stock_transfer_code=value['code'], status=confirmation['status'],
                         stock_transfer_status=value['status'], ledger_effect_applied=applied,
                         approval_required=confirmation['status']=='pending'))
 
 
 def _saved(resource_type, identifier_key, value):
     status = value.get('status', 'active' if value.get('active', True) else 'inactive')
-    identifier = {identifier_key: value['id']}
-    if resource_type == 'sku': identifier['sku_code'] = value['code']
+    identifier = {identifier_key: value['id'] if resource_type in ('fund_stocktake','stock_stocktake') else value['code']}
     return _result(dict(resource_type=resource_type, **identifier, status=status,
                         ledger_effect_applied=False, approval_required=False, object=value))
 
@@ -62,61 +61,61 @@ def create_stock_transfer(db, access: AgentAccess, data: dict) -> dict:
 
 def propose_stock_completion(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     value = warehouse.request_completion(db, access.user, identifier, data, access=access, submit_mode='propose')
-    return _completion(value, value['confirmation_id'])
+    return _completion(value, value['confirmation_code'])
 
 
 def complete_stock_transfer(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = warehouse.request_completion(db, access.user, identifier, data, access=access, submit_mode='direct')
-    return _completion(value, value['confirmation_id'], applied=True)
+    return _completion(value, value['confirmation_code'], applied=True)
 
 
 def create_fund_account(db, access: AgentAccess, data: dict) -> dict:
     require_high(access)
     value = catalogs.create_account(db, access.user, data)
-    return _saved('fund_account', 'account_id', value)
+    return _saved('fund_account', 'account_code', value)
 
 
 def update_fund_account(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = catalogs.update_account(db, access.user, identifier, data)
-    return _saved('fund_account', 'account_id', value)
+    return _saved('fund_account', 'account_code', value)
 
 
 def create_stock_account(db, access: AgentAccess, data: dict) -> dict:
     require_high(access)
     value = catalogs.create_stock_account(db, access.user, data)
-    return _saved('stock_account', 'account_id', value)
+    return _saved('stock_account', 'account_code', value)
 
 
 def update_stock_account(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = catalogs.update_stock_account(db, access.user, identifier, data)
-    return _saved('stock_account', 'account_id', value)
+    return _saved('stock_account', 'account_code', value)
 
 
 def create_sku(db, access: AgentAccess, data: dict) -> dict:
     require_high(access)
     value = warehouse_catalogs.create_sku(db, access.user, data)
-    return _saved('sku', 'sku_id', value)
+    return _saved('sku', 'sku_code', value)
 
 
 def update_sku(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = warehouse_catalogs.update_sku(db, access.user, identifier, data)
-    return _saved('sku', 'sku_id', value)
+    return _saved('sku', 'sku_code', value)
 
 
 def create_member(db, access: AgentAccess, data: dict) -> dict:
     require_high(access)
     value = members.create_member(db, access.user, data)
-    return _saved('member', 'member_id', value)
+    return _saved('member', 'member_code', value)
 
 
 def update_member(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = members.update_member(db, access.user, identifier, data)
-    return _saved('member', 'member_id', value)
+    return _saved('member', 'member_code', value)
 
 
 def approve_fund_transfer(db, access: AgentAccess, identifier: str, data: dict) -> dict:
@@ -170,26 +169,26 @@ def reject_stock_completion(db, access: AgentAccess, identifier: str, data: dict
 def add_stock_fund_reference(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = warehouse.add_fund_reference(db, access.user, identifier, data, access=access)
-    return _result(_resource('stock_transfer', 'stock_transfer_id', value))
+    return _result(_resource('stock_transfer', 'stock_transfer_code', value))
 
 
 def create_settlement(db, access: AgentAccess, data: dict) -> dict:
     require_high(access)
     value = settlements.create(db, access.user, data, access=access)
-    return _result(_resource('settlement', 'transfer_id', value['transfer'], applied=True) | dict(matches=value['matches']))
+    return _result(_resource('settlement', 'transfer_code', value['transfer'], applied=True) | dict(matches=value['matches']))
 
 
 def add_settlement_matches(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = settlements.add_matches(db, access.user, identifier, data['allocations'], access=access)
-    return _result(_resource('settlement', 'transfer_id', value['transfer']) | dict(matches=value['matches']))
+    return _result(_resource('settlement', 'transfer_code', value['transfer']) | dict(matches=value['matches']))
 
 
 def create_stock_operation(db, access: AgentAccess, data: dict) -> dict:
     require_high(access)
     value = stock_workflows.submit_stock_with_money(db, access.user, data, access=access)
-    fund = _resource('fund_transfer', 'transfer_id', value['fund_transfer'], applied=True)
-    stock = _resource('stock_transfer', 'stock_transfer_id', value['stock_transfer'])
+    fund = _resource('fund_transfer', 'transfer_code', value['fund_transfer'], applied=True)
+    stock = _resource('stock_transfer', 'stock_transfer_code', value['stock_transfer'])
     return _result(dict(resource_type='stock_operation', fund_transfer=fund, stock_transfer=stock))
 
 

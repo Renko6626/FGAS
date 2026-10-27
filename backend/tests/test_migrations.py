@@ -58,7 +58,7 @@ def test_migrations_match_models():
                 "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
                 "WHERE contype='u' AND connamespace='public'::regnamespace"
             )).all())
-            assert len(uniques) == 9
+            assert len(uniques) == 15
             assert 'uq_agent_credentials_secret_hash' in uniques
             assert 'uq_skus_code' in uniques
             indexes = {row[0]: row[1] for row in db.execute(text(
@@ -72,6 +72,16 @@ def test_migrations_match_models():
                 "SELECT data_type FROM information_schema.columns "
                 "WHERE table_schema='public' AND table_name='fund_accounts' AND column_name='tags'"
             )) == 'json'
+        # Server defaults number direct ORM inserts too; crossing padding width keeps every digit.
+        from sqlalchemy.orm import Session
+        from backend.infrastructure.models import FundAccount
+        with Session(engine) as db, db.begin():
+            db.execute(text("SELECT setval('fund_accounts_code_seq', 9999)"))
+            first = FundAccount(name='编号边界',kind='public',tags=[])
+            second = FundAccount(name='下一编号',kind='public',tags=[])
+            db.add_all([first, second]); db.flush()
+            assert (first.code, second.code) == ('FA-10000','FA-10001')
+            assert first.id != first.code
         engine.dispose()
         engine = None
 

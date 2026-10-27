@@ -27,49 +27,50 @@ def contract(handler, summary, example):
     return Contract(handler, summary, example, inputs[name], outputs[name])
 
 
-FUND = dict(source_account_id='source-account-id', destination_account_id='destination-account-id',
+FUND = dict(source_account_code='FA-0001', destination_account_code='FA-0002',
             amount='120.50', effective_date='2026-10-22', description='用户说明的实际用途')
-STOCK = dict(source_account_id='source-account-id', destination_account_id='destination-account-id',
+STOCK = dict(source_account_code='SA-0001', destination_account_code='SA-0002',
              effective_date='2026-10-22', lines=[dict(sku_code='ARC-01-A', quantity='2')])
-COMPLETION = dict(identifier='stock-transfer-id', effective_date='2026-10-22')
-ALLOCATION = [dict(item_transfer_id='expense-or-receipt-id', amount='120.50')]
+COMPLETION = dict(identifier='ST-000001', effective_date='2026-10-22')
+ALLOCATION = [dict(item_transfer_code='FT-000002', amount='120.50')]
 
 QUERIES = {
     'me': contract(queries.me, '查看当前真实登录用户的名称、角色，以及本连接名称和执行等级；返回单对象，不接受查询条件。', {}),
     'fund_accounts': contract(queries.list_fund_accounts, '查资金账户及其公私分类、联系人和标签。', {'q': '公账', 'active': True}),
-    'stock_accounts': contract(queries.list_stock_accounts, '查货物账户及 member_id/member_name 当前负责人；按 member_id 筛选，identifier 详情含负责人历史。', {'q': '仓库', 'active': True}),
+    'stock_accounts': contract(queries.list_stock_accounts, '查货物账户及 member_code/member_name 当前负责人；按 member_code 筛选，identifier 详情含负责人历史。', {'q': '仓库', 'active': True}),
     'skus': contract(queries.list_skus, '按业务SKU代号code精确查询，q搜代号/完整名称，tag筛选类别或角色；返回code、名称、标签和整数单位。', {'code': 'ARC-01-A'}),
     'members': contract(queries.list_members, '查业务联系人名称及 note 备注。', {'q': '小王'}),
     'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计；支持 as_of/basis 查截止时点。', {'kind': 'public', 'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'posted'}),
-    'inventory': contract(queries.get_inventory, '按sku_code查正式库存和在途计划量；member_id筛选当前负责人，totals是全部筛选结果合计。as_of/basis查历史库存，历史在途不可用，不提供估值。', {'sku_code': 'BAD-01-A'}),
+    'inventory': contract(queries.get_inventory, '按sku_code查正式库存和在途计划量；member_code筛选当前负责人，totals是全部筛选结果合计。as_of/basis查历史库存，历史在途不可用，不提供估值。', {'sku_code': 'BAD-01-A'}),
     'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；默认最近30天，全量传 all_time=true；支持 identifier 查详情。', {'status': 'pending'}),
     'stock_transfers': contract(queries.list_stock_transfers, '按sku_code等条件查货物转移；默认最近30天，全量传all_time=true；完成申请在父单详情中。', {'status': 'in_transit', 'sku_code': 'BAD-01-A'}),
     'stock_moves': contract(queries.list_stock_moves, '按sku_code查正式数量流水；默认最近30天，全量传all_time=true。', {'sku_code': 'BAD-01-A', 'all_time': True}),
-    'settlement_overview': contract(queries.get_settlement_overview, '查一个私账的逐笔收支未结、付款及匹配；不从净余额推断。', {'account_id': 'private-account-id'}),
+    'settlement_overview': contract(queries.get_settlement_overview, '查一个私账的逐笔收支未结、付款及匹配；不从净余额推断。', {'identifier': 'FA-0003'}),
     'settlement_outstanding': contract(queries.list_settlement_outstanding, '跨私账查全部已过账未匹配记录，不限30天；kind=item 原收支、payment 结算付款，direction=expense 报销、receipt 交回。两侧金额不可相加为待付款额；匹配仍仅 high。', {'direction': 'expense', 'page': 1, 'limit': 20}),
     'fund_stocktakes': contract(queries.list_fund_stocktakes, '查资金盘点；支持 identifier 查专属端点关联记录。', {'status': 'in_progress'}),
     'stock_stocktakes': contract(queries.list_stock_stocktakes, '查货物盘点；结束不表示账目已自动调整。', {'status': 'in_progress'}),
 }
 DETAILS = {
-    'stock_accounts': contract(queries.get_stock_account, '返回货物账户和 responsibility_history 负责人历史，含起止时间及操作人；负责人变化不改变库存。', {'identifier': 'stock-account-id'}),
-    'fund_transfers': contract(queries.get_fund_transfer, '返回资金单、正式分录、审批及审计。', {'identifier': 'fund-transfer-id'}),
-    'stock_transfers': contract(queries.get_stock_transfer, '返回货物单及 confirmations；按申请 ID 分辨各申请状态。', {'identifier': 'stock-transfer-id'}),
+    'settlement_overview': QUERIES['settlement_overview'],
+    'stock_accounts': contract(queries.get_stock_account, '返回货物账户和 responsibility_history 负责人历史，含起止时间及操作人；负责人变化不改变库存。', {'identifier': 'SA-0001'}),
+    'fund_transfers': contract(queries.get_fund_transfer, '返回资金单、正式分录、审批及审计。', {'identifier': 'FT-000001'}),
+    'stock_transfers': contract(queries.get_stock_transfer, '返回货物单及 confirmations；按申请编号 SC 分辨各申请状态。', {'identifier': 'ST-000001'}),
     'fund_stocktakes': contract(queries.get_fund_stocktake, '返回资金盘点及关联转移，包含更正和各状态。', {'identifier': 'fund-stocktake-id'}),
     'stock_stocktakes': contract(queries.get_stock_stocktake, '返回货物盘点及关联转移，包含更正和各状态。', {'identifier': 'stock-stocktake-id'}),
 }
 PROPOSALS = {
     'fund_transfer': contract(ops.propose_fund_transfer, '提交资金待审申请，不产生资金分录；high 调用也待审。', FUND),
     'stock_transfer': contract(ops.propose_stock_transfer, '提交货物待审申请，不改变库存；批准后仍须确认完成。', STOCK),
-    'stock_completion': contract(ops.propose_stock_completion, '需要人工审批到货时使用；identifier 是父货物单 ID。返回待审完成申请，批准后才记库存；high 也待审。申请状态查父单详情的 confirmations。', COMPLETION),
+    'stock_completion': contract(ops.propose_stock_completion, '需要人工审批到货时使用；identifier 是父货物单编号 ST。返回待审完成申请，批准后才记库存；high 也待审。申请状态查父单详情的 confirmations。', COMPLETION),
 }
 EXECUTIONS = {
     'fund_account': {
         'create': contract(ops.create_fund_account, '创建资金账户，不改变余额；kind 创建后固定。', {'name': '小王私账', 'kind': 'private'}),
-        'update': contract(ops.update_fund_account, '修改指定字段；省略保留原值，允许清空的字段才可传 null。', {'identifier': 'account-id', 'name': '新的账户名称'}),
+        'update': contract(ops.update_fund_account, '修改指定字段；省略保留原值，允许清空的字段才可传 null。', {'identifier': 'FA-0001', 'name': '新的账户名称'}),
     },
     'stock_account': {
-        'create': contract(ops.create_stock_account, '创建货物账户：internal 实际保管、external 外部；member_id 可指定负责人并记录历史，不改变库存。', {'name': '主仓库', 'kind': 'internal'}),
-        'update': contract(ops.update_stock_account, '修改货物资料或负责人；member_id 省略保留、null 清空，变更自动留历史，不改变库存。', {'identifier': 'stock-account-id', 'member_id': 'member-id'}),
+        'create': contract(ops.create_stock_account, '创建货物账户：internal 实际保管、external 外部；member_code 可指定负责人并记录历史，不改变库存。', {'name': '主仓库', 'kind': 'internal'}),
+        'update': contract(ops.update_stock_account, '修改货物资料或负责人；member_code 省略保留、null 清空，变更自动留历史，不改变库存。', {'identifier': 'SA-0001', 'member_code': 'M-0001'}),
     },
     'sku': {
         'create': contract(ops.create_sku, '创建唯一业务SKU代号、完整商品名称及标签，不增加库存；code去空格转大写，重复拒绝。', {'code': 'ARC-01-A', 'name': '博丽灵梦立牌 10cm 春服A款', 'unit': '个', 'tags': ['类别:立牌', '角色:博丽灵梦']}),
@@ -77,29 +78,29 @@ EXECUTIONS = {
     },
     'member': {
         'create': contract(ops.create_member, '创建业务联系人，不创建登录用户或自动开账。', {'name': '小王'}),
-        'update': contract(ops.update_member, '修改联系人资料，不转移账户债务或授予权限。', {'identifier': 'member-id', 'note': '用户提供的联系说明'}),
+        'update': contract(ops.update_member, '修改联系人资料，不转移账户债务或授予权限。', {'identifier': 'M-0001', 'note': '用户提供的联系说明'}),
     },
     'fund_transfer': {
         'create': contract(ops.create_fund_transfer, '直接登记并过账，产生资金分录；不发起实际银行付款。', FUND),
-        'approve': contract(ops.approve_fund_transfer, '批准待审资金单并过账；expected_version 填资金单详情的 version。', {'identifier': 'fund-transfer-id', 'expected_version': 1}),
-        'reject': contract(ops.reject_fund_transfer, '拒绝待审资金单，保留原因；不产生分录。', {'identifier': 'fund-transfer-id', 'expected_version': 1, 'reason': '用户说明的拒绝原因'}),
-        'reverse': contract(ops.reverse_fund_transfer, '以反向资金记录更正已过账单，保留原单；不自动退款或退货。', {'identifier': 'fund-transfer-id', 'reason': '用户说明的更正原因'}),
+        'approve': contract(ops.approve_fund_transfer, '批准待审资金单并过账；expected_version 填资金单详情的 version。', {'identifier': 'FT-000001', 'expected_version': 1}),
+        'reject': contract(ops.reject_fund_transfer, '拒绝待审资金单，保留原因；不产生分录。', {'identifier': 'FT-000001', 'expected_version': 1, 'reason': '用户说明的拒绝原因'}),
+        'reverse': contract(ops.reverse_fund_transfer, '以反向资金记录更正已过账单，保留原单；不自动退款或退货。', {'identifier': 'FT-000001', 'reason': '用户说明的更正原因'}),
     },
     'stock_transfer': {
-        'create': contract(ops.create_stock_transfer, '登记在途货物单，库存不变；fund_transfer_ids 可关联已有付款，建单后也可用 link_fund 补充。到货后另行 complete。', STOCK),
-        'approve': contract(ops.approve_stock_transfer, '批准待审货物单进入在途，库存不变。', {'identifier': 'stock-transfer-id'}),
-        'reject': contract(ops.reject_stock_transfer, '拒绝待审货物单，保留原因。', {'identifier': 'stock-transfer-id', 'reason': '用户说明的拒绝原因'}),
-        'cancel': contract(ops.cancel_stock_transfer, '取消可取消的货物单，不自动退款；已完成货物须新增更正转移。', {'identifier': 'stock-transfer-id', 'reason': '用户说明的取消原因'}),
-        'complete': contract(ops.complete_stock_transfer, '用户已确认整笔到货并授权直接登记时使用；identifier 是父货物单 ID。新建并完成确认，立即记库存。返回 stock_confirmation：confirmation_id/status 属于确认，stock_transfer_id/stock_transfer_status 属于父单。已有待审完成申请时应 approve 该申请。', COMPLETION),
-        'link_fund': contract(ops.add_stock_fund_reference, '引用已有资金单，不新建付款或改变库存。', {'identifier': 'stock-transfer-id', 'fund_transfer_id': 'fund-transfer-id'}),
+        'create': contract(ops.create_stock_transfer, '登记在途货物单，库存不变；fund_transfer_codes 可关联已有付款，建单后也可用 link_fund 补充。到货后另行 complete。', STOCK),
+        'approve': contract(ops.approve_stock_transfer, '批准待审货物单进入在途，库存不变。', {'identifier': 'ST-000001'}),
+        'reject': contract(ops.reject_stock_transfer, '拒绝待审货物单，保留原因。', {'identifier': 'ST-000001', 'reason': '用户说明的拒绝原因'}),
+        'cancel': contract(ops.cancel_stock_transfer, '取消可取消的货物单，不自动退款；已完成货物须新增更正转移。', {'identifier': 'ST-000001', 'reason': '用户说明的取消原因'}),
+        'complete': contract(ops.complete_stock_transfer, '用户已确认整笔到货并授权直接登记时使用；identifier 是父货物单编号 ST。新建并完成确认，立即记库存。返回 stock_confirmation：confirmation_code/status 属于确认，stock_transfer_code/stock_transfer_status 属于父单。已有待审完成申请时应 approve 该申请。', COMPLETION),
+        'link_fund': contract(ops.add_stock_fund_reference, '引用已有资金单，不新建付款或改变库存。', {'identifier': 'ST-000001', 'fund_transfer_code': 'FT-000001'}),
     },
     'stock_completion': {
-        'approve': contract(ops.approve_stock_completion, '批准已有待审完成申请并记库存；identifier 填父货物单详情 confirmations 中的申请 ID，无需再执行 stock_transfer/complete。', {'identifier': 'confirmation-id'}),
-        'reject': contract(ops.reject_stock_completion, '拒绝完成申请；identifier 是完成申请 ID，父单可能仍在途。', {'identifier': 'confirmation-id', 'reason': '用户说明的拒绝原因'}),
+        'approve': contract(ops.approve_stock_completion, '批准已有待审完成申请并记库存；identifier 填父货物单详情 confirmations 中的申请编号 SC，无需再执行 stock_transfer/complete。', {'identifier': 'SC-000001'}),
+        'reject': contract(ops.reject_stock_completion, '拒绝完成申请；identifier 是完成申请编号 SC，父单可能仍在途。', {'identifier': 'SC-000001', 'reason': '用户说明的拒绝原因'}),
     },
     'settlement': {
         'create': contract(ops.create_settlement, '新记一笔结算付款并匹配原收支；已有付款应使用 match。', {'transfer': FUND, 'allocations': ALLOCATION}),
-        'match': contract(ops.add_settlement_matches, '给已有结算付款追加匹配，不再次记钱；identifier 是付款单 ID。', {'identifier': 'settlement-transfer-id', 'allocations': ALLOCATION}),
+        'match': contract(ops.add_settlement_matches, '给已有结算付款追加匹配，不再次记钱；identifier 是付款单编号 FT。', {'identifier': 'FT-000003', 'allocations': ALLOCATION}),
     },
     'stock_operation': {
         'create': contract(ops.create_stock_operation, '同一事务新建付款和货物单：付款过账，货物在途；已有付款用引用。', {'stock': STOCK, 'money': FUND}),
@@ -144,7 +145,7 @@ ProposeInput = create_model('ProposeInput', __base__=Input,
 ExecuteInput = create_model('ExecuteInput', __base__=Input,
     resource=(Literal[tuple(EXECUTIONS)], ...),
     action=(Action, ...),
-    data=(dict[str, Any], Field(description='按对象/动作校验的参数；仅变更指定字段，需要 ID 时使用 data.identifier。')))
+    data=(dict[str, Any], Field(description='按对象/动作校验的参数；仅变更指定字段，需要业务编号时使用 data.identifier。')))
 PUBLIC_INPUTS = {'fgas_help': HelpInput, 'fgas_query': QueryInput,
                  'fgas_propose': ProposeInput, 'fgas_execute': ExecuteInput}
 TOOL_DESCRIPTIONS = {
@@ -207,11 +208,12 @@ def prepare_call(tool, arguments):
         hint = help_call('query', resource)
         if request.identifier is not None:
             if resource not in DETAILS:
-                invalid('identifier', '该对象不支持按 ID 查询详情，请使用 filters', hint)
+                invalid('identifier', '该对象不支持按业务编号查询详情，请使用 filters', hint)
             if request.filters:
                 invalid('filters', '详情查询不能同时提供过滤条件', hint)
             selected, values, prefix = DETAILS[resource], {'identifier': request.identifier}, ''
         else:
+            if resource == 'settlement_overview': invalid('identifier', '请提供私账业务编号 FA', hint)
             selected, values, prefix = QUERIES[resource], request.filters, 'filters'
     else:
         action = getattr(request, 'action', None)
@@ -268,8 +270,8 @@ def help_data(level, *, topic, resource=None, action=None, include_output_schema
     if topic == 'query':
         if resource not in QUERIES:
             invalid('resource', '未知查询对象', help_call(topic))
-        if resource == 'me':
-            return dict(resource=resource, object=describe(topic, resource, QUERIES[resource], include_output_schema=include_output_schema))
+        if resource in ('me', 'settlement_overview'):
+            return dict(resource=resource, object=describe(topic, resource, QUERIES[resource], detail=resource == 'settlement_overview', include_output_schema=include_output_schema))
         result = dict(resource=resource, list=describe(topic, resource, QUERIES[resource], include_output_schema=include_output_schema))
         if resource in DETAILS:
             result['detail'] = describe(topic, resource, DETAILS[resource], detail=True, include_output_schema=include_output_schema)

@@ -1,4 +1,7 @@
 """Core Agent behavior through real services, PostgreSQL and the official MCP client."""
+from backend.tests.conftest import seed_code
+from backend.application.directory_views import by_code
+from backend.infrastructure.models import StockAccount
 from datetime import date, datetime, timedelta, timezone
 
 import asyncio
@@ -27,14 +30,15 @@ def issue(client, level='low', owner='admin', name='测试连接'):
 
 
 def fund_data(source='opening', destination='fund_pool', amount='120.50', date='2026-10-15'):
-    return dict(source_account_id=source, destination_account_id=destination, amount=amount, effective_date=date)
+    source, destination = seed_code(source), seed_code(destination)
+    return dict(source_account_code=source, destination_account_code=destination, amount=amount, effective_date=date)
 
 
 def stock_data(client, code='BOOK-01'):
-    source = client.post('/api/stock-accounts', json={'name': '商家', 'kind': 'external'}).json()['id']
-    target = client.post('/api/stock-accounts', json={'name': '仓库', 'kind': 'internal'}).json()['id']
+    source = client.post('/api/stock-accounts', json={'name': '商家', 'kind': 'external'}).json()['code']
+    target = client.post('/api/stock-accounts', json={'name': '仓库', 'kind': 'internal'}).json()['code']
     sku = client.post('/api/skus', json={'code': code, 'name': '书', 'unit': '本'}).json()
-    return dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_code': sku['code'], 'quantity': '2'}])
+    return dict(source_account_code=source, destination_account_code=target, effective_date='2026-10-15', lines=[{'sku_code': sku['code'], 'quantity': '2'}])
 
 
 def test_credential_issue_limits_and_invalidation(client):
@@ -143,19 +147,19 @@ def test_proposals_always_require_approval(client, owner, level):
         access = agent_access.resolve(db, connection['secret'])
         fund = ops.propose_fund_transfer(db, access, fund_data())['data']
         stock = ops.propose_stock_transfer(db, access, payload)['data']
-        completion = ops.propose_stock_completion(db, access, parent['id'], {'effective_date': '2026-10-15'})['data']
+        completion = ops.propose_stock_completion(db, access, parent['code'], {'effective_date': '2026-10-15'})['data']
         for result in (fund, stock, completion):
             assert result['status'] == 'pending' and result['approval_required'] and not result['ledger_effect_applied']
         db.commit()  # Snapshot reads use their own transaction, as after a real MCP call.
-        detail = queries.get_stock_transfer(db, access, parent['id'])['data']
-        confirmation = next(c for c in detail['confirmations'] if c['id'] == completion['confirmation_id'])
+        detail = queries.get_stock_transfer(db, access, parent['code'])['data']
+        confirmation = next(c for c in detail['confirmations'] if c['code'] == completion['confirmation_code'])
         assert confirmation['submitted_credential_id'] == connection['credential']['id']
         assert detail['status'] == 'in_transit'
         assert db.scalar(select(func.count()).select_from(JournalLine)) == 0
         assert db.scalar(select(func.count()).select_from(StockMove)) == 0
         assert access.user.id == owner
     if owner == 'untrusted':
-        path = f"/api/transfers/{fund['transfer_id']}"
+        path = f"/api/transfers/{fund['transfer_code']}"
         pending = client.get(path).json()
         assert pending['actor_id'] == owner
         assert pending['submitted_credential_id'] == connection['credential']['id']
@@ -171,40 +175,40 @@ def test_high_direct_business_and_source(client):
     low = issue(client)
     with Session() as db:
         access = agent_access.resolve(db, connection['secret'])
-        source = ops.create_stock_account(db, access, {'name': 'Agent商家', 'kind': 'external'})['data']['account_id']
-        target = ops.create_stock_account(db, access, {'name': 'Agent仓库', 'kind': 'internal'})['data']['account_id']
+        source = ops.create_stock_account(db, access, {'name': 'Agent商家', 'kind': 'external'})['data']['account_code']
+        target = ops.create_stock_account(db, access, {'name': 'Agent仓库', 'kind': 'internal'})['data']['account_code']
         created_sku = ops.create_sku(db, access, {'code': 'AGENT-BOOK', 'name': 'Agent书', 'unit': '本'})['data']
-        sku = created_sku['sku_id']
+        sku = created_sku['sku_code']
         assert created_sku['object']['code'] == 'AGENT-BOOK'
-        assert queries.list_skus(db, access, {'q': 'Agent书'})['data']['items'][0]['id'] == sku
-        payload = dict(source_account_id=source, destination_account_id=target, effective_date='2026-10-15', lines=[{'sku_code': 'AGENT-BOOK', 'quantity': '2'}])
-        member = ops.create_member(db, access, {'name': '测试联系人'})['data']['member_id']
-        account = ops.create_fund_account(db, access, {'name': '成员私账', 'kind': 'private', 'member_id': member, 'avatar_url': 'https://example.test/a.png'})['data']['account_id']
-        assert queries.list_fund_accounts(db, access, {'q': '成员私账'})['data']['items'][0]['id'] == account
+        assert queries.list_skus(db, access, {'q': 'Agent书'})['data']['items'][0]['code'] == sku
+        payload = dict(source_account_code=source, destination_account_code=target, effective_date='2026-10-15', lines=[{'sku_code': 'AGENT-BOOK', 'quantity': '2'}])
+        member = ops.create_member(db, access, {'name': '测试联系人'})['data']['member_code']
+        account = ops.create_fund_account(db, access, {'name': '成员私账', 'kind': 'private', 'member_code': member, 'avatar_url': 'https://example.test/a.png'})['data']['account_code']
+        assert queries.list_fund_accounts(db, access, {'q': '成员私账'})['data']['items'][0]['code'] == account
         patch = AccountPatchOperation(identifier=account, name='新名称').model_dump(exclude_unset=True)
         patch.pop('identifier')
         saved = ops.update_fund_account(db, access, account, patch)['data']['object']
-        assert saved['member_id'] == member and saved['avatar_url'] == 'https://example.test/a.png'
-        saved = ops.update_fund_account(db, access, account, {'member_id': None, 'avatar_url': None})['data']['object']
-        assert saved['member_id'] is None and saved['avatar_url'] is None
-        expense = ops.create_fund_transfer(db, access, fund_data(account, 'expense', '2'))['data']
+        assert saved['member_code'] == member and saved['avatar_url'] == 'https://example.test/a.png'
+        saved = ops.update_fund_account(db, access, account, {'member_code': None, 'avatar_url': None})['data']['object']
+        assert saved['member_code'] is None and saved['avatar_url'] is None
+        expense = ops.create_fund_transfer(db, access, fund_data(account, seed_code('expense'), '2'))['data']
         assert expense['status'] == 'posted' and expense['ledger_effect_applied']
-        settlement = ops.create_settlement(db, access, {'transfer': fund_data('fund_pool', account, '2'), 'allocations': [{'item_transfer_id': expense['transfer_id'], 'amount': '2'}]})['data']
+        settlement = ops.create_settlement(db, access, {'transfer': fund_data(seed_code('fund_pool'), account, '2'), 'allocations': [{'item_transfer_code': expense['transfer_code'], 'amount': '2'}]})['data']
         linked = ops.create_stock_operation(db, access, {'stock': payload, 'money': fund_data()})['data']
-        stock_id = linked['stock_transfer']['stock_transfer_id']
+        stock_id = linked['stock_transfer']['stock_transfer_code']
         assert linked['fund_transfer']['ledger_effect_applied'] and linked['stock_transfer']['status'] == 'in_transit'
         assert db.scalar(select(func.count()).select_from(StockMove)) == 0
         done = ops.complete_stock_transfer(db, access, stock_id, {'effective_date': '2026-10-15'})['data']
         db.commit()
         detail = queries.get_stock_transfer(db, access, stock_id)['data']
         assert done['status'] == 'completed' and done['ledger_effect_applied']
-        assert next(c for c in detail['confirmations'] if c['id'] == done['confirmation_id'])['status'] == 'completed'
+        assert next(c for c in detail['confirmations'] if c['code'] == done['confirmation_code'])['status'] == 'completed'
         assert detail['approval_mode'] == 'agent_direct'
         assert detail['submitted_credential_id'] == access.credential_id
         assert all(a['agent_credential_id'] == access.credential_id for a in detail['audit'])
         assert db.scalar(select(func.count()).select_from(StockMove)) == 1
-        reversed_result = ops.reverse_fund_transfer(db, access, expense['transfer_id'], {'reason': '登记更正'})['data']
-        for identifier in (settlement['transfer_id'], linked['fund_transfer']['transfer_id'], reversed_result['transfer_id']):
+        reversed_result = ops.reverse_fund_transfer(db, access, expense['transfer_code'], {'reason': '登记更正'})['data']
+        for identifier in (settlement['transfer_code'], linked['fund_transfer']['transfer_code'], reversed_result['transfer_code']):
             result = queries.get_fund_transfer(db, access, identifier)['data']
             assert result['submitted_credential_id'] == access.credential_id
             assert result['approval_mode'] == 'agent_direct'
@@ -221,11 +225,11 @@ def test_high_direct_business_and_source(client):
 
 def test_queries_support_disambiguation_and_submission_lookup(client):
     low, high = issue(client), issue(client, 'high')
-    member = client.post('/api/members', json={'name': '联系人', 'note': '负责教材采购'}).json()['id']
+    member = client.post('/api/members', json={'name': '联系人', 'note': '负责教材采购'}).json()['code']
     for kind in ('public', 'private'):
-        client.post('/api/accounts', json={'name': '同名', 'kind': kind, 'member_id': member})
+        client.post('/api/accounts', json={'name': '同名', 'kind': kind, 'member_code': member})
     payload = stock_data(client)
-    custody = client.patch(f"/api/stock-accounts/{payload['destination_account_id']}", json={'member_id': member})
+    custody = client.patch(f"/api/stock-accounts/{payload['destination_account_code']}", json={'member_code': member})
     assert custody.status_code == 200
     parent = client.post('/api/stock-transfers', json=payload).json()
     start = datetime(2026, 10, 15, tzinfo=timezone.utc)
@@ -234,10 +238,10 @@ def test_queries_support_disambiguation_and_submission_lookup(client):
         high_access = agent_access.resolve(db, high['secret'])
         selected, values = catalog.prepare_call('fgas_query', {'resource': 'members', 'filters': {'q': '联系人'}})
         contacts = selected.output_model.model_validate(selected.handler(db, access, values)).data.items
-        assert [(row.id, row.note) for row in contacts] == [(member, '负责教材采购')]
+        assert [(row.code, row.note) for row in contacts] == [(member, '负责教材采购')]
         selected, values = catalog.prepare_call('fgas_query', {'resource': 'stock_accounts', 'filters': {'q': '仓库'}})
         accounts = selected.output_model.model_validate(selected.handler(db, access, values)).data.items
-        assert accounts[0].member_id == member
+        assert accounts[0].member_code == member
         assert accounts[0].member_name == '联系人'
         candidates = queries.list_fund_accounts(db, access, {'q': '同名'})['data']['items']
         assert {row['kind'] for row in candidates} == {'public', 'private'}
@@ -245,28 +249,28 @@ def test_queries_support_disambiguation_and_submission_lookup(client):
         assert queries.list_fund_accounts(db, high_access, {'q': '同名'})['data']['items'] == candidates
         identifiers = []
         for index, date in enumerate(('2026-10-14', '2026-10-15', '2026-10-16')):
-            identifier = ops.propose_fund_transfer(db, access, fund_data(date=date))['data']['transfer_id']
-            db.get(Transfer, identifier).created_at = start + timedelta(hours=index)
+            identifier = ops.propose_fund_transfer(db, access, fund_data(date=date))['data']['transfer_code']
+            by_code(db, Transfer, identifier).created_at = start + timedelta(hours=index)
             identifiers.append(identifier)
         ops.propose_fund_transfer(db, high_access, fund_data())
         filters = {'submitted_by_current_connection': True, 'limit': 2}
         first = queries.list_fund_transfers(db, access, filters)['data']
         second = queries.list_fund_transfers(db, access, filters | {'page': 2})['data']
         assert first['has_more'] and not second['has_more']
-        assert [row['id'] for row in first['items'] + second['items']] == list(reversed(identifiers))
+        assert [row['code'] for row in first['items'] + second['items']] == list(reversed(identifiers))
         dated = queries.list_fund_transfers(db, access, filters | {'effective_date_from': '2026-10-14', 'effective_date_to': '2026-10-15'})['data']
-        assert {row['id'] for row in dated['items']} == set(identifiers[:2])
+        assert {row['code'] for row in dated['items']} == set(identifiers[:2])
         timed = queries.list_fund_transfers(db, access, filters | {'created_at_from': start.isoformat(), 'created_at_to': (start + timedelta(hours=1)).isoformat()})['data']
-        assert [row['id'] for row in timed['items']] == identifiers[:1]
-        first_completion = ops.propose_stock_completion(db, access, parent['id'], {'effective_date': '2026-10-15'})['data']['confirmation_id']
+        assert [row['code'] for row in timed['items']] == identifiers[:1]
+        first_completion = ops.propose_stock_completion(db, access, parent['code'], {'effective_date': '2026-10-15'})['data']['confirmation_code']
         ops.reject_stock_completion(db, high_access, first_completion, {'reason': '重新核对'})
-        second_completion = ops.propose_stock_completion(db, access, parent['id'], {'effective_date': '2026-10-15'})['data']['confirmation_id']
+        second_completion = ops.propose_stock_completion(db, access, parent['code'], {'effective_date': '2026-10-15'})['data']['confirmation_code']
         completions = [first_completion, second_completion]
         found = queries.list_stock_transfers(db, access, {'submitted_by_current_connection': True, 'limit': 1})['data']
-        assert [row['id'] for row in found['items']] == [parent['id']] and not found['has_more']
+        assert [row['code'] for row in found['items']] == [parent['code']] and not found['has_more']
         db.commit()  # Snapshot reads use their own transaction, as after a real MCP call.
-        detail = queries.get_stock_transfer(db, access, parent['id'])['data']
-        assert {c['id'] for c in detail['confirmations']} == set(completions)
+        detail = queries.get_stock_transfer(db, access, parent['code'])['data']
+        assert {c['code'] for c in detail['confirmations']} == set(completions)
         assert queries.minor_to_yuan(-1) == '-0.01' and queries.minor_to_yuan(12050) == '120.50'
         assert first['items'][0]['amount_minor'] == 12050 and first['items'][0]['amount'] == '120.50'
 
@@ -298,16 +302,16 @@ def test_independent_apps_start_on_separate_event_loops(client):
 @pytest.mark.parametrize('owner,level', [('untrusted', 'low'), ('admin', 'low'), ('admin', 'high')])
 def test_mcp_auth_discovery_and_structured_results(client, owner, level):
     stock = stock_data(client)
-    responsible = client.post('/api/members', json={'name': '仓库负责人'}).json()['id']
-    assert client.patch('/api/stock-accounts/' + stock['destination_account_id'], json={'member_id': responsible}).status_code == 200
-    sku_ids = {client.get('/api/skus', params={'code': stock['lines'][0]['sku_code']}).json()[0]['id']}
+    responsible = client.post('/api/members', json={'name': '仓库负责人'}).json()['code']
+    assert client.patch('/api/stock-accounts/' + stock['destination_account_code'], json={'member_code': responsible}).status_code == 200
+    sku_ids = {client.get('/api/skus', params={'code': stock['lines'][0]['sku_code']}).json()[0]['code']}
     for index in range(20):
         response = client.post('/api/skus', json={'code': f'PAGE-{index:02}', 'name': f'分页货物{index:02}', 'unit': '件'})
         assert response.status_code == 201
-        sku_ids.add(response.json()['id'])
-    private_id = client.post('/api/accounts', json={'name': '待匹配私账', 'kind': 'private'}).json()['id']
-    expense = client.post('/api/transfers', json=fund_data(private_id, 'expense', '2')).json()
-    payment = client.post('/api/transfers', json=fund_data('fund_pool', private_id, '2')).json()
+        sku_ids.add(response.json()['code'])
+    private_id = client.post('/api/accounts', json={'name': '待匹配私账', 'kind': 'private'}).json()['code']
+    expense = client.post('/api/transfers', json=fund_data(private_id, seed_code('expense'), '2')).json()
+    payment = client.post('/api/transfers', json=fund_data(seed_code('fund_pool'), private_id, '2')).json()
     connection = issue(client, owner=owner, level=level, name='身份验证连接')
     with Session() as db:
         user = db.get(User, owner)
@@ -346,10 +350,10 @@ def test_mcp_auth_discovery_and_structured_results(client, owner, level):
                         read = await session.call_tool('fgas_query', {'resource': 'fund_accounts'})
                         assert not read.is_error and read.structured_content['api_version'] == '2'
                         assert read.structured_content['data']['items']
-                        stock_account = await session.call_tool('fgas_query', {'resource': 'stock_accounts', 'identifier': stock['destination_account_id']})
+                        stock_account = await session.call_tool('fgas_query', {'resource': 'stock_accounts', 'identifier': stock['destination_account_code']})
                         assert not stock_account.is_error
-                        assert stock_account.structured_content['data']['member_id'] == responsible
-                        assert stock_account.structured_content['data']['responsibility_history'][0]['member_id'] == responsible
+                        assert stock_account.structured_content['data']['member_code'] == responsible
+                        assert stock_account.structured_content['data']['responsibility_history'][0]['member_code'] == responsible
                         windowed = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'filters': {'all_time': True}})
                         assert not windowed.is_error
                         unmatched = []
@@ -359,8 +363,8 @@ def test_mcp_auth_discovery_and_structured_results(client, owner, level):
                             data = result.structured_content['data']
                             assert data['total'] == 2 and data['has_more'] == (page == 1)
                             assert data['items'][0]['remaining'] == '2.00'
-                            unmatched.extend(row['transfer_id'] for row in data['items'])
-                        assert unmatched == [payment['id'], expense['id']]
+                            unmatched.extend(row['transfer_code'] for row in data['items'])
+                        assert unmatched == [payment['code'], expense['code']]
                         contract = await session.call_tool('fgas_help', {
                             'topic': 'query', 'resource': 'settlement_outstanding', 'include_output_schema': True,
                         })
@@ -368,7 +372,7 @@ def test_mcp_auth_discovery_and_structured_results(client, owner, level):
                         Draft202012Validator(contract.structured_content['data']['list']['output_schema']).validate(result.structured_content)
                         denied_match = await session.call_tool('fgas_execute', {
                             'resource': 'settlement', 'action': 'match', 'data': {
-                                'identifier': payment['id'], 'allocations': [{'item_transfer_id': expense['id'], 'amount': '2'}],
+                                'identifier': payment['code'], 'allocations': [{'item_transfer_code': expense['code'], 'amount': '2'}],
                             },
                         })
                         assert denied_match.is_error and denied_match.structured_content['code'] == 'permission_denied'
@@ -378,16 +382,16 @@ def test_mcp_auth_discovery_and_structured_results(client, owner, level):
                         pages = []
                         for page, limit in ((1, 20), (2, 20), (1, 100)):
                             result = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {
-                                'account_id': stock['destination_account_id'], 'page': page, 'limit': limit,
+                                'account_code': stock['destination_account_code'], 'page': page, 'limit': limit,
                             }})
                             assert not result.is_error
                             pages.append(result.structured_content['data'])
                         first, second, large = pages
                         assert len(first['items']) == 20 and first['has_more']
                         assert len(second['items']) == 1 and not second['has_more']
-                        assert {row['sku_id'] for row in first['items'] + second['items']} == sku_ids
+                        assert {row['sku_code'] for row in first['items'] + second['items']} == sku_ids
                         assert len(large['items']) == 21 and not large['has_more']
-                        assert {row['sku_id'] for row in large['items']} == sku_ids
+                        assert {row['sku_code'] for row in large['items']} == sku_ids
                         assert first['totals'] == second['totals'] == large['totals']
                         help_result = await session.call_tool('fgas_help', {'topic': 'query', 'resource': 'inventory'})
                         assert not help_result.is_error
@@ -399,7 +403,7 @@ def test_mcp_auth_discovery_and_structured_results(client, owner, level):
                         Draft202012Validator(full_help.structured_content['data']['list']['output_schema']).validate(
                             {'api_version': '2', 'data': large})
                         inventory = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {
-                            'account_id': stock['destination_account_id'], 'sku_code': 'BOOK-01',
+                            'account_code': stock['destination_account_code'], 'sku_code': 'BOOK-01',
                         }})
                         assert not inventory.is_error
                         assert [(row['sku_code'], row['quantity']) for row in inventory.structured_content['data']['items']] == [('BOOK-01', '0')]
@@ -409,12 +413,12 @@ def test_mcp_auth_discovery_and_structured_results(client, owner, level):
                         assert stock_result['status'] == 'pending' and stock_result['approval_required'] and not stock_result['ledger_effect_applied']
                         stock_query = await session.call_tool('fgas_query', {'resource': 'stock_transfers', 'filters': {'sku_code': 'BOOK-01'}})
                         assert not stock_query.is_error
-                        assert [(row['id'], row['lines'][0]['sku_code']) for row in stock_query.structured_content['data']['items']] == [(stock_result['stock_transfer_id'], 'BOOK-01')]
+                        assert [(row['code'], row['lines'][0]['sku_code']) for row in stock_query.structured_content['data']['items']] == [(stock_result['stock_transfer_code'], 'BOOK-01')]
                         other_stock = await session.call_tool('fgas_query', {'resource': 'stock_transfers', 'filters': {'sku_code': 'PAGE-00'}})
                         assert not other_stock.is_error and other_stock.structured_content['data']['items'] == []
                         proposed = await session.call_tool('fgas_propose', {'resource': 'fund_transfer', 'data': fund_data()})
                         assert not proposed.is_error and proposed.structured_content['data']['status'] == 'pending'
-                        detail = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'identifier': proposed.structured_content['data']['transfer_id']})
+                        detail = await session.call_tool('fgas_query', {'resource': 'fund_transfers', 'identifier': proposed.structured_content['data']['transfer_code']})
                         assert detail.structured_content['data']['status'] == 'pending'
                         denied = await session.call_tool('fgas_execute', {'resource': 'member', 'action': 'create', 'data': {'name': '不能猜高权限工具'}})
                         assert denied.is_error and denied.structured_content['code'] == 'permission_denied'
@@ -439,12 +443,12 @@ def test_compact_help_contract_and_patch_inputs():
     help_data = catalog.help_data('high', topic='execute', resource='fund_account', action='update')
     assert 'output_schema' not in help_data
     _, values = catalog.prepare_call('fgas_execute', help_data['example'])
-    assert values == {'identifier': 'account-id', 'name': '新的账户名称'}
+    assert values == {'identifier': 'FA-0001', 'name': '新的账户名称'}
     _, cleared = catalog.prepare_call('fgas_execute', {
         'resource': 'fund_account', 'action': 'update',
-        'data': {'identifier': 'account-id', 'avatar_url': None},
+        'data': {'identifier': 'FA-0001', 'avatar_url': None},
     })
-    assert cleared == {'identifier': 'account-id', 'avatar_url': None}
+    assert cleared == {'identifier': 'FA-0001', 'avatar_url': None}
     _, created = catalog.prepare_call('fgas_execute', {
         'resource': 'member', 'action': 'create', 'data': {'name': '联系人'},
     })
@@ -495,26 +499,26 @@ def test_mcp_high_execution_uses_real_business_services(client):
                         assert sku['object']['code'] == 'MCP-BOOK'
                         by_code = await session.call_tool('fgas_query', {'resource': 'skus', 'filters': {'code': 'MCP-BOOK'}})
                         assert not by_code.is_error
-                        assert [(row['id'], row['code']) for row in by_code.structured_content['data']['items']] == [(sku['sku_id'], 'MCP-BOOK')]
+                        assert [row['code'] for row in by_code.structured_content['data']['items']] == [sku['sku_code']]
                         by_role = await session.call_tool('fgas_query', {'resource': 'skus', 'filters': {'tag': '角色:博丽灵梦'}})
                         assert not by_role.is_error
                         assert [row['code'] for row in by_role.structured_content['data']['items']] == ['MCP-BOOK']
                         payload['lines'] = [{'sku_code': 'MCP-BOOK', 'quantity': '2'}]
                         responsible = await execute('member', 'create', {'name': 'MCP负责人'})
-                        assigned = await execute('stock_account', 'update', {'identifier': payload['destination_account_id'], 'member_id': responsible['member_id']})
-                        assert assigned['object']['member_id'] == responsible['member_id']
-                        history = await session.call_tool('fgas_query', {'resource': 'stock_accounts', 'identifier': payload['destination_account_id']})
+                        assigned = await execute('stock_account', 'update', {'identifier': payload['destination_account_code'], 'member_code': responsible['member_code']})
+                        assert assigned['object']['member_code'] == responsible['member_code']
+                        history = await session.call_tool('fgas_query', {'resource': 'stock_accounts', 'identifier': payload['destination_account_code']})
                         assert not history.is_error and len(history.structured_content['data']['responsibility_history']) == 1
                         account = await execute('fund_account', 'create', {'name': 'MCP私账', 'kind': 'private', 'avatar_url': 'https://example.test/avatar.png'})
-                        account_id = account['account_id']
-                        renamed = await execute('fund_account', 'update', {'identifier': account_id, 'name': '改名私账'})
+                        account_code = account['account_code']
+                        renamed = await execute('fund_account', 'update', {'identifier': account_code, 'name': '改名私账'})
                         assert renamed['object']['avatar_url'] == 'https://example.test/avatar.png'
-                        cleared = await execute('fund_account', 'update', {'identifier': account_id, 'avatar_url': None})
+                        cleared = await execute('fund_account', 'update', {'identifier': account_code, 'avatar_url': None})
                         assert cleared['object']['avatar_url'] is None
-                        expense = await execute('fund_transfer', 'create', fund_data(account_id, 'expense', '2'))
+                        expense = await execute('fund_transfer', 'create', fund_data(account_code, seed_code('expense'), '2'))
                         assert expense['status'] == 'posted' and expense['ledger_effect_applied']
-                        payment = await execute('fund_transfer', 'create', fund_data('fund_pool', account_id, '2'))
-                        matched = await execute('settlement', 'match', {'identifier': payment['transfer_id'], 'allocations': [{'item_transfer_id': expense['transfer_id'], 'amount': '2'}]})
+                        payment = await execute('fund_transfer', 'create', fund_data(seed_code('fund_pool'), account_code, '2'))
+                        matched = await execute('settlement', 'match', {'identifier': payment['transfer_code'], 'allocations': [{'item_transfer_code': expense['transfer_code'], 'amount': '2'}]})
                         assert not matched['ledger_effect_applied'] and matched['matches'][0]['amount'] == '2.00'
                         remaining = await session.call_tool('fgas_query', {'resource': 'settlement_outstanding'})
                         assert not remaining.is_error and remaining.structured_content['data']['items'] == []
@@ -522,9 +526,9 @@ def test_mcp_high_execution_uses_real_business_services(client):
                         assert proposal.structured_content['data']['status'] == 'pending'
                         stock = await execute('stock_transfer', 'create', payload)
                         assert stock['status'] == 'in_transit' and not stock['ledger_effect_applied']
-                        completion = await execute('stock_transfer', 'complete', {'identifier': stock['stock_transfer_id'], 'effective_date': '2026-10-15'})
+                        completion = await execute('stock_transfer', 'complete', {'identifier': stock['stock_transfer_code'], 'effective_date': '2026-10-15'})
                         assert completion['status'] == 'completed' and completion['ledger_effect_applied']
-                        detail = await session.call_tool('fgas_query', {'resource': 'stock_transfers', 'identifier': stock['stock_transfer_id']})
+                        detail = await session.call_tool('fgas_query', {'resource': 'stock_transfers', 'identifier': stock['stock_transfer_code']})
                         assert detail.structured_content['data']['submitted_credential_id'] == connection['credential']['id']
                         invalid = await session.call_tool('fgas_execute', {'resource': 'member', 'action': 'approve', 'data': {}})
                         assert invalid.is_error
@@ -538,18 +542,18 @@ def test_mcp_high_execution_uses_real_business_services(client):
 def test_help_describes_non_null_patch_and_combined_result():
     help_data = catalog.help_data('high', topic='execute', resource='fund_account', action='update')
     example = help_data['example']
-    invalid = example | {'data': {'identifier': 'account-id', 'name': None}}
+    invalid = example | {'data': {'identifier': 'FA-0001', 'name': None}}
     assert not Draft202012Validator(help_data['input_schema']).is_valid(invalid)
     with pytest.raises(catalog.InputProblem) as error:
         catalog.prepare_call('fgas_execute', invalid)
     assert error.value.fields[0]['field'] == 'data.name'
-    cleared = example | {'data': {'identifier': 'account-id', 'avatar_url': None}}
+    cleared = example | {'data': {'identifier': 'FA-0001', 'avatar_url': None}}
     Draft202012Validator(help_data['input_schema']).validate(cleared)
     combined = catalog.help_data('high', topic='execute', resource='stock_operation', action='create', include_output_schema=True)
     Draft202012Validator(combined['output_schema']).validate({'api_version': '2', 'data': {
         'resource_type': 'stock_operation',
-        'fund_transfer': {'resource_type': 'fund_transfer', 'transfer_id': 'fund-id', 'status': 'posted', 'ledger_effect_applied': True, 'approval_required': False},
-        'stock_transfer': {'resource_type': 'stock_transfer', 'stock_transfer_id': 'stock-id', 'status': 'in_transit', 'ledger_effect_applied': False, 'approval_required': False},
+        'fund_transfer': {'resource_type': 'fund_transfer', 'transfer_code': 'fund-id', 'status': 'posted', 'ledger_effect_applied': True, 'approval_required': False},
+        'stock_transfer': {'resource_type': 'stock_transfer', 'stock_transfer_code': 'stock-id', 'status': 'in_transit', 'ledger_effect_applied': False, 'approval_required': False},
     }})
 
 
@@ -560,22 +564,22 @@ def test_event_lists_default_window_and_all_time(client):
     recent_stock_payload = stock_data(client, 'BOOK-02')
     with Session() as db:
         access = agent_access.resolve(db, low['secret'])
-        old_fund = ops.propose_fund_transfer(db, access, fund_data())['data']['transfer_id']
-        recent_fund = ops.propose_fund_transfer(db, access, fund_data())['data']['transfer_id']
-        db.get(Transfer, old_fund).created_at = old
-        old_stock = ops.propose_stock_transfer(db, access, old_stock_payload)['data']['stock_transfer_id']
-        recent_stock = ops.propose_stock_transfer(db, access, recent_stock_payload)['data']['stock_transfer_id']
-        db.get(StockTransfer, old_stock).created_at = old
+        old_fund = ops.propose_fund_transfer(db, access, fund_data())['data']['transfer_code']
+        recent_fund = ops.propose_fund_transfer(db, access, fund_data())['data']['transfer_code']
+        by_code(db, Transfer, old_fund).created_at = old
+        old_stock = ops.propose_stock_transfer(db, access, old_stock_payload)['data']['stock_transfer_code']
+        recent_stock = ops.propose_stock_transfer(db, access, recent_stock_payload)['data']['stock_transfer_code']
+        by_code(db, StockTransfer, old_stock).created_at = old
         db.commit()
-        default_fund = {row['id'] for row in queries.list_fund_transfers(db, access, {})['data']['items']}
+        default_fund = {row['code'] for row in queries.list_fund_transfers(db, access, {})['data']['items']}
         assert recent_fund in default_fund and old_fund not in default_fund
-        all_fund = {row['id'] for row in queries.list_fund_transfers(db, access, {'all_time': True})['data']['items']}
+        all_fund = {row['code'] for row in queries.list_fund_transfers(db, access, {'all_time': True})['data']['items']}
         assert {old_fund, recent_fund} <= all_fund
-        explicit_fund = {row['id'] for row in queries.list_fund_transfers(db, access, {'created_at_from': (old - timedelta(days=1)).isoformat()})['data']['items']}
+        explicit_fund = {row['code'] for row in queries.list_fund_transfers(db, access, {'created_at_from': (old - timedelta(days=1)).isoformat()})['data']['items']}
         assert {old_fund, recent_fund} <= explicit_fund
-        default_stock = {row['id'] for row in queries.list_stock_transfers(db, access, {})['data']['items']}
+        default_stock = {row['code'] for row in queries.list_stock_transfers(db, access, {})['data']['items']}
         assert recent_stock in default_stock and old_stock not in default_stock
-        all_stock = {row['id'] for row in queries.list_stock_transfers(db, access, {'all_time': True})['data']['items']}
+        all_stock = {row['code'] for row in queries.list_stock_transfers(db, access, {'all_time': True})['data']['items']}
         assert {old_stock, recent_stock} <= all_stock
 
 
@@ -584,13 +588,13 @@ def test_event_window_bypass_and_detail_exemption(client):
     old = datetime.now(timezone.utc) - timedelta(days=40)
     with Session() as db:
         access = agent_access.resolve(db, low['secret'])
-        identifier = ops.propose_fund_transfer(db, access, fund_data(date='2026-09-01'))['data']['transfer_id']
-        db.get(Transfer, identifier).created_at = old
+        identifier = ops.propose_fund_transfer(db, access, fund_data(date='2026-09-01'))['data']['transfer_code']
+        by_code(db, Transfer, identifier).created_at = old
         db.commit()
-        assert identifier not in {row['id'] for row in queries.list_fund_transfers(db, access, {})['data']['items']}
+        assert identifier not in {row['code'] for row in queries.list_fund_transfers(db, access, {})['data']['items']}
         bypassed = queries.list_fund_transfers(db, access, {'effective_date_from': '2026-09-01', 'effective_date_to': '2026-09-01'})['data']['items']
-        assert [row['id'] for row in bypassed] == [identifier]
-        assert queries.get_fund_transfer(db, access, identifier)['data']['id'] == identifier
+        assert [row['code'] for row in bypassed] == [identifier]
+        assert queries.get_fund_transfer(db, access, identifier)['data']['code'] == identifier
 
 
 def test_fund_balance_as_of_and_reversal(client):
@@ -598,31 +602,31 @@ def test_fund_balance_as_of_and_reversal(client):
     as_of = datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
     with Session() as db:
         access = agent_access.resolve(db, high['secret'])
-        posted = ops.create_fund_transfer(db, access, fund_data('opening', 'fund_pool', '120.50', '2026-10-15'))['data']['transfer_id']
-        assert db.get(Transfer, posted).posted_at is not None
-        db.get(Transfer, posted).posted_at = as_of
-        pending = ops.propose_fund_transfer(db, access, fund_data('opening', 'fund_pool', '5', '2026-10-15'))['data']['transfer_id']
+        posted = ops.create_fund_transfer(db, access, fund_data(seed_code('opening'), seed_code('fund_pool'), '120.50', '2026-10-15'))['data']['transfer_code']
+        assert by_code(db, Transfer, posted).posted_at is not None
+        by_code(db, Transfer, posted).posted_at = as_of
+        pending = ops.propose_fund_transfer(db, access, fund_data(seed_code('opening'), seed_code('fund_pool'), '5', '2026-10-15'))['data']['transfer_code']
         db.commit()
 
         def balance(when, basis='posted'):
             data = queries.get_fund_balances(db, access, {'as_of': when.isoformat(), 'basis': basis})['data']
-            row = next(item for item in data['items'] if item['id'] == 'fund_pool')
+            row = next(item for item in data['items'] if item['code'] == seed_code('fund_pool'))
             return row['balance_minor'], data['total_minor']
 
         assert balance(as_of - timedelta(seconds=1)) == (0, 0)
         assert balance(as_of + timedelta(seconds=1)) == (12050, 12050)
-        assert db.get(Transfer, pending).posted_at is None
+        assert by_code(db, Transfer, pending).posted_at is None
 
-        reversal = ops.reverse_fund_transfer(db, access, posted, {'reason': '更正'})['data']['transfer_id']
-        db.get(Transfer, reversal).posted_at = as_of + timedelta(hours=1)
+        reversal = ops.reverse_fund_transfer(db, access, posted, {'reason': '更正'})['data']['transfer_code']
+        by_code(db, Transfer, reversal).posted_at = as_of + timedelta(hours=1)
         db.commit()
-        assert db.get(Transfer, posted).status == 'reversed'
-        assert db.scalar(select(func.count()).select_from(JournalLine).where(JournalLine.transfer_id == posted)) == 2
+        assert by_code(db, Transfer, posted).status == 'reversed'
+        assert db.scalar(select(func.count()).select_from(JournalLine).where(JournalLine.transfer_id == by_code(db,Transfer,posted).id)) == 2
         assert balance(as_of + timedelta(minutes=30)) == (12050, 12050)
         assert balance(as_of + timedelta(hours=2)) == (0, 0)
 
-        backdated = ops.create_fund_transfer(db, access, fund_data('opening', 'fund_pool', '50', '2026-09-01'))['data']['transfer_id']
-        db.get(Transfer, backdated).posted_at = as_of + timedelta(hours=3)
+        backdated = ops.create_fund_transfer(db, access, fund_data(seed_code('opening'), seed_code('fund_pool'), '50', '2026-09-01'))['data']['transfer_code']
+        by_code(db, Transfer, backdated).posted_at = as_of + timedelta(hours=3)
         db.commit()
         assert balance(as_of + timedelta(minutes=30), 'posted') == (12050, 12050)
         assert balance(as_of + timedelta(minutes=30), 'effective_date') == (5000, 5000)
@@ -632,27 +636,27 @@ def test_inventory_as_of_onhand_and_null_in_transit(client):
     high = issue(client, 'high')
     payload = stock_data(client)
     sku = client.get('/api/skus', params={'code': payload['lines'][0]['sku_code']}).json()[0]
-    target = payload['destination_account_id']
+    target = payload['destination_account_code']
     as_of = datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
     with Session() as db:
         access = agent_access.resolve(db, high['secret'])
-        stock = ops.create_stock_transfer(db, access, payload)['data']['stock_transfer_id']
+        stock = ops.create_stock_transfer(db, access, payload)['data']['stock_transfer_code']
         db.commit()
-        current = queries.get_inventory(db, access, {'account_id': target})['data']['items'][0]
+        current = queries.get_inventory(db, access, {'account_code': target})['data']['items'][0]
         assert current['quantity'] == '0' and current['in_transit_planned_quantity'] == '2'
-        historical = queries.get_inventory(db, access, {'account_id': target, 'as_of': as_of.isoformat()})['data']['items'][0]
+        historical = queries.get_inventory(db, access, {'account_code': target, 'as_of': as_of.isoformat()})['data']['items'][0]
         assert historical['quantity'] == '0' and historical['in_transit_planned_quantity'] is None
 
         ops.complete_stock_transfer(db, access, stock, {'effective_date': '2026-10-15'})
         move = db.scalar(select(StockMove).order_by(StockMove.created_at.desc()))
         move.created_at = as_of
         db.commit()
-        before = queries.get_inventory(db, access, {'account_id': target, 'as_of': (as_of - timedelta(seconds=1)).isoformat()})['data']
+        before = queries.get_inventory(db, access, {'account_code': target, 'as_of': (as_of - timedelta(seconds=1)).isoformat()})['data']
         assert before['items'][0]['quantity'] == '0' and before['items'][0]['in_transit_planned_quantity'] is None
-        after = queries.get_inventory(db, access, {'account_id': target, 'as_of': (as_of + timedelta(seconds=1)).isoformat()})['data']
+        after = queries.get_inventory(db, access, {'account_code': target, 'as_of': (as_of + timedelta(seconds=1)).isoformat()})['data']
         assert after['items'][0]['quantity'] == '2' and after['items'][0]['in_transit_planned_quantity'] is None
-        assert after['totals'] == [{'sku_id': sku['id'], 'sku_code': sku['code'], 'quantity': '2', 'valuation': '未估值'}]
-        current_after = queries.get_inventory(db, access, {'account_id': target})['data']['items'][0]
+        assert after['totals'] == [{'sku_code': sku['code'], 'quantity': '2', 'valuation': '未估值'}]
+        current_after = queries.get_inventory(db, access, {'account_code': target})['data']['items'][0]
         assert current_after['quantity'] == '2' and current_after['in_transit_planned_quantity'] == '0'
 
 
@@ -663,35 +667,35 @@ def test_stock_move_filters_sql(client):
     old = datetime.now(timezone.utc) - timedelta(days=40)
     with Session() as db:
         access = agent_access.resolve(db, high['secret'])
-        first = ops.create_stock_transfer(db, access, first_payload)['data']['stock_transfer_id']
+        first = ops.create_stock_transfer(db, access, first_payload)['data']['stock_transfer_code']
         ops.complete_stock_transfer(db, access, first, {'effective_date': '2026-10-01'})
-        second = ops.create_stock_transfer(db, access, second_payload)['data']['stock_transfer_id']
+        second = ops.create_stock_transfer(db, access, second_payload)['data']['stock_transfer_code']
         ops.complete_stock_transfer(db, access, second, {'effective_date': '2026-10-15'})
         moves = list(db.scalars(select(StockMove)))
         old_move = next(move for move in moves if move.effective_date == date(2026, 10, 1))
         old_move.created_at = old
         db.commit()
-        default = {row['id'] for row in queries.list_stock_moves(db, access, {})['data']['items']}
-        assert default == {move.id for move in moves if move.id != old_move.id}
-        all_rows = {row['id'] for row in queries.list_stock_moves(db, access, {'all_time': True})['data']['items']}
-        assert all_rows == {move.id for move in moves}
+        default = {row['stock_transfer_code'] for row in queries.list_stock_moves(db, access, {})['data']['items']}
+        assert default == {second}
+        all_rows = {row['stock_transfer_code'] for row in queries.list_stock_moves(db, access, {'all_time': True})['data']['items']}
+        assert all_rows == {first,second}
         first_page = queries.list_stock_moves(db, access, {'all_time': True, 'limit': 1})['data']
         second_page = queries.list_stock_moves(db, access, {'all_time': True, 'limit': 1, 'page': 2})['data']
         assert first_page['has_more'] and not second_page['has_more']
-        assert first_page['items'][0]['stock_transfer_id'] == second
-        assert second_page['items'][0]['stock_transfer_id'] == first
+        assert first_page['items'][0]['stock_transfer_code'] == second
+        assert second_page['items'][0]['stock_transfer_code'] == first
         by_effective = queries.list_stock_moves(db, access, {'effective_date_from': '2026-10-01', 'effective_date_to': '2026-10-01'})['data']['items']
-        assert [row['id'] for row in by_effective] == [old_move.id]
+        assert [row['stock_transfer_code'] for row in by_effective] == [first]
         by_created = queries.list_stock_moves(db, access, {
             'created_at_from': (old - timedelta(days=1)).isoformat(),
             'created_at_to': (old + timedelta(days=1)).isoformat(),
         })['data']['items']
-        assert [row['id'] for row in by_created] == [old_move.id]
+        assert [row['stock_transfer_code'] for row in by_created] == [first]
         by_posted = queries.list_stock_moves(db, access, {
             'posted_at_from': (old - timedelta(days=1)).isoformat(),
             'posted_at_to': (old + timedelta(days=1)).isoformat(),
         })['data']['items']
-        assert [row['id'] for row in by_posted] == [old_move.id]
+        assert [row['stock_transfer_code'] for row in by_posted] == [first]
 
 
 def test_help_schemas_for_windows_and_as_of():

@@ -49,7 +49,7 @@ class SkuDirectoryFilters(SkuFilters):
 
 class AccountFilters(SkuFilters):
     kind: Literal['public', 'private', 'external'] | None = None
-    member_id: str | None = None
+    member_code: str | None = None
     tag: str | None = None
 
 class StockAccountFilters(AccountFilters):
@@ -63,15 +63,16 @@ class WindowFilters(PageFilters):
 
 
 class BalanceFilters(AccountFilters):
-    account_id: str | None = None
+    account_code: str | None = None
     as_of: AwareDatetime | None = None
     basis: Literal['posted', 'effective_date'] = Field(default='posted', description='默认按实际入账时间；仅用户明确要求按业务日期核对时选 effective_date。')
 
 
 class TransferFilters(WindowFilters):
+    q: str | None = None
     tag: str | None = None
-    source_account_id: str | None = None
-    destination_account_id: str | None = None
+    source_account_code: str | None = None
+    destination_account_code: str | None = None
     effective_date_from: date | None = None
     effective_date_to: date | None = None
     submitted_by_current_connection: bool = False
@@ -84,23 +85,24 @@ class FundTransferFilters(TransferFilters):
 
 
 class StockTransferFilters(TransferFilters):
+    source_reference: str | None = None
     status: Literal['pending', 'in_transit', 'completed', 'rejected', 'cancelled'] | None = Field(default=None, description='pending 待审；in_transit 在途；completed 已完成；rejected 已拒绝；cancelled 已取消。')
     sku_code: str | None = None
 
 
 class InventoryFilters(PageFilters):
-    account_id: str | None = None
+    account_code: str | None = None
     sku_code: str | None = None
-    member_id: str | None = Field(default=None, description='按当前负责人筛选；返回行的 member_id/member_name 也是此负责人。')
+    member_code: str | None = Field(default=None, description='按当前负责人筛选；返回行的 member_code/member_name 也是此负责人。')
     as_of: AwareDatetime | None = None
     basis: Literal['posted', 'effective_date'] = Field(default='posted', description='默认按实际入账时间；仅用户明确要求按业务日期核对时选 effective_date。')
 
 
 class StockMoveFilters(WindowFilters):
-    transfer_id: str | None = None
+    transfer_code: str | None = None
     sku_code: str | None = None
-    source_account_id: str | None = None
-    destination_account_id: str | None = None
+    source_account_code: str | None = None
+    destination_account_code: str | None = None
     effective_date_from: date | None = None
     effective_date_to: date | None = None
     posted_at_from: AwareDatetime | None = None
@@ -112,11 +114,11 @@ class StocktakeFilters(PageFilters):
 
 
 class SettlementFilters(Input):
-    account_id: str
+    identifier: str
 
 
 class SettlementOutstandingFilters(PageFilters):
-    account_id: str | None = None
+    account_code: str | None = None
     direction: Literal['expense', 'receipt'] | None = None
     kind: Literal['item', 'payment'] | None = None
 
@@ -126,7 +128,7 @@ class IdentifierInput(Input):
 
 
 class MemberRow(BaseModel):
-    id: str
+    code: str
     name: str
 
 
@@ -136,15 +138,14 @@ class SavedMember(MemberRow):
 
 class AccountRow(MemberRow):
     kind: str
-    member_id: str | None
+    member_code: str | None
     member_name: str | None
     tags: list[str]
     active: bool
 
 
 class ResponsibilityRow(BaseModel):
-    id: str
-    member_id: str
+    member_code: str
     member_name: str
     valid_from: datetime
     valid_to: datetime | None
@@ -176,9 +177,9 @@ class SubmissionSource(BaseModel):
 
 
 class TransferRow(SubmissionSource):
-    id: str
-    source_account_id: str
-    destination_account_id: str
+    code: str
+    source_account_code: str
+    destination_account_code: str
     source_account_name: str
     destination_account_name: str
     effective_date: date
@@ -199,12 +200,12 @@ class FundTransferRow(TransferRow):
     actor_name: str
     approved_by_name: str | None
     version: int
-    reversal_of: str | None
+    reversal_of_code: str | None
     posted_at: datetime | None
 
 
 class JournalRow(BaseModel):
-    account_id: str
+    account_code: str
     debit_minor: int
     debit: str
     credit_minor: int
@@ -226,8 +227,6 @@ class FundTransferDetail(FundTransferRow):
 
 
 class StockLine(BaseModel):
-    id: str
-    sku_id: str
     sku_code: str
     sku_name: str
     unit: str
@@ -238,14 +237,14 @@ class StockTransferRow(TransferRow):
     source_kind: str
     destination_kind: str
     source_reference: str | None
-    related_transfer_id: str | None
+    related_transfer_code: str | None
     lines: list[StockLine]
     snapshot_at: datetime
 
 
 class ConfirmationRow(SubmissionSource):
-    id: str
-    transfer_id: str
+    code: str
+    transfer_code: str
     actor_id: str
     effective_date: date
     status: str
@@ -254,30 +253,28 @@ class ConfirmationRow(SubmissionSource):
 
 
 class FundReference(BaseModel):
-    id: str
+    code: str
     status: str
     description: str
     amount_minor: int
     amount: str
-    reversal_of: str | None
+    reversal_of_code: str | None
 
 
 class RelatedLine(BaseModel):
-    sku_id: str
     sku_code: str
     quantity: str
 
 
 class RelatedTransfer(BaseModel):
-    id: str
+    code: str
     status: str
-    source_account_id: str
-    destination_account_id: str
+    source_account_code: str
+    destination_account_code: str
     lines: list[RelatedLine]
 
 
 class StockAuditRow(BaseModel):
-    id: str
     actor_id: str
     action: str
     detail: dict[str, Any]
@@ -294,16 +291,15 @@ class StockTransferDetail(StockTransferRow):
 
 
 class InventoryTotal(BaseModel):
-    sku_id: str
     sku_code: str
     quantity: str
     valuation: Literal['未估值']
 
 
 class InventoryRow(InventoryTotal):
-    account_id: str
+    account_code: str
     account_name: str
-    member_id: str | None
+    member_code: str | None
     member_name: str | None
     sku_name: str
     unit: str
@@ -311,13 +307,10 @@ class InventoryRow(InventoryTotal):
 
 
 class StockMoveRow(BaseModel):
-    id: str
-    confirmation_id: str
-    transfer_line_id: str
-    sku_id: str
+    confirmation_code: str
     sku_code: str
-    source_account_id: str
-    destination_account_id: str
+    source_account_code: str
+    destination_account_code: str
     effective_date: date
     created_at: datetime
     posted_at: datetime
@@ -328,18 +321,20 @@ class StockMoveRow(BaseModel):
     destination_account_name: str
     applicant_id: str
     executor_id: str | None
-    stock_transfer_id: str
+    stock_transfer_code: str
     snapshot_at: datetime
 
 
-class StocktakeRow(MemberRow):
+class StocktakeRow(BaseModel):
+    id: str
+    name: str
     description: str
     status: str
     created_by: str
     created_at: datetime
-    gain_account_id: str
+    gain_account_code: str
     gain_account_name: str
-    loss_account_id: str
+    loss_account_code: str
     loss_account_name: str
 
 
@@ -407,7 +402,7 @@ class SettlementItem(BaseModel):
 
 
 class SettlementMatchRow(BaseModel):
-    item_transfer_id: str
+    item_transfer_code: str
     amount_minor: int
     amount: str
     effective: bool
@@ -430,17 +425,17 @@ class SettlementOverviewData(BaseModel):
 
 
 class SettlementOutstandingRow(BaseModel):
-    account_id: str
+    account_code: str
     account_name: str
     kind: Literal['item', 'payment']
     direction: Literal['expense', 'receipt']
-    transfer_id: str
+    transfer_code: str
     effective_date: date
     description: str
     counterparty: str | None
-    source_account_id: str
+    source_account_code: str
     source_account_name: str
-    destination_account_id: str
+    destination_account_code: str
     destination_account_name: str
     amount_minor: int
     amount: str
@@ -485,7 +480,7 @@ QUERY_INPUT_SCHEMAS = {
     'get_fund_balances': BalanceFilters, 'list_fund_transfers': FundTransferFilters,
     'get_fund_transfer': IdentifierInput, 'get_inventory': InventoryFilters,
     'list_stock_transfers': StockTransferFilters, 'get_stock_transfer': IdentifierInput,
-    'list_stock_moves': StockMoveFilters, 'get_settlement_overview': SettlementFilters,
+    'list_stock_moves': StockMoveFilters, 'get_settlement_overview': IdentifierInput,
     'list_settlement_outstanding': SettlementOutstandingFilters,
     'list_fund_stocktakes': StocktakeFilters, 'get_fund_stocktake': IdentifierInput,
     'list_stock_stocktakes': StocktakeFilters, 'get_stock_stocktake': IdentifierInput,
@@ -547,18 +542,18 @@ class WriteEffect(BaseModel):
 
 class FundWriteData(WriteEffect):
     resource_type: Literal['fund_transfer']
-    transfer_id: str
+    transfer_code: str
 
 
 class StockWriteData(WriteEffect):
     resource_type: Literal['stock_transfer']
-    stock_transfer_id: str
+    stock_transfer_code: str
 
 
 class CompletionWriteData(WriteEffect):
     resource_type: Literal['stock_confirmation']
-    confirmation_id: str
-    stock_transfer_id: str
+    confirmation_code: str
+    stock_transfer_code: str
     stock_transfer_status: str
 
 
@@ -582,26 +577,25 @@ class SavedSku(SkuRow):
 
 class FundAccountWriteData(WriteEffect):
     resource_type: Literal['fund_account']
-    account_id: str
+    account_code: str
     object: SavedFundAccount
 
 
 class StockAccountWriteData(WriteEffect):
     resource_type: Literal['stock_account']
-    account_id: str
+    account_code: str
     object: SavedStockAccount
 
 
 class SkuWriteData(WriteEffect):
     resource_type: Literal['sku']
-    sku_id: str
     sku_code: str
     object: SavedSku
 
 
 class MemberWriteData(WriteEffect):
     resource_type: Literal['member']
-    member_id: str
+    member_code: str
     object: SavedMember
 
 
@@ -619,7 +613,7 @@ class StockStocktakeWriteData(WriteEffect):
 
 class SettlementWriteData(WriteEffect):
     resource_type: Literal['settlement']
-    transfer_id: str
+    transfer_code: str
     matches: list[SettlementMatchRow]
 
 

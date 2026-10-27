@@ -6,6 +6,8 @@ from backend.infrastructure import store, stock_store
 from backend.infrastructure.models import StockTransfer, StockTransferLine, StockTransferFundReference, StockAudit, now
 from backend.application.identity import authorize_write
 from backend.application import warehouse_catalogs
+from backend.application.directory_views import by_code
+from backend.infrastructure.models import StockAccount, Transfer
 from backend.kernel.accounting import DomainError
 from backend.kernel.stock import parse_quantity, quantity_string
 from backend.modules.warehouse.plans import build_moves
@@ -13,8 +15,7 @@ from backend.infrastructure.models import StockConfirmation, StockMove
 
 
 def get_transfer(db, identifier):
-    item = stock_store.get_transfer(db, identifier)
-    if item is None: raise DomainError('货物转移不存在', 404)
+    item = by_code(db, StockTransfer, identifier)
     return item
 
 
@@ -25,7 +26,7 @@ def validate(db,data,existing=False):
     if any(a is None for a in accounts): raise DomainError('账户不存在',404)
     if not existing and any(not a.active for a in accounts): raise DomainError('账户已停用',409)
     if all(a.kind=='external' for a in accounts): raise DomainError('不能在两个外部账户间转移')
-    if data.get('related_transfer_id'): get_transfer(db,data['related_transfer_id'])
+    if data.get('related_transfer_id') and stock_store.get_transfer(db,data['related_transfer_id']) is None: raise DomainError('关联货物单不存在',404)
     identifiers=[line['sku_id'] for line in data['lines']]
     if not identifiers or len(set(identifiers))!=len(identifiers): raise DomainError('SKU 明细不能为空或重复')
     lines=[]
@@ -40,26 +41,33 @@ def validate(db,data,existing=False):
     return lines
 
 def transfer_view(db, item, *, detail=True):
-    value = {key: getattr(item, key) for key in ('id','source_account_id','destination_account_id','effective_date','description','tags','source_reference','actor_id','status','related_transfer_id','approved_by','approval_mode','reason','created_at','submitted_credential_id','submitted_credential_name')}
+    value = {key: getattr(item, key) for key in ('code','effective_date','description','tags','source_reference','actor_id','status','approved_by','approval_mode','reason','created_at','submitted_credential_id','submitted_credential_name')}
     for side in ('source', 'destination'):
         account = store.get_stock_account(db, getattr(item, side + '_account_id'))
         value[side + '_account_name'] = account.name
+        value[side + '_account_code'] = account.code
         value[side + '_kind'] = account.kind
+    value['related_transfer_code'] = stock_store.get_transfer(db,item.related_transfer_id).code if item.related_transfer_id else None
     value['lines'] = []
     for line in stock_store.lines(db, item.id):
         sku = stock_store.get_sku(db, line.sku_id)
-        value['lines'].append(dict(id=line.id, sku_id=sku.id, sku_code=sku.code, sku_name=sku.name, unit=sku.unit, quantity=quantity_string(line.quantity)))
+        value['lines'].append(dict(sku_code=sku.code, sku_name=sku.name, unit=sku.unit, quantity=quantity_string(line.quantity)))
     value['snapshot_at'] = now()
     if not detail:
         return value
-    value['confirmations'] = [confirmation_view(c) for c in stock_store.confirmations(db, item.id)]
+    value['confirmations'] = [confirmation_view(db,c) for c in stock_store.confirmations(db, item.id)]
     value['fund_references'] = []
     for reference in stock_store.fund_references(db, item.id):
         fund = store.get_transfer(db, reference.fund_transfer_id)
-        value['fund_references'].append(dict(id=fund.id,status=fund.status,description=fund.description,amount_minor=fund.amount_minor,reversal_of=fund.reversal_of,source_account_id=fund.source_account_id,destination_account_id=fund.destination_account_id))
-    value['related_transfers']=[dict(id=a.id,status=a.status,source_account_id=a.source_account_id,destination_account_id=a.destination_account_id,
-        lines=[dict(sku_id=l.sku_id,sku_code=stock_store.get_sku(db,l.sku_id).code,quantity=quantity_string(l.quantity)) for l in stock_store.lines(db,a.id)]) for a in stock_store.related_transfers(db,item.id)]
-    value['audit'] = [dict(id=a.id, actor_id=a.actor_id, action=a.action, detail=a.detail, created_at=a.created_at, agent_credential_id=a.agent_credential_id, agent_credential_name=a.agent_credential_name) for a in stock_store.audit_events(db, item.id)]
+        value['fund_references'].append(dict(code=fund.code,status=fund.status,description=fund.description,
+            amount_minor=fund.amount_minor,reversal_of_code=store.get_transfer(db,fund.reversal_of).code if fund.reversal_of else None,
+            source_account_code=store.get_account(db,fund.source_account_id).code,
+            destination_account_code=store.get_account(db,fund.destination_account_id).code))
+    value['related_transfers']=[dict(code=a.code,status=a.status,
+        source_account_code=store.get_stock_account(db,a.source_account_id).code,
+        destination_account_code=store.get_stock_account(db,a.destination_account_id).code,
+        lines=[dict(sku_code=stock_store.get_sku(db,l.sku_id).code,quantity=quantity_string(l.quantity)) for l in stock_store.lines(db,a.id)]) for a in stock_store.related_transfers(db,item.id)]
+    value['audit'] = [dict(actor_id=a.actor_id, action=a.action, detail=a.detail, created_at=a.created_at, agent_credential_id=a.agent_credential_id, agent_credential_name=a.agent_credential_name) for a in stock_store.audit_events(db, item.id)]
     return value
 
 
@@ -77,6 +85,9 @@ def approve(db, item, user, mode, *, access=None):
 def submit_transfer(db, user, data, *, access: AgentAccess | None = None, submit_mode: Literal['propose', 'direct'] | None = None):
     authorize_write(db, user, trusted=False)
     apply = auto_apply(user, access=access, submit_mode=submit_mode)
+    data = data | {side + '_account_id': by_code(db,StockAccount,data[side + '_account_code']).id for side in ('source','destination')}
+    data = data | dict(related_transfer_id=by_code(db,StockTransfer,data['related_transfer_code']).id if data.get('related_transfer_code') else None,
+        fund_transfer_ids=[by_code(db,Transfer,code).id for code in data.get('fund_transfer_codes',[])])
     data = data | dict(lines=[dict(sku_id=warehouse_catalogs.sku_by_code(db, line['sku_code']).id,
                                    quantity=line['quantity']) for line in data['lines']])
     lines = validate(db, data)
@@ -129,13 +140,13 @@ def list_transfers(db, status=None, filters=None, page=1, limit=20):
             attention=bool(filters.get('attention')),
             source_account_id=filters.get('source_account_id'),
             destination_account_id=filters.get('destination_account_id'),
-            sku_id=filters.get('sku_id'), page=page, limit=limit)
+            sku_id=filters.get('sku_id'), source_reference=filters.get('source_reference'), page=page, limit=limit)
         return dict(items=[transfer_view(snapshot, item) | dict(snapshot_at=timestamp) for item in items],
                     total=total, page=page, limit=limit, snapshot_at=timestamp)
 
 
-def confirmation_view(item):
-    return {key: getattr(item, key) for key in ('id','transfer_id','actor_id','effective_date','status','approved_by','created_at','submitted_credential_id','submitted_credential_name')}
+def confirmation_view(db,item):
+    return dict(code=item.code,transfer_code=stock_store.get_transfer(db,item.transfer_id).code) | {key: getattr(item, key) for key in ('actor_id','effective_date','status','approved_by','created_at','submitted_credential_id','submitted_credential_name')}
 
 
 def post_completion(db, user, item, confirmation, *, access=None, mode=None):
@@ -152,7 +163,7 @@ def post_completion(db, user, item, confirmation, *, access=None, mode=None):
         stock_store.create(db, StockMove, move | dict(confirmation_id=confirmation.id, effective_date=confirmation.effective_date))
     confirmation.status, confirmation.approved_by = 'completed', user.id
     item.status = 'completed'
-    audit(db, item, user, 'completed', dict(confirmation_id=confirmation.id, effective_date=confirmation.effective_date.isoformat(), mode=mode), access=access)
+    audit(db, item, user, 'completed', dict(confirmation_code=confirmation.code, effective_date=confirmation.effective_date.isoformat(), mode=mode), access=access)
 
 
 def request_completion(db, user, identifier, data, *, access: AgentAccess | None = None, submit_mode: Literal['propose', 'direct'] | None = None):
@@ -163,26 +174,26 @@ def request_completion(db, user, identifier, data, *, access: AgentAccess | None
     if item.status != 'in_transit' or any(c.status == 'pending' for c in stock_store.confirmations(db, item.id)):
         raise DomainError('当前不能申请完成', 409)
     confirmation = stock_store.create(db, StockConfirmation, dict(transfer_id=item.id, actor_id=user.id, effective_date=date.fromisoformat(data['effective_date']), status='pending') | source_fields(access))
-    audit(db, item, user, 'completion_requested', dict(confirmation_id=confirmation.id, effective_date=data['effective_date']), access=access)
+    audit(db, item, user, 'completion_requested', dict(confirmation_code=confirmation.code, effective_date=data['effective_date']), access=access)
     if apply: post_completion(db, user, item, confirmation, access=access, mode='agent_direct' if access else 'automatic')
-    return transfer_view(db, item) | dict(confirmation_id=confirmation.id)
+    return transfer_view(db, item) | dict(confirmation_code=confirmation.code)
 
 
 def decide_completion(db, user, identifier, data, rejection=False, *, access=None):
     authorize_write(db, user)
     require_operator(user, access)
     action = 'reject_completion' if rejection else 'approve_completion'
-    confirmation = db.get(StockConfirmation, identifier)
+    confirmation = by_code(db, StockConfirmation, identifier)
     if confirmation is None: raise DomainError('完成申请不存在', 404)
     store.refresh(db, confirmation)
-    item = get_transfer(db, confirmation.transfer_id)
+    item = stock_store.get_transfer(db, confirmation.transfer_id)
     store.refresh(db, item)
     if confirmation.status != 'pending' or item.status != 'in_transit': raise DomainError('确认状态已变化', 409)
     if rejection:
         if not data['reason'].strip(): raise DomainError('须填写原因')
         confirmation.status = 'rejected'
     else: post_completion(db, user, item, confirmation, access=access, mode='agent_approval' if access else 'manual')
-    audit(db, item, user, action, dict(confirmation_id=confirmation.id, status=confirmation.status, reason=data.get('reason')), access=access)
+    audit(db, item, user, action, dict(confirmation_code=confirmation.code, status=confirmation.status, reason=data.get('reason')), access=access)
     return transfer_view(db, item)
 
 
@@ -200,7 +211,14 @@ def list_moves_page(db, filters=None, page=1, limit=20, *, descending=False):
         for move in moves:
             confirmation = snapshot.get(StockConfirmation,move.confirmation_id)
             sku = stock_store.get_sku(snapshot,move.sku_id)
-            result.append({key: getattr(move, key) for key in ('id','confirmation_id','transfer_line_id','sku_id','source_account_id','destination_account_id','effective_date','created_at')} | dict(sku_code=sku.code,posted_at=move.created_at,quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,stock_transfer_id=confirmation.transfer_id,snapshot_at=timestamp))
+            result.append(dict(confirmation_code=confirmation.code,stock_transfer_code=stock_store.get_transfer(snapshot,confirmation.transfer_id).code,
+                source_account_code=store.get_stock_account(snapshot,move.source_account_id).code,
+                destination_account_code=store.get_stock_account(snapshot,move.destination_account_id).code,
+                effective_date=move.effective_date,created_at=move.created_at,sku_code=sku.code,posted_at=move.created_at,
+                quantity=quantity_string(move.quantity),sku_name=sku.name,unit=sku.unit,
+                source_account_name=store.get_stock_account(snapshot,move.source_account_id).name,
+                destination_account_name=store.get_stock_account(snapshot,move.destination_account_id).name,
+                applicant_id=confirmation.actor_id,executor_id=confirmation.approved_by,snapshot_at=timestamp))
         return dict(items=result, total=total, page=page, limit=limit, snapshot_at=timestamp)
 
 
@@ -212,9 +230,9 @@ def add_fund_reference(db, user, identifier, data, *, access=None):
     authorize_write(db, user)
     require_operator(user, access)
     item = get_transfer(db, identifier)
-    fund_id = data['fund_transfer_id']
-    if store.get_transfer(db, fund_id) is None: raise DomainError('资金引用不存在', 404)
-    if db.get(StockTransferFundReference, (identifier, fund_id)) is None:
-        stock_store.create(db, StockTransferFundReference, dict(stock_transfer_id=identifier, fund_transfer_id=fund_id))
-        audit(db, item, user, 'fund_reference_added', dict(fund_transfer_id=fund_id), access=access)
+    fund = by_code(db,Transfer,data['fund_transfer_code'])
+    fund_id = fund.id
+    if db.get(StockTransferFundReference, (item.id, fund_id)) is None:
+        stock_store.create(db, StockTransferFundReference, dict(stock_transfer_id=item.id, fund_transfer_id=fund_id))
+        audit(db, item, user, 'fund_reference_added', dict(fund_transfer_code=fund.code), access=access)
     return transfer_view(db, item)

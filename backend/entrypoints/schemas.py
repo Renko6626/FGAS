@@ -15,13 +15,13 @@ class Login(Input): user_id: str
 class AccountCreate(Input):
     name: str = Field(min_length=1,max_length=200)
     kind: Literal['public','private','external']
-    member_id: str | None = None
+    member_code: str | None = None
     avatar_url: str | None = None
     tags: list[str] = Field(default_factory=list)
     active: bool = True
 class AccountPatch(Input):
     name: str | None = Field(default=None,min_length=1,max_length=200)
-    member_id: str | None = None
+    member_code: str | None = None
     avatar_url: str | None = None
     tags: list[str] | None = None
     active: bool | None = None
@@ -45,8 +45,8 @@ class UserPatch(Input):
     role: Literal['admin', 'trusted', 'untrusted'] | None = None
     active: bool | None = None
 class Preview(Input):
-    source_account_id: str
-    destination_account_id: str
+    source_account_code: str
+    destination_account_code: str
     amount: str
     effective_date: date
     description: str = ''
@@ -66,7 +66,7 @@ class MemberPatch(Input):
     note: str | None = None
 
 class SettlementAllocation(Input):
-    item_transfer_id: str
+    item_transfer_code: str
     amount: str
 class SettlementMatches(Input):
     allocations: list[SettlementAllocation] = Field(min_length=1)
@@ -77,14 +77,14 @@ class StockLineInput(Input):
     sku_code: str = Field(min_length=1)
     quantity: str
 class StockTransferInput(Input):
-    source_account_id: str
-    destination_account_id: str
+    source_account_code: str
+    destination_account_code: str
     effective_date: date
     description: str = ''
     tags: list[str] = Field(default_factory=list)
-    related_transfer_id: str | None = None
+    related_transfer_code: str | None = None
     source_reference: str | None = None
-    fund_transfer_ids: list[str] = Field(default_factory=list)
+    fund_transfer_codes: list[str] = Field(default_factory=list)
     lines: list[StockLineInput] = Field(min_length=1)
 class StockApproval(Input):
     pass
@@ -93,7 +93,7 @@ class StockRejection(StockApproval):
 class CompletionInput(Input):
     effective_date: date
 class StockFundReferenceInput(Input):
-    fund_transfer_id: str
+    fund_transfer_code: str
 
 class StockOperationInput(Input):
     stock: StockTransferInput
