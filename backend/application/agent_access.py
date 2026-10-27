@@ -51,7 +51,7 @@ def resolve(db, bearer: str) -> AgentAccess:
 
 def require_high(access: AgentAccess) -> None:
     if access.level != 'high' or not access.user.active or access.user.role != 'admin':
-        raise DomainError('需要高权限连接及有效管理员身份', 403)
+        raise DomainError('当前连接不能直接办理，需要有效管理员身份和 high 连接。后续可由具备相应权限的人工登录网页办理，或由用户已授权的 high Agent 使用合法 high MCP 连接办理。', 403)
 
 
 def validate_actor(user: User, access: AgentAccess | None) -> None:

@@ -253,7 +253,7 @@ def describe(topic, resource, selected, action=None, detail=False, *, include_ou
 def help_data(level, *, topic, resource=None, action=None, include_output_schema=False):
     """On-demand contracts, independent of any client discovery implementation."""
     if topic == 'execute' and level != 'high':
-        raise DomainError('当前连接只能查询或提交待审申请，没有直接办理权限', 403)
+        raise DomainError('当前连接只能查询或提交待审申请，不能直接办理。后续可由具备相应权限的人工登录网页办理，或由用户已授权的 high Agent 使用合法 high MCP 连接办理。', 403)
     if topic not in ('query', 'propose', 'execute'):
         invalid('topic', '请选择 query、propose 或 execute 查看契约', help_call('overview'))
     if topic != 'execute' and action is not None:
