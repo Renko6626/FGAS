@@ -18,11 +18,11 @@
 
 ## 软件检查及数据库范围
 
-用户确认直接同步现有 Alembic `0001` 基线，不新增 revision、不迁移或回填旧库；日常 `fgas` 未改。主 agent 在备份后显式指定 `fgas_test` 执行 `./tools/run_tests.sh`，结果 **84 passed in 34.60s**，日志位于 `.superpowers/sdd/2026-10-27-agent-access-implementation/final-backend.log`。后续 v8/v9 仅调整帮助、拒绝消息与指南版本，相关已有权限检查 5 passed、静态 help 检查 3 passed；最新 `npm run build`，TypeScript 检查和 Vite 生产构建通过；主 JS 约 546 kB，保留已有超过 500 kB 的提示。Task 1–4 独立审阅均通过。没有进行浏览器自动交互、生产部署、真实 Casdoor/HTTPS 或备份恢复验收。
+用户确认直接同步现有 Alembic `0001` 基线，不新增 revision、不迁移或回填旧库；日常 `fgas` 未改。主 agent 在备份后显式指定 `fgas_test` 执行 `./tools/run_tests.sh`，结果 **84 passed in 34.60s**，日志位于 `.runtime/benchmarks/gensokyo-circle-v1/runs/luna-high-codes-20261027/software-backend.log`。后续 v8/v9 仅调整帮助、拒绝消息与指南版本，相关已有权限检查 5 passed、静态 help 检查 3 passed；最新 `npm run build`，TypeScript 检查和 Vite 生产构建通过；主 JS 约 546 kB，保留已有超过 500 kB 的提示。Task 1–4 独立审阅均通过。没有进行浏览器自动交互、生产部署、真实 Casdoor/HTTPS 或备份恢复验收。
 
 ## 新轮定向真实模型复测
 
-新轮私有运行目录：`.runtime/benchmarks/gensokyo-circle-v1/runs/luna-high-codes-20261027`。主 agent 负责基准库备份、重置、加载及真实调用；本页只记录经核对并可公开的摘要，不包含密钥、客户端配置、原始提示或事件。拟核对 C01、L02、F02–F05、X01/X02 两档、H02 和涉及编号的审批、匹配、完成主链。每个独立写任务恢复基线；正常补问续接保留该轮基线。判定同时看实际账本变化、回答语义、参数失败、工具调用数、耗时和人工步骤，不能以退出码或数据加载成功代替模型验收。
+新轮私有运行目录：`.runtime/benchmarks/gensokyo-circle-v1/runs/luna-high-codes-20261027`。主 agent 负责基准库备份、重置、加载及真实调用；本页只记录经核对并可公开的摘要，不包含密钥、客户端配置、原始提示或事件。实际覆盖 C01、L02、F02–F04、F05 admin-low/high、X01/X02 low/high、H02、H03，以及其中涉及编号的审批、匹配、完成主链。每个独立写任务恢复基线；正常补问续接保留该轮基线。判定同时看实际账本变化、回答语义、参数失败、工具调用数、耗时和人工步骤，不能以退出码或数据加载成功代替模型验收。
 
 本轮仍使用 `gpt-5.6-luna`、high 推理强度、Codex CLI 0.160.0 和原生 MCP。版本 v7 为功能集成后的指南；v8（`09e3871`）补充权限不足时完整交接；v9（`39bfddb`）进一步限制从局部收支推断利润。表中按每个场景的最新选定轮次判定，账本状态和回答语义分别审核。`verification.json` 的 state passed 或 CLI 退出 0 均不能代替回答验收。
 
@@ -48,6 +48,6 @@
 
 ## 收尾与验收边界
 
-主 agent 已完成最终 `reset/check`（`final-reset.log` exit 0），先备份 `backup-20261027T091011131428Z.dump` 再恢复干净基准：公账16100、正式库存297、外部计划120、内部调拨10、待审批完成申请0，保留4个新基线连接。旧试用密钥随重建失效；不能写成所有凭据均停用。临时API 10624与前端5194监听已停止。`client-cleanup.json` 确认全局配置SHA未变及临时MCP profile/密钥配置已删除；C01唯一所需人工步骤为按客户端要求重开一次会话。最终状态证据由主 agent 核对，不在仓库复制私有配置或密钥。
+主 agent 已完成最终 `reset/check`（`final-reset.log` exit 0），先备份 `backup-20261027T091011131428Z.dump` 再恢复干净基准：公账16100、正式库存297、外部计划120、内部调拨10、组织对外出库计划0，保留4个新基线连接。旧试用密钥随重建失效；不能写成所有凭据均停用。临时API 10624与前端5194监听已停止。`client-cleanup.json` 确认全局配置SHA未变及临时MCP profile/密钥配置已删除；C01唯一所需人工步骤为按客户端要求重开一次会话。最终状态证据由主 agent 核对，不在仓库复制私有配置或密钥。
 
 本次交付实现完成，保留人工入口和权限措辞两项回答缺口；未新增确定性交接机制或继续无止境复测。未做完整26场景重测、浏览器点击/填表、生产部署、真实SSO/外网HTTPS或备份恢复验收。软件检查、真实状态核对、回答语义和生产验收是不同证据。
