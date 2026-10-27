@@ -47,7 +47,7 @@ const paymentOptions = computed(() =>
           : p.transfer.source_account_code === props.account.code),
     )
     .map((p) => ({
-      label: `${p.transfer.effective_date}，${p.transfer.source_account_name} → ${p.transfer.destination_account_name}，¥${money(p.transfer.amount_minor)}，未匹配 ¥${money(p.unmatched_minor)}`,
+      label: `${p.transfer.code}，${p.transfer.effective_date}，${p.transfer.source_account_name} → ${p.transfer.destination_account_name}，¥${money(p.transfer.amount_minor)}，未匹配 ¥${money(p.unmatched_minor)}`,
       value: p.transfer.code,
     })),
 );
@@ -64,7 +64,7 @@ function renderPaymentLabel(option: SelectOption) {
   if (!payment) return String(option.label ?? option.value);
   const transfer = payment.transfer;
   return h("span", { class: "payment-option" }, [
-    h("span", `${transfer.effective_date}，`),
+    h("span", `${transfer.code}，${transfer.effective_date}，`),
     h(AccountRoute, {
       accounts: props.accounts,
       sourceId: transfer.source_account_code,
@@ -200,6 +200,7 @@ async function save() {
             placeholder="选择已有结算转移"
         /></label>
         <div v-if="selectedPayment" class="payment-route">
+          <p>{{ selectedPayment.transfer.code }}</p>
           <AccountRoute
             :accounts="accounts"
             :source-id="selectedPayment.transfer.source_account_code"
@@ -230,7 +231,9 @@ async function save() {
           <tbody>
             <tr v-for="item in items" :key="item.transfer.code">
               <td>
-                <p class="item-date">{{ item.transfer.effective_date }}</p>
+                <p class="item-date">
+                  {{ item.transfer.effective_date }}（{{ item.transfer.code }}）
+                </p>
                 <AccountRoute
                   :accounts="accounts"
                   :source-id="item.transfer.source_account_code"
@@ -255,7 +258,7 @@ async function save() {
                   :disabled="busy"
                   placeholder="留空不匹配"
                   :input-props="{
-                    'aria-label': `${item.transfer.effective_date} ${item.transfer.description || item.transfer.source_account_name + ' → ' + item.transfer.destination_account_name} 本次匹配金额`,
+                    'aria-label': `${item.transfer.code} ${item.transfer.effective_date} ${item.transfer.description || item.transfer.source_account_name + ' → ' + item.transfer.destination_account_name} 本次匹配金额`,
                   }"
                   @update:value="allocations[item.transfer.code] = $event"
                 />

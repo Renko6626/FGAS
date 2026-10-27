@@ -158,6 +158,7 @@ async function submit() {
           />
           <span v-else class="empty-avatar" aria-hidden="true">＋</span>
           <strong>{{ source?.name || "选择来源" }}</strong>
+          <small v-if="source">{{ source.code }}</small>
         </button>
         <NButton text :disabled="busy" @click="openPicker('source')">{{
           source ? "更换账户" : "选择账户"
@@ -193,6 +194,7 @@ async function submit() {
           />
           <span v-else class="empty-avatar" aria-hidden="true">＋</span>
           <strong>{{ destination?.name || "选择去向" }}</strong>
+          <small v-if="destination">{{ destination.code }}</small>
         </button>
         <NButton text :disabled="busy" @click="openPicker('destination')">{{
           destination ? "更换账户" : "选择账户"
@@ -289,7 +291,7 @@ async function submit() {
       <NInput
         v-model:value="search"
         clearable
-        placeholder="搜索名称或联系人"
+        placeholder="搜索编号、名称或联系人"
         :input-props="{ 'aria-label': '搜索账户' }"
       />
       <NSelect
@@ -311,6 +313,7 @@ async function submit() {
       >
         <AccountAvatar :name="account.name" :url="account.avatar_url" />
         <strong>{{ account.name }}</strong>
+        <small>{{ account.code }}</small>
         <span>{{ kinds[account.kind] }}</span>
       </button>
     </div>

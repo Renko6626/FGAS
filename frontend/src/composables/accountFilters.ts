@@ -11,6 +11,6 @@ export function matchesAccountFilters(account: AccountBase, filters: AccountFilt
     (filters.showEnded || account.stocktake?.status !== "ended") &&
     (!filters.category || account.kind === filters.category) &&
     (!filters.tag || account.tags.includes(filters.tag)) &&
-    (!query || [account.name, account.member_name || "", ...account.tags]
+    (!query || [account.code, account.name, account.member_name || "", ...account.tags]
       .some(value => value.toLocaleLowerCase().includes(query)));
 }
