@@ -4,7 +4,7 @@
 
 2026-10-27 起，资金与货物盘点暂时停用：隐藏网页入口，HTTP 返回 404，MCP 不再提供盘点资源；原实现与表保留。期初及账面调整仍可登记普通转移。历史余额／库存默认按实际入账时间查询，业务日期仅作明确指定的备选口径。本轮开发数据已按用户确认备份后重建。
 
-业务模型见 [transfer-model](docs/transfer-model.md)，架构见 [architecture](architecture.md)，实际验证状态见 [阶段记录](docs/prototype-status.md)。截至 2026-10-25，资金、结算、库存、薄盘点、首页、身份管理及 MCP v2 已实现；现状检查的后端 65 项测试与前端构建通过，生产验收仍未完成。
+业务模型见 [transfer-model](docs/transfer-model.md)，架构见 [architecture](architecture.md)，实际验证状态见 [阶段记录](docs/prototype-status.md)。资金、结算、库存、首页、身份管理及 MCP v2 已实现；薄盘点代码保留但入口暂停。当前分支后端 84 项测试与前端构建通过，定向真实模型复测和生产验收见阶段记录。
 
 ## 本地开发
 
@@ -21,7 +21,7 @@ npm run dev
 
 后端默认 `127.0.0.1:10622`，前端 `5173`，通过 `/api` 代理。认证由 `AUTH_MODE` 切换：本地开发使用 `development` 的账号选择；正式环境使用 `casdoor`，通过既有 Casdoor OIDC 登录。Casdoor 首次登录自动建立本地用户，默认普通用户，角色由管理员在“用户权限”中维护；`INITIAL_ADMIN_SUBJECT` 只在首次建号时把匹配的 Casdoor `sub` 或用户名绑定为管理员。三档角色为管理员、受信任用户、普通用户。
 
-数据库 schema 由 Alembic 管理，当前基线是 `0001_baseline_schema`。`npm run db:init` 会执行 `alembic upgrade head` 并写入开发种子；`npm run dev` 启动前也会 upgrade。已有 FGAS 表但没有 `alembic_version` 的旧库会被明确拒绝，必须先备份并收养或重建，不能回到 `create_all`。修改模型后生成新的 revision，不要手写升级 SQL；完整流程见 [数据库迁移](docs/migrations.md)。
+数据库 schema 由 Alembic 管理，当前基线是 `0001_baseline_schema`。`npm run db:init` 会执行 `alembic upgrade head` 并写入开发种子；`npm run dev` 启动前也会 upgrade。已有 FGAS 表但没有 `alembic_version` 的旧库会被明确拒绝，必须先备份并收养或重建，不能回到 `create_all`。本轮业务编号经用户确认直接同步 `0001`，不新增 revision、迁移或回填旧库；日常 `fgas` 未改，旧库不能直接沿用新契约。此后模型变更应新增 revision；完整流程见 [数据库迁移](docs/migrations.md)。
 
 历史 [scripts/upgrade-agent-access.sql](scripts/upgrade-agent-access.sql)、[scripts/upgrade-user-auth.sql](scripts/upgrade-user-auth.sql)、[scripts/upgrade-posted-at.sql](scripts/upgrade-posted-at.sql) 仅用于收养基线前旧库：备份、执行、校验 schema 后 `alembic stamp 0001`。可丢弃的旧库直接重建即可。种子有开发用户、公账资金池、外部收支/期初账户、公账主存放处，没有业务流水，也不为成员自动开私账。
 
@@ -44,7 +44,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 
 ## 账户与标签
 
-资金表 `fund_accounts`、货物表 `stock_accounts` 共用 `id/name/kind/avatar_url/tags/active`。资金类型为 `public/private/external`；货物仅为 `internal`（实际保管）或 `external`（外部），均在创建后固定。资金联系人可空；货物的 `member_id/member_name` 来自当前负责人历史。图片为空或加载失败时显示名称首字，按名称生成稳定的浅背景、深文字配色。SKU 也保存可空 `avatar_url`，可在货物目录中维护缩略图 URL；货物账户复用同名字段。
+资金表 `fund_accounts`、货物表 `stock_accounts` 公开目录共用 `code/name/kind/avatar_url/tags/active`。资金类型为 `public/private/external`；货物仅为 `internal`（实际保管）或 `external`（外部），均在创建后固定。资金联系人可空；货物公开的 `member_code/member_name` 来自当前负责人历史。图片为空或加载失败时显示名称首字，按名称生成稳定的浅背景、深文字配色。SKU 也保存可空 `avatar_url`，可在货物目录中维护缩略图 URL；货物账户复用同名字段。
 
 资金公账合计只计 `public`；私账正数应交回、负数社团应偿还。货物 `internal` 计组织库存，成员长期代管同样属于实际保管；外部账户不计入。资金账户可关联联系人；货物账户只维护一名负责人，变更自动保留历史。
 
@@ -66,30 +66,30 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 | `/agent-credentials/{id}/secret` | 本人通过 Cookie 会话再次查看连接密钥，管理员不能查看他人的密钥 |
 | `/users`、`/users/{id}` | 管理员查看用户、修改角色和启停；最后一名启用管理员受保护 |
 | `/users/{id}/logout` | 管理员强制撤销该用户全部网页会话 |
-| `/members`、`/members/{id}` | 联系人目录，列表/创建/修改；不自动建账 |
-| `/accounts`、`/accounts/{id}` | 资金账户列表/创建/修改 |
-| `/stock-accounts`、`/stock-accounts/{id}` | 货物账户列表/创建/修改 |
-| `/stock-accounts/{id}` | 货物账户详情含负责人历史；编辑 member_id 更改负责人，null 清空 |
+| `/members`、`/members/{code}` | 联系人目录，列表/创建/修改；不自动建账 |
+| `/accounts`、`/accounts/{code}` | 资金账户列表/创建/修改 |
+| `/stock-accounts`、`/stock-accounts/{code}` | 货物账户列表/创建/修改 |
+| `/stock-accounts/{code}` | 货物账户详情含负责人历史；编辑 member_code 更改负责人，null 清空 |
 | `/skus`、`/skus/{code}` | SKU目录，代号唯一；按code/q/tag/active查询，已引用后单位固定 |
-| `/transfers/preview`、`/transfers`、`/transfers/{id}` | 资金转移预览/提交/列表/详情 |
-| `/transfers/{id}/approve`、`reject`、`reverse` | 资金审批、拒绝、冲销 |
+| `/transfers/preview`、`/transfers`、`/transfers/{code}` | 资金转移预览/提交/列表/详情 |
+| `/transfers/{code}/approve`、`reject`、`reverse` | 资金审批、拒绝、冲销 |
 | `/funds/summary` | 公账合计 |
 | `/dashboard` | 首页汇总：公账余额、组织库存、按实际入账时间统计的近 7 天变化、近期转移和待办计数 |
-| `/accounts/{id}/settlement-overview` | 私账净余额、原收支及逐笔结算情况 |
-| `/settlement-outstanding` | 全局已过账未匹配明细；按 account_id、direction=expense/receipt、kind=item/payment 筛选并分页，不限近30天 |
-| `/settlements` | 创建普通结算付款并匹配，`{transfer,allocations:[{item_transfer_id,amount}]}` |
-| `/transfers/{id}/settlement-matches` | 向已有付款追加上述匹配 |
-| `/stock-transfers`、`/stock-transfers/{id}` | 多 SKU 货物转移创建/列表/详情 |
-| `/stock-transfers/{id}/approve`、`reject`、`cancel` | 货物审批、拒绝、取消 |
-| `/stock-transfers/{id}/completion` | 整笔完成申请，仅 `{effective_date}` |
-| `/stock-confirmations/{id}/approve`、`reject` | 完成申请审批 |
-| `/stock-transfers/{id}/fund-references` | 补充已有资金引用 |
+| `/accounts/{code}/settlement-overview` | 私账净余额、原收支及逐笔结算情况 |
+| `/settlement-outstanding` | 全局已过账未匹配明细；按 account_code、direction=expense/receipt、kind=item/payment 筛选并分页，不限近30天 |
+| `/settlements` | 创建普通结算付款并匹配，`{transfer,allocations:[{item_transfer_code,amount}]}` |
+| `/transfers/{code}/settlement-matches` | 向已有付款追加上述匹配 |
+| `/stock-transfers`、`/stock-transfers/{code}` | 多 SKU 货物转移创建/列表/详情 |
+| `/stock-transfers/{code}/approve`、`reject`、`cancel` | 货物审批、拒绝、取消 |
+| `/stock-transfers/{code}/completion` | 整笔完成申请，仅 `{effective_date}` |
+| `/stock-confirmations/{code}/approve`、`reject` | 完成申请审批 |
+| `/stock-transfers/{code}/fund-references` | 补充已有资金引用 |
 | `/stock-operations` | `{stock,money}` 一次事务创建货物和普通资金转移 |
-| `/inventory`、`/stock-moves` | 正式数量查询；库存支持账户、SKU、负责人筛选 |
+| `/inventory`、`/stock-moves` | 正式数量及货物流水查询；库存支持账户、SKU、负责人筛选，当前计划按流入/流出及组织进出/内部调拨区分 |
 | `/fund-stocktakes`、`/stock-stocktakes` | 薄盘点列表/创建 |
 | 上述盘点路径加 `/{id}`、`/{id}/end` | 详情/修改说明/结束 |
 
-账户列表支持`tag/kind/member_id`，两类转移列表支持单个tag。SKU有必填唯一code（如ARC-01-A），完整name包含款式规格，tags可标类别和角色；录单lines使用`{sku_code,quantity}`，库存/货物/数量流水按sku_code筛选，业务不必使用商品UUID。代号去首尾空格、转大写后去重，重复返回409。金额输入是元字符串、库内整数分；数量为正整数字符串。资金Transfer输入来源/去向、金额、业务日期、说明及标签；货物另含多SKU lines、原单/原始单据和资金引用。
+账户列表支持`tag/kind/member_code`，两类转移列表支持单个tag。资金账户、货物账户、联系人、资金单、货物单和完成申请使用自动、不可编辑的 FA/SA/M/FT/ST/SC 编号；公开业务输入、输出、筛选及路径使用 `code` 或 `*_code`，内部 UUID 仅用于关联。SKU有必填唯一code（如ARC-01-A），完整name包含款式规格，tags可标类别和角色；录单lines使用`{sku_code,quantity}`，库存/货物/数量流水按sku_code筛选。代号去首尾空格、转大写后去重，重复返回409。金额输入是元字符串、库内整数分；数量为正整数字符串。资金Transfer输入来源/去向、金额、业务日期、说明及标签；货物另含多SKU lines、原单/原始单据和资金引用。
 
 资金普通转移由可信用户自动批准过账，普通用户待人工审批。货物批准后在途，额外整笔完成才记数量；普通用户的完成申请也需审批。拒绝/取消/冲销填写原因，正式流水不能覆盖改写。货物实际账户出库不得造成负库存，两个外部货物账户间不转移。用途不再强制匹配供应商、客户或动作枚举。
 
@@ -144,6 +144,6 @@ OpenCode 的 `opencode.json` 使用标准远程配置，依据 [官方 MCP 文�
 }
 ```
 
-成功连接后阅读初始化的核心模型说明，用 `fgas_help()` 查看当前权限与索引，再按需查某一对象/动作的精确输入参数和示例；需要完整输出 Schema 时加 `include_output_schema=true`。状态等枚举以帮助声明为准，已知参数可直接调用。`fgas_propose` 对两档始终 pending；`fgas_execute` 仅 high 使用，资金直接过账，货物创建只进在途，另行完成才记库存。调用成功保存返回 ID；断线后查记录并人工核对，不自动重发。结果、查询分页和 Patch 规则以帮助契约与指南为准。
+成功连接后阅读初始化的核心模型说明，用 `fgas_help()` 查看权限与索引，再用 `fgas_query({"resource":"me"})` 核对真实用户角色及当前连接等级，并做一次正常只读查询。按需查某一对象/动作的精确参数；完整输出 Schema 用 `include_output_schema=true`。`fgas_propose` 对两档始终 pending；`fgas_execute` 仅 high 使用，资金直接过账，货物创建只进在途，整笔完成才记库存。调用成功保存业务编号；断线后查记录并人工核对，不自动重发。低权限交接可并列给人工网页与用户已授权的 high Agent，附业务编号和现状。详情见 [Agent 指南](docs/ai/guide.md)。
 
 从 v1 升级：原50个工具名已移除执行能力，只返回迁移提示。MCP 地址和凭据沿用，客户端需重新发现工具，硬编码旧名称的脚本需改为四入口；返回 `api_version=2`。没有数据库变更。当前仍未正式发布，实际验证与未做项见阶段记录。
