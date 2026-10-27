@@ -5,7 +5,7 @@ import { type Account } from "../api/accounts";
 import TransferFilters from "../components/TransferFilters.vue";
 import TransferRecords from "../components/TransferRecords.vue";
 import PaginationBar from "../components/PaginationBar.vue";
-import { emptyFundFilters, fundDateError, hasFundFilters } from "../composables/transferFilters";
+import { emptyFundFilters, transferDateError, hasFundFilters } from "../composables/transferFilters";
 const props = defineProps<{
   accounts: Account[];
   approvals: boolean;
@@ -30,11 +30,11 @@ const error = ref("");
 const hasFilters = computed(() => hasFundFilters(filters.value));
 let filterTimer: number | undefined;
 async function load() {
-  if (fundDateError(filters.value))
+  if (transferDateError(filters.value))
     return;
   loading.value = true;
   try {
-    const { search, status, tag, dateFrom, dateTo } = filters.value;
+    const { search, status, tag, dateFrom, dateTo, sort } = filters.value;
     const result = await fundsApi.transfers({
       page: page.value,
       limit: limit.value,
@@ -43,6 +43,7 @@ async function load() {
       q: search.trim() || undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
+      sort,
     });
     items.value = result.items;
     total.value = result.total;
@@ -75,7 +76,7 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
 </script>
 
 <template>
-  <TransferFilters v-model="filters" :items="items" :approvals="approvals" :count="total" />
+  <TransferFilters v-model="filters" :items="items" :approvals="approvals" :count="total" :hide-create="hideCreate" @create="emit('create')" />
   <TransferRecords :target-code="targetCode" :items="items" :accounts="accounts" :approvals="approvals" :trusted="trusted"
     :hide-create="hideCreate" :has-filters="hasFilters" :loading="loading" :error="error"
     @changed="emit('changed')" @notice="emit('notice', $event)" @create="emit('create')" @reset="filters = emptyFundFilters()" />

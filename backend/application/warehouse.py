@@ -172,7 +172,7 @@ def request_completion(db, user, identifier, data, *, access: AgentAccess | None
     item = get_transfer(db, identifier)
     store.refresh(db, item)
     if item.status != 'in_transit' or any(c.status == 'pending' for c in stock_store.confirmations(db, item.id)):
-        raise DomainError('当前不能申请完成', 409)
+        raise DomainError('当前不能办理完成操作', 409)
     confirmation = stock_store.create(db, StockConfirmation, dict(transfer_id=item.id, actor_id=user.id, effective_date=date.fromisoformat(data['effective_date']), status='pending') | source_fields(access))
     audit(db, item, user, 'completion_requested', dict(confirmation_code=confirmation.code, effective_date=data['effective_date']), access=access)
     if apply: post_completion(db, user, item, confirmation, access=access, mode='agent_direct' if access else 'automatic')
@@ -184,7 +184,7 @@ def decide_completion(db, user, identifier, data, rejection=False, *, access=Non
     require_operator(user, access)
     action = 'reject_completion' if rejection else 'approve_completion'
     confirmation = by_code(db, StockConfirmation, identifier)
-    if confirmation is None: raise DomainError('完成申请不存在', 404)
+    if confirmation is None: raise DomainError('完成报告不存在', 404)
     store.refresh(db, confirmation)
     item = stock_store.get_transfer(db, confirmation.transfer_id)
     store.refresh(db, item)

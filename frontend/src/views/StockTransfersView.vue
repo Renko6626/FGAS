@@ -7,7 +7,7 @@ import { warehouse, type StockTransfer } from "../api/warehouse";
 import StockTransferFilters from "../components/StockTransferFilters.vue";
 import StockTransferRecords from "../components/StockTransferRecords.vue";
 import PaginationBar from "../components/PaginationBar.vue";
-import { emptyStockFilters } from "../composables/transferFilters";
+import { emptyStockFilters, transferDateError } from "../composables/transferFilters";
 const props = defineProps<{
   locations: StockAccount[];
   trusted: boolean;
@@ -20,10 +20,11 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   changed: [];
+  create: [];
 }>();
 const records = ref<InstanceType<typeof StockTransferRecords> | null>(null);
 const items = ref<StockTransfer[]>([]);
-const filters = ref({ ...emptyStockFilters(), status: props.initialStatus || null });
+const filters = ref({ ...emptyStockFilters(), status: props.initialStatus || (props.approvals ? null : "in_transit") });
 const page = ref(1);
 const limit = ref(20);
 const total = ref(0);
@@ -31,9 +32,10 @@ const loading = ref(false);
 const error = ref("");
 let filterTimer: number | undefined;
 async function load() {
+  if (transferDateError(filters.value)) return;
   loading.value = true;
   try {
-    const { search, status, tag, skuCode } = filters.value;
+    const { search, status, tag, skuCode, dateFrom, dateTo } = filters.value;
     const result = await warehouse.transfers({
       page: page.value,
       limit: limit.value,
@@ -41,6 +43,8 @@ async function load() {
       tag: tag || undefined,
       sku_code: skuCode || undefined,
       q: search.trim() || undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
     });
     items.value = result.items;
     total.value = result.total;
@@ -74,10 +78,10 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
 
 <template>
   <div v-if="approvals" class="toolbar">
-    <h2>货物审批与完成申报</h2>
+    <h2>货物待处理</h2>
     <NButton :disabled="records?.busy" @click="emit('changed')">刷新</NButton>
   </div>
-  <StockTransferFilters v-model="filters" :approvals="approvals" :count="total" />
+  <StockTransferFilters v-model="filters" :approvals="approvals" :count="total" :trusted="trusted" @create="emit('create')" />
   <StockTransferRecords :target-code="targetCode" ref="records" :items="items" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
     :approvals="approvals" :loading="loading" :error="error" @changed="emit('changed')" />
   <PaginationBar :page="page" :limit="limit" :total="total" @update:page="page = $event" @update:limit="limit = $event" />

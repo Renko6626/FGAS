@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { NButton, NInput, NModal } from "naive-ui";
+import { NButton, NInput, NDrawer, NDrawerContent } from "naive-ui";
 import { fundsApi, type Transfer } from "../api/funds";
 import { money, statuses } from "../presentation/funds";
 import { approvalLabel, actionNames } from "../presentation/audit";
@@ -88,16 +88,15 @@ defineExpose({ open });
 </script>
 
 <template>
-  <NModal
+  <NDrawer
     :show="!!detail"
-    preset="card"
-    :title="approvals ? '资金审批' : '资金流水'"
-    class="dialog ledger-dialog"
-    :closable="!busy"
+    :width="620"
+    style="max-width: 100vw"
     :mask-closable="!busy"
     :close-on-esc="!busy"
-    @close="detail = null"
+    @update:show="show => { if (!show && !busy) detail = null; }"
   >
+    <NDrawerContent :title="approvals ? '资金审批' : '资金流水详情'" :closable="!busy" body-content-class="fund-detail-body">
     <template v-if="detail">
       <div class="ledger-detail-heading">
         <strong>¥ {{ money(detail.amount_minor) }}</strong
@@ -237,7 +236,8 @@ defineExpose({ open });
         >
       </div>
     </template>
-  </NModal>
+    </NDrawerContent>
+  </NDrawer>
 </template>
 
 <style scoped>
@@ -248,13 +248,13 @@ defineExpose({ open });
   gap: 16px;
 }
 .ledger-detail-heading > strong {
-  font-size: 36px;
-  font-weight: normal;
+  font-size: 30px;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
-  font-family: "YanSong", SimSun, serif;
+  font-family: inherit;
 }
 .ledger-detail-route {
-  font-size: 18px;
+  font-size: 14px;
   margin: 12px 0 24px;
   overflow-wrap: anywhere;
 }

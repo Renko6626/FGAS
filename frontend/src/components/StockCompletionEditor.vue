@@ -44,12 +44,12 @@ async function save() {
       error = '';
       show = true;
     "
-    >{{ trusted ? "确认完成" : "申报已完成" }}</NButton
+    >{{ trusted ? "确认完成" : "报告已完成" }}</NButton
   >
   <NModal
     v-model:show="show"
     preset="card"
-    :title="trusted ? '确认整条转移已完成' : '申报整条转移已完成'"
+    :title="trusted ? '确认完成' : '报告整笔转移已完成'"
     class="dialog"
     :mask-closable="!busy"
     :closable="!busy"
@@ -96,12 +96,12 @@ async function save() {
       </table>
     </div>
     <label>完成日期<input v-model="date" type="date" :disabled="busy" /></label>
-    <p v-if="!trusted">申报提交后等待受信任用户审阅，批准后记录库存。</p>
+    <p v-if="!trusted">提交后等待有权限的人核实并确认，转移仍待完成，库存不变。</p>
     <p v-if="error" class="error">{{ error }}</p>
     <div class="actions">
       <NButton :disabled="busy" @click="show = false">关闭</NButton
       ><NButton type="primary" :loading="busy" :disabled="busy" @click="save">{{
-        trusted ? "确认整条转移已完成" : "提交完成申报"
+        trusted ? "确认完成" : "提交完成报告"
       }}</NButton>
     </div>
   </NModal>

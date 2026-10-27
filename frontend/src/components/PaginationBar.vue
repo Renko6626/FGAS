@@ -60,4 +60,10 @@ const sizes = [20, 50, 100].map((value) => ({ label: `${value} 条/页`, value }
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+@media (max-width: 700px) {
+  .pagination-actions { width:100%; flex-wrap:wrap; gap:6px; }
+  .pagination-actions :deep(.n-button) { min-width:54px; }
+  .pagination-size { width:96px; }
+  .pagination-position { min-width:44px; }
+}
 </style>

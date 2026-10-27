@@ -2,7 +2,7 @@
 
 2026-10-14 建立自由账户与 Transfer 架构，当前状态核对至 2026-10-25。模块化单体，单社团、人民币、独立实例。业务定义见 [Transfer 模型](docs/transfer-model.md)，实施边界见 [实施计划](docs/superpowers/plans/2026-10-14-flexible-transfer-core-plan.md)，验证与运行状态见 [阶段记录](docs/prototype-status.md)。旧阶段设计文件保留当时方案，新代码以本文及当前 Transfer 模型为准。
 
-2026-10-27 范围收敛：薄盘点暂时停用，网页不显示入口，HTTP 路由拒绝访问并从 OpenAPI 隐藏，MCP 不发现或接受盘点资源。盘点代码与表保留，下文盘点结构为休眠实现。恢复由现有盘点模块的 `ENABLED` 与 `frontend/src/features.ts` 的常量控制，不增加运行时开关平台。货物在途及整笔完成流程保留；历史余额／库存查询默认实际入账时间，业务日期作为明确指定的备选。货物账户统一为 internal/external；完整内容快照删除，审计仅保留操作信息，前端不显示原始 JSON。本轮开发数据按用户授权备份后重建。
+2026-10-27 范围收敛：薄盘点暂时停用，网页不显示入口，HTTP 路由拒绝访问并从 OpenAPI 隐藏，MCP 不发现或接受盘点资源。盘点代码与表保留，下文盘点结构为休眠实现。恢复由现有盘点模块的 `ENABLED` 与 `frontend/src/features.ts` 的常量控制，不增加运行时开关平台。货物待完成及整笔确认流程保留；历史余额／库存查询默认实际入账时间，业务日期作为明确指定的备选。货物账户统一为 internal/external；完整内容快照删除，审计仅保留操作信息，前端不显示原始 JSON。本轮开发数据按用户授权备份后重建。
 
 ## 1 核心目标与第一阶段范围
 
@@ -85,7 +85,7 @@ SKU另存单位、启用状态及可空avatar_url，已被引用的单位固定�
 
 资金 `Transfer/transfers` 保留两端、金额分、日期、可选说明/往来方、标签、状态、发起审批、版本、冲销引用及创建时间；`JournalLine/journal_lines` 是正式平衡分录。
 
-货物 `StockTransfer/stock_transfers` 使用账户两端、日期、可选说明/标签/原单引用/原始单据引用、状态及审批记录，明细可含多 SKU，数量为正整数。`StockConfirmation` 保存额外整笔完成申请，`StockMove` 是唯一正式数量流水。不保存父批次、部分完成、预留或虚拟在途库存。
+货物 `StockTransfer/stock_transfers` 使用账户两端、日期、可选说明/标签/原单引用/原始单据引用、状态及审批记录，明细可含多 SKU，数量为正整数。`StockConfirmation` 保存整笔完成记录，`StockMove` 是唯一正式数量流水。不保存父批次、部分完成、预留或虚拟在途库存。
 
 货物不保存批准或执行的完整内容快照。`StockAudit.detail` 仅保存操作原因、状态、批准方式及必要的申请／资金引用编号，操作人、时间和 Agent 来源沿用审计自身字段；不复制账户、SKU 或单据内容。前端通过对应完成审计展示批准方式和连接。2026-10-27 用户明确授权直接同步 `0001` 基线、备份并重建开发 FGAS 表，本轮不新增 migration、回填或兼容。
 
@@ -111,7 +111,7 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 可信用户普通资金记录自动过账，普通用户待人工审批；每次成功提交是独立记录，没有请求去重或完整回放。资金正式过账产生借贷平衡分录，错误以关联原单的冲销、更正处理，不覆盖历史。
 
-货物批准只进在途，不扣库存；额外整笔完成才产生 StockMove。普通用户完成申请待可信用户审批，可信用户确认直接完成。现阶段出库不得造成组织库存负数、禁止外部到外部，规则归货物服务；账户/SKU 停用不阻止旧单完成。完成后不取消或覆盖数量，实际退回或更正新增普通转移。
+货物批准后待完成，不扣库存；确认整笔完成才产生 StockMove。普通用户提交完成报告后，主单仍待完成，等待有权限的人核实并确认；受信任用户或管理员可直接确认完成，退回报告后主单仍待完成。技术状态 `in_transit` 对应页面“待完成”。现阶段出库不得造成组织库存负数、禁止外部到外部，规则归货物服务；账户/SKU 停用不阻止旧单完成。完成后不取消或覆盖数量，实际退回或更正新增普通转移。
 
 钱货联合入口同一数据库事务，失败整体回滚；批准付款不表示到货、完成到货不再付款、取消货物不自动退钱、冲销资金不自动退货。已有资金记录可引用，不重复创建。
 
@@ -119,7 +119,7 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 ## 6 查询与验证
 
-页面分别展示公账余额、私账净往来与逐笔未结、实际货物数量、在途计划量及普通状态。标签、类型与关联人员支持查找，货物目录与库存均按 member_code 筛选当前负责人。库存价值显示未估值，不显示为零价值或利润。当前库存行分别显示待完成流入、流出；逐 SKU 汇总区分组织外部流入、组织外部流出、内部调拨，内部调拨每条只计一次。历史查询的计划量为 null，表示无法重建过去在途。
+页面分别展示公账余额、私账净往来与逐笔未结、实际货物数量、待完成计划量及普通状态。标签、类型与关联人员支持查找，货物目录与库存均按 member_code 筛选当前负责人。库存价值显示未估值，不显示为零价值或利润。当前库存行分别显示待完成流入、流出；逐 SKU 汇总区分组织外部流入、组织外部流出、内部调拨，内部调拨每条只计一次。历史查询的计划量为 null，表示无法重建过去待完成计划。
 
 2026-10-26 确认成员私账尽量归零、非零及时处理的管理原则；在及时清理成员往来的前提下，日常可用资金沿用公账余额口径，不新增净额可用余额指标。首页利用已有账户列表展示全部 `kind=private` 且 `balance_minor != 0` 的账户，包含未绑定联系人和已停用账户，分别标明成员应交回或社团应偿还的金额并分方向汇总。存在提醒时应先核对处理未清往来，公账金额仍表示账面资金；私账归零不等于逐笔匹配全部完成。此展示复用现有前端数据与结算入口，不增加接口、数据库字段或自动处理流程。
 
@@ -141,9 +141,9 @@ Transfer 的批准即已认可收支，普通用户待审、可信用户代录�
 
 `AgentCredential/agent_credentials` 保存 ID、所属用户、名称、low/high、启用、到期、创建时间、SHA-256 摘要及密钥原文。原文按用户确认的社团内部使用方案保存，仅所属用户通过人工 Cookie 会话的 `GET /api/agent-credentials/{id}/secret` 再次查看，响应禁止缓存；列表不返回密钥，管理员也不能查看他人的密钥。认证仍按摘要检索。2026-10-26 用户确认尚未正式实装密钥机制，本次新增原文列直接同步模型与建库基线 `0001`，不新增迁移、旧密钥兼容或回退逻辑。所有启用中的登录用户均可按需管理自己的 low，前端默认名称为“某某的 AI”；管理员可额外管理自己的 high，并可停用他人的连接。连接归属真实用户，不另建 AI 用户、业务联系人或资金账户。low 不继承所属用户的人工自动批准权限，三种写申请进入原有统一审批，来源只用于追溯。实际授权同时检查凭据及所属用户；停用用户阻断全部连接，high 始终要求管理员身份，普通用户或受信任用户间的角色变化不阻断 low。不改变 User.role，不新增审批分类、对象白名单、grant 矩阵或只读第三档。
 
-low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具。query 的单对象 `me` 来自当前 AgentAccess，分别报告登录用户角色与连接等级；管理员 low 不因此得到 high 执行权限。FA/SA/M/FT/ST/SC 为自动不可编辑的稳定业务编号，公开业务引用与筛选使用 code，内部 UUID 继续承担关联。资金与货物详情可由网页 hash code 定位，结算可由 FA code 定位；打开链接只读取记录。所有原有业务能力通过固定 resource/action 组合保留，列表与详情共用 query。MCP 适配层的 agent_catalog 契约表共用于帮助、精确参数校验与固定函数分派，应用层不反向依赖它。公开 Schema 只声明小型外壳，具体操作的 help 默认只返回说明、精确输入 Schema 和示例，`include_output_schema=true` 才附完整输出 Schema；服务端仍按选中的输入/输出模型校验。状态分别按资金/货物枚举校验，help 的 resource/action 也从固定契约表声明枚举。propose 对两档始终待审，execute 及其应用函数均校验 high。返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/内部键排序、业务按创建时间/内部键倒序，page/limit/has_more 标明分页；库存和货物流水直接使用数据库分页与总数，库存 totals 汇总全部筛选结果，货物列表仅读取列表所需资料；联系人提供 note，货物账户通过 member_code/member_name 提供负责人，identifier 详情含 responsibility_history；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成申请 EXISTS 匹配后分页，不重复父单。事件列表（资金单、货物单、货物流水）默认最近 30 天按 `created_at` 录入时间，`all_time=true` 或显式时间条件才查更早/全量；`identifier` 详情不受窗口影响。`fund_balances` 和 `inventory` 支持 `as_of`/`basis`：默认按 `transfers.posted_at` 或 `stock_moves.created_at` 的过账时间，`basis=effective_date` 按业务日期；库存 as-of 只计算 on-hand，历史在途行字段和汇总字段均返回 null。当前计划仅统计已批准、未整笔完成的货物单；筛选后的明细按原账户类型判定进出组织及内部调拨，内部调拨只计一次，分页 totals 重复全筛选范围。
+low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具。query 的单对象 `me` 来自当前 AgentAccess，分别报告登录用户角色与连接等级；管理员 low 不因此得到 high 执行权限。FA/SA/M/FT/ST/SC 为自动不可编辑的稳定业务编号，公开业务引用与筛选使用 code，内部 UUID 继续承担关联。资金与货物详情可由网页 hash code 定位，结算可由 FA code 定位；打开链接只读取记录。所有原有业务能力通过固定 resource/action 组合保留，列表与详情共用 query。MCP 适配层的 agent_catalog 契约表共用于帮助、精确参数校验与固定函数分派，应用层不反向依赖它。公开 Schema 只声明小型外壳，具体操作的 help 默认只返回说明、精确输入 Schema 和示例，`include_output_schema=true` 才附完整输出 Schema；服务端仍按选中的输入/输出模型校验。状态分别按资金/货物枚举校验，help 的 resource/action 也从固定契约表声明枚举。propose 对两档始终待审，execute 及其应用函数均校验 high。返回结构化结果及同内容文本。查询按固定字段过滤，目录按名称/内部键排序、业务按创建时间/内部键倒序，page/limit/has_more 标明分页；库存和货物流水直接使用数据库分页与总数，库存 totals 汇总全部筛选结果，货物列表仅读取列表所需资料；联系人提供 note，货物账户通过 member_code/member_name 提供负责人，identifier 详情含 responsibility_history；业务日期闭区间、带时区录入时间左闭右开。当前连接来源过滤由服务端取凭据 ID，货物通过主单来源或完成记录 EXISTS 匹配后分页，不重复父单。事件列表（资金单、货物单、货物流水）默认最近 30 天按 `created_at` 录入时间，`all_time=true` 或显式时间条件才查更早/全量；`identifier` 详情不受窗口影响。`fund_balances` 和 `inventory` 支持 `as_of`/`basis`：默认按 `transfers.posted_at` 或 `stock_moves.created_at` 的过账时间，`basis=effective_date` 按业务日期；库存 as-of 只计算 on-hand，历史计划行字段和汇总字段均返回 null。当前计划仅统计已批准、未整笔完成的货物单；筛选后的明细按原账户类型判定进出组织及内部调拨，内部调拨只计一次，分页 totals 重复全筛选范围。
 
-三种 propose 对管理员所属 high 也固定待审。资金 direct 过账、货物 direct 在途、完成 direct 才写 StockMove。`submit_mode` 仅服务内部参数，客户端不能指定。资金和货物主单、完成申请记录 `submitted_credential_id/name`；审计记录实际操作者 `agent_credential_id/name`。主单 `approval_mode` 及完成审计的 mode 区分 `agent_direct`、`agent_approval` 及人工既有 automatic/manual，连接改名不覆盖已保存的来源名称。
+三种 propose 对管理员所属 high 也固定待审。资金 direct 过账、货物 direct 待完成、完成 direct 才写 StockMove。`submit_mode` 仅服务内部参数，客户端不能指定。资金和货物主单、完成记录保存 `submitted_credential_id/name`；审计记录实际操作者 `agent_credential_id/name`。主单 `approval_mode` 及完成审计的 mode 区分 `agent_direct`、`agent_approval` 及人工既有 automatic/manual，连接改名不覆盖已保存的来源名称。
 
 结果使用 `api_version='2'`，写入明确 resource_type、业务 code、status、ledger_effect_applied、approval_required；完成同时给 confirmation_code 和 stock_transfer_code。金额保留整数分并配元字符串；Patch 省略保留，仅允许清空的字段接受 null。输入错误返回 validation_error、字段位置及可调用的帮助参数；业务错误保留 permission_denied、not_found、state_conflict，服务端错误为 internal_error。pending 是普通成功，无自动重试、幂等回放、恢复队列或 OAuth 服务。
 

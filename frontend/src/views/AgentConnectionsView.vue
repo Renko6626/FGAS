@@ -25,7 +25,7 @@ function date(value:string|null){return value?new Date(value).toLocaleString('zh
 </script>
 <template>
   <div class="toolbar"><h2>Agent 连接</h2><div class="actions"><NButton :disabled="busy" @click="load">刷新</NButton><NButton type="primary" :disabled="busy" @click="open()">新建连接</NButton></div></div>
-  <p class="muted">个人 Agent 连接属于你的登录账号，可读取业务资料，并提交资金转移、货物转移和完成申请。低权限连接的写申请统一等待人工审批，即使你本人有审批权限也一样。自己的密钥可以在这里再次查看。</p>
+  <p class="muted">个人 Agent 连接属于你的登录账号，可读取业务资料，并提交资金转移、货物转移和完成报告。低权限连接的写申请统一等待人工审批，即使你本人有审批权限也一样。自己的密钥可以在这里再次查看。</p>
   <p v-if="error" class="error" role="alert">{{error}}</p><p v-if="notice" role="status">{{notice}}</p>
   <div class="table-wrap"><table><thead><tr><th>名称</th><th>所属用户</th><th>等级</th><th>状态</th><th>到期时间</th><th></th></tr></thead><tbody>
     <tr v-for="item in items" :key="item.id"><td>{{item.name}}</td><td>{{item.owner_name||item.owner_user_id}}</td><td>{{item.level==='high'?'高权限':'低权限'}}</td><td>{{item.active?'已启用':'已停用'}}</td><td>{{date(item.expires_at)}}</td><td><template v-if="item.owner_user_id===user.id"><NButton :disabled="busy" @click="reveal(item)">查看密钥</NButton><NButton :disabled="busy" @click="open(item)">编辑</NButton></template><NButton v-else-if="user.role==='admin' && item.active" :disabled="busy" @click="disable(item)">停用</NButton></td></tr>

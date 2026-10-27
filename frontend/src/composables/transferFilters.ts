@@ -6,11 +6,12 @@ export interface StockFilters {
   status: string | null;
   skuCode?: string | null;
   tag: string | null;
+  dateFrom: string;
+  dateTo: string;
 }
 
 export interface FundFilters extends StockFilters {
-  dateFrom: string;
-  dateTo: string;
+  sort: "created_at" | "effective_date";
 }
 
 export const emptyStockFilters = (): StockFilters => ({
@@ -18,19 +19,20 @@ export const emptyStockFilters = (): StockFilters => ({
   skuCode: null,
   status: null,
   tag: null,
+  dateFrom: "",
+  dateTo: "",
 });
 
 export const emptyFundFilters = (): FundFilters => ({
   ...emptyStockFilters(),
-  dateFrom: "",
-  dateTo: "",
+  sort: "created_at",
 });
 
 export const hasFundFilters = (filters: FundFilters) => !!(
   filters.search || filters.status || filters.tag || filters.dateFrom || filters.dateTo
 );
 
-export const fundDateError = (filters: FundFilters) => !!(
+export const transferDateError = (filters: StockFilters) => !!(
   filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo
 );
 
@@ -57,6 +59,8 @@ export function filterStockTransfers(items: StockTransfer[], filters: StockFilte
     (!filters.skuCode || t.lines.some(line => line.sku_code === filters.skuCode)) &&
     (!filters.tag || t.tags.includes(filters.tag)) &&
     (!filters.status || t.status === filters.status) &&
+    (!filters.dateFrom || t.effective_date >= filters.dateFrom) &&
+    (!filters.dateTo || t.effective_date <= filters.dateTo) &&
     (!filters.search || [
       t.code,
       t.description,

@@ -1,10 +1,10 @@
 # AGENTS.md
 
-面向 AI 编码代理的协作约定。业务细节以 [README.md](README.md)、[architecture.md](architecture.md)、[docs/prototype-status.md](docs/prototype-status.md) 为准；本文件只做导航和红线说明，与文档冲突时以文档为准。
+面向 AI 编码代理的协作约定。业务细节见 [README.md](README.md) 和 [architecture.md](architecture.md)，当前进度见 [docs/prototype-status.md](docs/prototype-status.md)。阶段记录和设计、计划文档可能包含已被取代的历史方案，应结合最新状态阅读；本文件保留导航和工作红线。
 
 ## 项目一句话
 
-单社团、人民币的「资金与库存工作台」原型：以账户 + Transfer 表达资金和货物流动，含结算匹配、薄盘点、三档角色（管理员/受信任用户/普通用户），并通过 MCP v2（`/mcp`，Streamable HTTP）向外部 Agent 提供受控接入。
+单社团、人民币的「资金与库存工作台」原型：以账户 + Transfer 表达资金和货物流动，含结算匹配、三档角色（管理员/受信任用户/普通用户），并通过 MCP v2（`/mcp`，Streamable HTTP）向外部 Agent 提供受控接入。薄盘点代码保留，入口暂时停用。
 
 ## 技术栈与布局
 
@@ -61,6 +61,8 @@ npm run db:init    # Alembic upgrade + 开发种子
 - 生产部署以 `deploy/README.md` 的 Docker Compose 路线为准；真实 Casdoor、HTTPS、生产发布及备份恢复尚未验收，附件尚未实现；MCP v2 已有本机 DSH 真实模型验证；DSH 0.2.1-rc.3 普通 Web 创造模式已跑通自助安装、热加载和 low 待审提交，SDK／标准模式受限不能代表该路径。远程 HTTPS 及其他客户端仍待联调——不要把开发环境行为当作生产已验收。
 
 ## 已知待办线索
+
+- 2026-10-28 用户确认货物中文流程统一为“待审批 → 待完成 → 已完成”，技术值 `in_transit` 保留，对应已获批、尚未确认完成。受信任用户/管理员使用“登记转移 → 确认完成”；普通用户使用“申请转移 → 报告已完成”，报告待确认期间主单仍待完成、库存不变。主列表围绕 ST，SC 收在详情的完成记录和必要 Agent 交接中；这次仅调整文案，不改变模型、接口、权限或库存流程。
 
 - 2026-10-27用户确认商品业务入口使用必填唯一SKU code（去空格转大写、拒绝重号），UUID只作内部关联；name合并规格，删除specification，tags表达类别/角色。公开货物明细及库存/货物/数量流水筛选用sku_code，目录查询/编辑用code。明确不做迁移/回填/旧接口兼容，直接同步0001；本轮只备份重建fgas_test并新建fgas_benchmark，日常fgas不改。东方社团基准脚本与24任务见benchmarks/gensokyo-circle-v1/README.md，不把数据加载当模型验收。
 

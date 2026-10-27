@@ -124,7 +124,6 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
     <NButton v-if="editable" @click="edit()">新建账户</NButton>
   </div>
   <div
-    v-if="mode === 'accounts'"
     class="catalog-categories"
     aria-label="账户类型"
   >
@@ -132,7 +131,7 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
       全部 <span>{{ all.length }}</span>
     </button>
     <button
-      v-for="(label, value) in kinds"
+      v-for="(label, value) in kindLabels"
       :key="value"
       :class="{ active: filterKind === value }"
       :aria-pressed="filterKind === value"
@@ -147,15 +146,6 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
       clearable
       :placeholder="mode === 'accounts' ? '搜索账户、联系人或标签' : '搜索账户、负责人或标签'"
       :input-props="{ 'aria-label': '搜索账户' }"
-    />
-    <NSelect
-      v-if="mode !== 'accounts'"
-      v-model:value="filterKind"
-      clearable
-      placeholder="所有类型"
-      :options="
-        Object.entries(kindLabels).map(([value, label]) => ({ value, label }))
-      "
     />
     <NSelect
       v-model:value="filterTag"
@@ -189,53 +179,22 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
       >清空筛选</NButton
     ><NButton v-else-if="editable" @click="edit()">新建账户</NButton>
   </div>
-  <div v-else-if="mode === 'accounts'" class="account-grid">
-    <article v-for="a in rows" :key="a.code" class="account-card">
+  <div v-else class="account-grid">
+    <article v-for="a in rows" :key="a.code" class="account-card" :class="{ inactive: !a.active }">
       <div class="card-heading">
         <AccountAvatar :name="a.name" :url="a.avatar_url" />
         <div class="card-name"><strong>{{ a.name }}</strong><small>{{ a.code }}</small></div>
         <span v-if="!a.active" class="status-pill status-inactive">已停用</span>
       </div>
-      <div class="card-balance"><span>账户余额</span><strong>¥ {{ money((a as Account).balance_minor) }}</strong></div>
-      <div class="card-meta"><span>{{ kindLabels[a.kind] }}</span><span v-if="a.member_name">联系人：{{ a.member_name }}</span></div>
+      <div v-if="mode === 'accounts'" class="card-balance"><span>账户余额</span><strong>¥ {{ money((a as Account).balance_minor) }}</strong></div>
+      <div v-else class="card-custodian" :class="{ unassigned: a.kind === 'internal' && !a.member_name }">
+        <span>{{ a.kind === 'internal' ? '负责人' : '账户类型' }}</span>
+        <strong>{{ a.kind === 'internal' ? a.member_name || '未指定负责人' : '外部账户' }}</strong>
+      </div>
+      <div class="card-meta"><span>{{ kindLabels[a.kind] }}</span><span v-if="mode === 'accounts' && a.member_name">联系人：{{ a.member_name }}</span><span v-else-if="a.kind === 'external' && a.member_name">负责人：{{ a.member_name }}</span></div>
       <div v-if="a.tags.length" class="card-tags"><span v-for="tag in a.tags" :key="tag" class="tag">{{ tag }}</span></div>
-      <div v-if="editable" class="card-actions"><NButton text @click="edit(a)">编辑账户</NButton></div>
+      <div v-if="editable || mode === 'stock-accounts'" class="card-actions"><NButton v-if="editable" text @click="edit(a)">编辑账户</NButton><NButton v-if="mode === 'stock-accounts'" text :disabled="historyBusy" @click="history(a)">负责人历史</NButton></div>
     </article>
-  </div>
-  <div v-else class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>账户</th>
-          <th>类型</th>
-          <th>负责人</th>
-          <th>标签</th>
-          <th>状态</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="a in rows" :key="a.code">
-          <td>
-            <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}<small>{{ a.code }}</small>
-          </td>
-          <td>{{ kindLabels[a.kind] }}</td>
-          <td>{{ a.member_name || "未指定" }}</td>
-          <td>{{ a.tags.join("，") || "—" }}</td>
-          <td>
-            <span
-              class="status-pill"
-              :class="a.active ? 'status-active' : 'status-inactive'"
-              >{{ a.active ? "启用" : "停用" }}</span
-            >
-          </td>
-          <td>
-            <NButton v-if="editable" size="small" @click="edit(a)">编辑</NButton>
-            <NButton size="small" :disabled="historyBusy" @click="history(a)">负责人历史</NButton>
-          </td>
-        </tr>
-      </tbody>
-    </table>
   </div>
   <NModal
     v-model:show="show"
@@ -313,20 +272,24 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
 .catalog-categories button { border:0 !important; border-bottom:2px solid transparent !important; border-image:none !important; background:none; padding:9px 14px; color:#66707c; font-size:14px; min-width:0 !important; }
 .catalog-categories button.active { color:#244a66; border-bottom-color:#345d78 !important; font-weight:650; }
 .catalog-categories span { font-size:12px; margin-left:5px; color:#66707c !important; }
-.account-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; }
-.account-card { min-width:0; display:flex; flex-direction:column; padding:18px; border:1px solid #e3e8ec; border-radius:8px; background:#fff; }
-.card-heading { display:flex; align-items:center; gap:10px; min-width:0; }
-.card-heading :deep(.account-avatar) { width:44px; height:44px; margin:0; border-radius:50%; font-size:18px; }
+.account-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px 14px; }
+.account-card { min-width:0; display:flex; flex-direction:column; padding:12px 14px; border:1px solid #e3e8ec; border-radius:8px; background:#fff; }
+.account-card.inactive { background:#f5f6f5; border-color:#d8ddd8; }
+.account-card.inactive .card-name,.account-card.inactive .card-balance,.account-card.inactive .card-custodian { opacity:.65; }
+.card-heading { display:flex; align-items:center; gap:8px; min-width:0; }
+.card-heading :deep(.account-avatar) { width:36px; height:36px; margin:0; border-radius:50%; font-size:16px; }
 .card-name { flex:1; min-width:0; }
 .card-name strong,.card-name small { display:block; overflow-wrap:anywhere; }
-.card-name strong { font-size:15px; }
-.card-name small { font-size:12px; margin-top:2px; }
-.card-balance { display:flex; flex-direction:column; gap:3px; margin-top:20px; }
-.card-balance span,.card-meta { color:#66707c; font-size:12px; }
+.card-name strong { font-size:15px; line-height:1.4; }
+.card-name small { font-size:12px; line-height:1.4; margin-top:1px; }
+.card-balance,.card-custodian { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:2px 8px; margin-top:10px; }
+.card-balance span,.card-custodian span,.card-meta { color:#66707c; font-size:12px; }
 .card-balance strong { font-size:22px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-.card-meta { display:flex; flex-wrap:wrap; gap:5px 14px; margin-top:12px; }
-.card-tags { margin-top:8px; }
-.card-actions { margin-top:auto; padding-top:12px; }
+.card-custodian strong { font-size:22px; overflow-wrap:anywhere; }
+.card-custodian.unassigned strong { color:#976a26; font-size:18px; }
+.card-meta { display:flex; flex-wrap:wrap; gap:3px 14px; margin-top:6px; }
+.card-tags { margin-top:4px; }
+.card-actions { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:auto; padding-top:6px; }
 .catalog-filters {
   display: flex;
   gap: 12px;
@@ -339,7 +302,5 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
 .catalog-filters > .n-select {
   flex: 1 1 140px;
 }
-.account-name {
-  min-width: 160px;
-}
+@media(max-width:360px) { .account-grid { grid-template-columns:minmax(0,1fr); } }
 </style>

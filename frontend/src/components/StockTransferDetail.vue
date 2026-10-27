@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, onMounted } from "vue";
-import { NButton, NInput, NModal, NSelect } from "naive-ui";
+import { NButton, NInput, NDrawer, NDrawerContent, NSelect } from "naive-ui";
 import { money, statuses as fundStatuses } from "../presentation/funds";
 import { approvalLabel, actionNames } from "../presentation/audit";
 import { type StockAccount, type Account } from "../api/accounts";
@@ -95,15 +95,14 @@ defineExpose({ open, busy });
 </script>
 
 <template>
-  <NModal
+  <NDrawer
     v-model:show="detailShow"
-    preset="card"
-    title="货物转移详情"
-    class="dialog"
+    :width="660"
+    style="max-width: 100vw"
     :mask-closable="!busy"
-    :closable="!busy"
     :close-on-esc="!busy"
   >
+    <NDrawerContent title="货物转移详情" :closable="!busy" body-content-class="stock-detail-body">
     <template v-if="detail">
       <div class="stock-detail-heading">
         <AccountRoute
@@ -170,7 +169,7 @@ defineExpose({ open, busy });
             type="primary"
             :disabled="busy"
             @click="decide(detail, 'approve')"
-            >批准货物转移</NButton
+            >批准转移</NButton
           >
           <StockCompletionEditor
             v-if="
@@ -194,28 +193,28 @@ defineExpose({ open, busy });
           class="stock-confirmation"
         >
           <div class="stock-detail-heading">
-            <span class="status-pill status-pending">完成申报待审阅</span
+            <span class="status-pill status-pending">有人报告完成，待确认</span
             ><span>完成日期 {{ c.effective_date }}</span>
           </div>
-          <p>完成申请 {{ c.code }}，货物单 {{ c.transfer_code }}</p><p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template></p>
+          <p>完成报告 {{ c.code }}，货物单 {{ c.transfer_code }}</p><p>报告人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template></p>
           <template v-if="trusted"
-            ><p>核对整条转移已实际完成后，批准并记录上述数量。</p>
+            ><p>核实整笔转移已完成后，确认并更新库存。</p>
             <NButton
               type="primary"
               :disabled="busy"
               @click="decide(detail, 'approve', c.code)"
-              >批准完成申报</NButton
+              >核实并确认完成</NButton
             >
             <details class="stock-secondary">
-              <summary>拒绝完成申报</summary>
+              <summary>退回完成报告</summary>
               <label
-                >拒绝原因<NInput
+                >退回原因<NInput
                   v-model:value="reason"
                   :disabled="busy" /></label
               ><NButton
                 :disabled="busy || !reason.trim()"
                 @click="decide(detail, 'reject', c.code)"
-                >确认拒绝完成申报</NButton
+                >确认退回完成报告</NButton
               >
             </details>
           </template>
@@ -293,7 +292,7 @@ defineExpose({ open, busy });
       </section>
       <section class="stock-section">
         <div class="toolbar">
-          <h3>关联转移</h3>
+          <h3>相关货物单</h3>
           <NButton
             :disabled="busy"
             @click="
@@ -303,15 +302,16 @@ defineExpose({ open, busy });
                 destination_account_code: detail.destination_account_code,
               })
             "
-            >新建关联转移</NButton
+            >新建并关联</NButton
           >
         </div>
+        <p>用于记录退回、补发或更正，各笔货物单单独办理。退回时请交换来源与去向。</p>
         <NButton
           v-if="detail.related_transfer_code"
           text
           :disabled="busy"
           @click="open(detail.related_transfer_code)"
-          >查看关联原单 {{ detail.related_transfer_code }}</NButton
+          >查看关联的原货物单 {{ detail.related_transfer_code }}</NButton
         >
         <div
           v-for="a in detail.related_transfers"
@@ -342,7 +342,7 @@ defineExpose({ open, busy });
         <p
           v-if="!detail.related_transfer_code && !detail.related_transfers.length"
         >
-          暂无关联转移
+          暂无相关货物单
         </p>
       </section>
       <section class="stock-section">
@@ -351,7 +351,7 @@ defineExpose({ open, busy });
           v-if="detail.confirmations.some((c) => c.status !== 'pending')"
           class="stock-secondary"
         >
-          <summary>完成申报记录</summary>
+          <summary>完成记录</summary>
           <div
             v-for="c in detail.confirmations.filter(
               (c) => c.status !== 'pending',
@@ -361,7 +361,7 @@ defineExpose({ open, busy });
             <span class="status-pill" :class="`status-${c.status}`">{{
               stockStatuses[c.status] || fundStatuses[c.status] || c.status
             }}</span>
-            <p>完成申请 {{ c.code }}，货物单 {{ c.transfer_code }}</p><p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template>；完成日期 {{ c.effective_date }}</p>
+            <p>完成报告 {{ c.code }}，货物单 {{ c.transfer_code }}</p><p>报告人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template>；完成日期 {{ c.effective_date }}</p>
             <p v-if="c.approved_by">{{ approvalLabel(completionAudit(c.code)?.detail.mode) }}<template v-if="completionAudit(c.code)?.agent_credential_id">（{{ completionAudit(c.code)?.agent_credential_name || completionAudit(c.code)?.agent_credential_id }}）</template>，审批人 {{ c.approved_by }}</p>
           </div>
         </details>
@@ -371,13 +371,15 @@ defineExpose({ open, busy });
         </details>
       </section>
     </template>
-  </NModal>
+    </NDrawerContent>
+  </NDrawer>
   <StockTransferEditor
     ref="editor"
     hide-trigger
     :locations="locations"
     :skus="skus"
     :accounts="accounts"
+    :trusted="trusted"
     @saved="changed"
   />
 </template>
@@ -397,6 +399,9 @@ defineExpose({ open, busy });
 .stock-section h3 {
   margin-top: 0;
 }
+.stock-section table { min-width:0; table-layout:fixed; }
+.stock-section table th:last-child,.stock-section table td:last-child { width:78px; white-space:nowrap; }
+.stock-section :deep(.account-label) { max-width:100%; }
 .stock-meta {
   display: grid;
   grid-template-columns: 80px minmax(0, 1fr);

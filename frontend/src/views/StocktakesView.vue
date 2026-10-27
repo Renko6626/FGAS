@@ -450,6 +450,7 @@ onMounted(load);
     :locations="locations"
     :skus="skus"
     :accounts="accounts"
+    :trusted="trusted"
     @saved="changed"
   />
 </template>

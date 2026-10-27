@@ -1,93 +1,59 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { NButton } from "naive-ui";
-import { money, statuses as fundStatuses } from "../presentation/funds";
-import { type StockAccount, type Account } from "../api/accounts";
-import { type Sku } from "../api/warehouse";
-import { type StockTransfer } from "../api/warehouse";
+import type { StockAccount, Account } from "../api/accounts";
+import type { Sku, StockTransfer } from "../api/warehouse";
 import { stockStatuses } from "../presentation/warehouse";
-import AccountRoute from "./AccountRoute.vue";
-import AccountLabel from "./AccountLabel.vue";
 import StockTransferDetail from "./StockTransferDetail.vue";
 const props = defineProps<{
-  targetCode?: string;
-  items: StockTransfer[];
-  locations: StockAccount[];
-  trusted: boolean;
-  skus: Sku[];
-  accounts: Account[];
-  approvals?: boolean;
-  loading?: boolean;
-  error?: string;
+  targetCode?: string; items: StockTransfer[]; locations: StockAccount[]; trusted: boolean; skus: Sku[]; accounts: Account[];
+  approvals?: boolean; loading?: boolean; error?: string;
 }>();
-const emit = defineEmits<{
-  changed: [];
-}>();
+const emit = defineEmits<{ changed: [] }>();
 const detailDialog = ref<InstanceType<typeof StockTransferDetail> | null>(null);
 const detailError = ref("");
-onMounted(() => { if (props.targetCode) void detailDialog.value?.open(props.targetCode); });
-watch(() => props.targetCode, (code) => {
-  if (code) void detailDialog.value?.open(code);
-}, { flush: "post" });
-
-watch(() => props.items, () => {
-  detailError.value = "";
-});
+const selectedCode = ref("");
+function open(code: string) { selectedCode.value = code; void detailDialog.value?.open(code); }
+function hasReport(item: StockTransfer) { return item.confirmations.some(report => report.status === "pending"); }
+function actionLabel(item: StockTransfer) {
+  if (item.status === "in_transit") {
+    if (hasReport(item)) return props.trusted ? "核实并确认完成" : "查看报告";
+    return props.trusted ? "确认完成" : "报告已完成";
+  }
+  return "查看详情";
+}
+onMounted(() => { if (props.targetCode) open(props.targetCode); });
+watch(() => props.targetCode, code => { if (code) open(code); }, { flush: "post" });
+watch(() => props.items, () => { detailError.value = ""; });
 defineExpose({ busy: computed(() => detailDialog.value?.busy ?? false) });
 </script>
 
 <template>
-  <p v-if="error || detailError" class="error">{{ error || detailError }}</p>
-  <div v-if="items.length" class="transfer-list">
-    <article v-for="t in items" :key="t.code" class="transfer-record">
-      <div class="record-main">
-        <div class="record-route">
-          <AccountRoute :accounts="locations" :source-id="t.source_account_code" :destination-id="t.destination_account_code" :source-name="t.source_account_name" :destination-name="t.destination_account_name" />
-        </div>
-        <div class="record-state">
-          <div><span class="status-pill" :class="`status-${t.status}`">{{ stockStatuses[t.status] || t.status }}</span><span v-if="t.confirmations.some(c => c.status === 'pending')" class="confirmation-state">完成申报待审阅</span></div>
-          <NButton :disabled="detailDialog?.busy" @click="detailDialog?.open(t.code)">{{ trusted && t.status === 'pending' ? '审批' : t.confirmations.some(c => c.status === 'pending') && trusted ? '审阅完成申报' : t.status === 'in_transit' && !t.confirmations.some(c => c.status === 'pending') ? '查看并申报' : '查看详情' }}</NButton>
-        </div>
-      </div>
-      <div class="record-meta"><span>{{ t.effective_date }}</span><span>{{ t.code }}</span><span v-if="t.description" class="record-note">{{ t.description }}</span><span v-for="tag in t.tags" :key="tag" class="tag">{{ tag }}</span></div>
-      <div class="record-lower">
-        <div class="item-preview" aria-label="货物预览">
-          <div v-for="line in t.lines.slice(0, 3)" :key="line.sku_code" class="preview-item"><AccountLabel :name="line.sku_name" :code="line.sku_code" :url="skus.find(s => s.code === line.sku_code)?.avatar_url" /><strong>{{ line.quantity }} {{ line.unit }}</strong></div>
-          <span v-if="t.lines.length > 3" class="more-items">等 {{ t.lines.length }} 种货物</span>
-        </div>
-        <div class="record-funds"><span class="funds-label">关联资金</span><template v-if="t.fund_references.length"><span v-for="f in t.fund_references" :key="f.code" class="fund-reference">¥ {{ money(f.amount_minor) }} <span class="status-pill" :class="`status-${f.status}`">{{ fundStatuses[f.status] || f.status }}</span></span></template><span v-else>未关联</span></div>
-      </div>
-    </article>
+  <p v-if="error || detailError" class="error" role="alert">{{ error || detailError }}</p>
+  <div v-if="items.length" class="ledger-records stock-records" :aria-busy="loading">
+    <table class="ledger-table">
+      <colgroup><col class="subject-column" /><col class="route-column" /><col class="value-column" /><col class="state-column" /></colgroup>
+      <thead><tr><th>事项 / 业务日期</th><th>来源 → 去向</th><th>货物</th><th>状态 / 下一步</th></tr></thead>
+      <tbody>
+        <tr v-for="item in items" :key="item.code" class="ledger-record" :class="[`record-state-${item.status}`, { selected: selectedCode === item.code, 'record-awaiting-confirmation': item.status === 'in_transit' && hasReport(item) }]" @click="open(item.code)">
+          <td class="record-subject">
+            <button class="record-open" aria-haspopup="dialog" :aria-label="`${trusted && item.status === 'pending' ? '查看并审批' : '查看'}货物转移 ${item.code}：${item.description || '未填写说明'}`" @click.stop="open(item.code)">{{ item.description || '未填写说明' }}</button>
+            <div class="record-secondary"><time>{{ item.effective_date }}</time><span>{{ item.code }}</span><span v-for="tag in item.tags.slice(0, 2)" :key="tag" class="record-tag">{{ tag }}</span><span v-if="item.fund_references.length" class="fund-link-note">关联 {{ item.fund_references.length }} 笔资金</span></div>
+          </td>
+          <td class="record-route">
+            <div class="route-flow">
+              <span class="route-account route-source" :title="item.source_account_name">{{ item.source_account_name }}</span>
+              <span class="route-arrow">→</span>
+              <span class="route-account route-destination" :title="item.destination_account_name">{{ item.destination_account_name }}</span>
+            </div>
+          </td>
+          <td class="record-value"><div v-for="line in item.lines.slice(0, 2)" :key="line.sku_code" class="goods-line"><span :title="`${line.sku_code} ${line.sku_name}`">{{ line.sku_name }}</span><strong>{{ line.quantity }} <small>{{ line.unit }}</small></strong></div><span v-if="item.lines.length > 2" class="more-goods">另有 {{ item.lines.length - 2 }} 种，选中查看</span></td>
+          <td class="record-action stock-action"><div class="record-state-entry"><span :class="['ledger-state', `state-${item.status}`]">{{ stockStatuses[item.status] || item.status }}</span><span class="record-chevron" aria-hidden="true">›</span></div><small v-if="hasReport(item)" class="completion-report-note">有人报告完成，待确认</small><button v-if="item.status === 'in_transit'" class="record-action-button" :disabled="detailDialog?.busy" :class="{ attention: trusted && hasReport(item) }" @click.stop="open(item.code)">{{ actionLabel(item) }}</button></td>
+        </tr>
+      </tbody>
+    </table>
   </div>
   <div v-else class="empty-state">{{ loading ? '正在读取货物转移' : '暂无符合条件的货物转移' }}</div>
-  <StockTransferDetail ref="detailDialog" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
-    @changed="emit('changed')" @error="detailError = $event" />
+  <StockTransferDetail ref="detailDialog" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts" @changed="emit('changed')" @error="detailError = $event" />
 </template>
 
-<style scoped>
-.transfer-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:10px; }
-.transfer-record { border:1px solid #e3e8ec; border-radius:7px; padding:14px 16px; min-width:0; }
-.record-main { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 14px; }
-.record-route { min-width:0; }
-.record-route :deep(.account-route) { flex-wrap:nowrap; }
-.record-route :deep(.account-label-name small) { display:inline; margin-left:6px; font-size:11px; color:#66707c; }
-.record-state { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-shrink:0; }
-.record-state > div { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:6px; }
-.confirmation-state { color:#885f20; font-size:12px; }
-.record-meta { display:flex; align-items:center; flex-wrap:wrap; gap:5px 12px; margin-top:10px; color:#66707c; font-size:12px; }
-.record-note { color:#35404c; font-size:13px; overflow-wrap:anywhere; }
-.record-meta .tag { margin:0; }
-.record-lower { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:10px 16px; margin-top:10px; padding-top:10px; border-top:1px solid #edf0f2; }
-.item-preview { display:flex; flex-wrap:wrap; gap:8px 18px; min-width:0; }
-.preview-item { display:flex; align-items:center; gap:6px; min-width:0; font-size:13px; }
-.preview-item :deep(.account-avatar) { width:24px; height:24px; font-size:12px; }
-.preview-item :deep(.account-label-name small) { display:inline; margin:0 0 0 6px; font-size:11px; }
-.preview-item strong { white-space:nowrap; }
-.more-items,.record-funds { color:#66707c; font-size:12px; }
-.more-items { align-self:center; white-space:nowrap; }
-.record-funds { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:6px; flex-shrink:0; }
-.funds-label { color:#88919a; }
-.fund-reference { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
-@media(max-width:1100px) { .transfer-list { grid-template-columns:1fr; } }
-@media(max-width:760px) { .record-main { align-items:flex-start; flex-wrap:wrap; } .record-state { width:100%; justify-content:space-between; } .record-lower { flex-wrap:wrap; } .record-funds { justify-content:flex-start; } .record-route :deep(.account-route) { flex-wrap:wrap; } }
-</style>
+<style scoped src="../styles/ledger-records.css"></style>

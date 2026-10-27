@@ -81,19 +81,19 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 | `/transfers/{code}/settlement-matches` | 向已有付款追加上述匹配 |
 | `/stock-transfers`、`/stock-transfers/{code}` | 多 SKU 货物转移创建/列表/详情 |
 | `/stock-transfers/{code}/approve`、`reject`、`cancel` | 货物审批、拒绝、取消 |
-| `/stock-transfers/{code}/completion` | 整笔完成申请，仅 `{effective_date}` |
-| `/stock-confirmations/{code}/approve`、`reject` | 完成申请审批 |
+| `/stock-transfers/{code}/completion` | 报告已完成或直接确认完成（按权限生效），仅 `{effective_date}` |
+| `/stock-confirmations/{code}/approve`、`reject` | 核实并确认或退回完成报告 |
 | `/stock-transfers/{code}/fund-references` | 补充已有资金引用 |
 | `/stock-operations` | `{stock,money}` 一次事务创建货物和普通资金转移 |
 | `/inventory`、`/stock-moves` | 正式数量及货物流水查询；库存支持账户、SKU、负责人筛选，当前计划按流入/流出及组织进出/内部调拨区分 |
 | `/fund-stocktakes`、`/stock-stocktakes` | 薄盘点列表/创建 |
 | 上述盘点路径加 `/{id}`、`/{id}/end` | 详情/修改说明/结束 |
 
-账户列表支持`tag/kind/member_code`，两类转移列表支持单个tag。资金账户、货物账户、联系人、资金单、货物单和完成申请使用自动、不可编辑的 FA/SA/M/FT/ST/SC 编号；公开业务输入、输出、筛选及路径使用 `code` 或 `*_code`，内部 UUID 仅用于关联。SKU有必填唯一code（如ARC-01-A），完整name包含款式规格，tags可标类别和角色；录单lines使用`{sku_code,quantity}`，库存/货物/数量流水按sku_code筛选。代号去首尾空格、转大写后去重，重复返回409。金额输入是元字符串、库内整数分；数量为正整数字符串。资金Transfer输入来源/去向、金额、业务日期、说明及标签；货物另含多SKU lines、原单/原始单据和资金引用。
+账户列表支持`tag/kind/member_code`，两类转移列表支持单个tag。资金账户、货物账户、联系人、资金单、货物单和完成记录使用自动、不可编辑的 FA/SA/M/FT/ST/SC 编号；公开业务输入、输出、筛选及路径使用 `code` 或 `*_code`，内部 UUID 仅用于关联。SKU有必填唯一code（如ARC-01-A），完整name包含款式规格，tags可标类别和角色；录单lines使用`{sku_code,quantity}`，库存/货物/数量流水按sku_code筛选。代号去首尾空格、转大写后去重，重复返回409。金额输入是元字符串、库内整数分；数量为正整数字符串。资金Transfer输入来源/去向、金额、业务日期、说明及标签；货物另含多SKU lines、原单/原始单据和资金引用。
 
 编号默认采用两档数字宽度：FT/ST/SC 至少6位，FA/SA/M 至少4位；不足补零，超出自然加位。自编采购参考号默认 PO- 加至少4位数字，存入货物单 source_reference；用户已有采购号沿用，不改写历史。PO 没有独立采购单对象或自动发号。SKU 不统一前缀和位数，按用户习惯维护，保留现有规范化与唯一性校验。
 
-资金普通转移由可信用户自动批准过账，普通用户待人工审批。货物批准后在途，额外整笔完成才记数量；普通用户的完成申请也需审批。拒绝/取消/冲销填写原因，正式流水不能覆盖改写。货物实际账户出库不得造成负库存，两个外部货物账户间不转移。用途不再强制匹配供应商、客户或动作枚举。
+资金普通转移由可信用户自动批准过账，普通用户待人工审批。货物批准后待完成，确认整笔完成才记数量。受信任用户或管理员按“登记转移 → 确认完成”办理，无须另一次人工审批；普通用户按“申请转移 → 报告已完成”办理，相应步骤等待审核或确认。完成报告待确认期间，主单仍待完成，库存不变。拒绝/取消/冲销填写原因，正式流水不能覆盖改写。货物实际账户出库不得造成负库存，两个外部货物账户间不转移。用途不再强制匹配供应商、客户或动作枚举。
 
 ## 结算与盘点
 
@@ -146,7 +146,7 @@ OpenCode 的 `opencode.json` 使用标准远程配置，依据 [官方 MCP 文�
 }
 ```
 
-成功连接后阅读初始化的核心模型说明，用 `fgas_help()` 查看权限与索引，再用 `fgas_query({"resource":"me"})` 核对真实用户角色及当前连接等级，并做一次正常只读查询。按需查某一对象/动作的精确参数；完整输出 Schema 用 `include_output_schema=true`。`fgas_propose` 对两档始终 pending；`fgas_execute` 仅 high 使用，资金直接过账，货物创建只进在途，整笔完成才记库存。调用成功保存业务编号；断线后查记录并人工核对，不自动重发。低权限交接可并列给人工网页与用户已授权的 high Agent，附业务编号和现状。详情见 [Agent 指南](docs/ai/guide.md)。
+成功连接后阅读初始化的核心模型说明，用 `fgas_help()` 查看权限与索引，再用 `fgas_query({"resource":"me"})` 核对真实用户角色及当前连接等级，并做一次正常只读查询。按需查某一对象/动作的精确参数；完整输出 Schema 用 `include_output_schema=true`。`fgas_propose` 对两档始终 pending；`fgas_execute` 仅 high 使用，资金直接过账，货物创建后待完成，确认整笔完成才记库存。调用成功保存业务编号；断线后查记录并人工核对，不自动重发。低权限交接可并列给人工网页与用户已授权的 high Agent，附业务编号和现状。详情见 [Agent 指南](docs/ai/guide.md)。
 
 从 v1 升级：原50个工具名已移除执行能力，只返回迁移提示。MCP 地址和凭据沿用，客户端需重新发现工具，硬编码旧名称的脚本需改为四入口；返回 `api_version=2`。没有数据库变更。当前仍未正式发布，实际验证与未做项见阶段记录。
 

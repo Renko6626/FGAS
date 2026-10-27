@@ -43,7 +43,7 @@ QUERIES = {
     'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计；支持 as_of/basis 查截止时点。余额不是收入、费用或利润。', {'kind': 'public', 'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'posted'}),
     'inventory': contract(queries.get_inventory, '按sku_code查正式库存及待完成流入/流出；计划仅含已批准尚未确认完成。account_code/member_code筛选账户范围；totals逐SKU汇总正式数量及外部流入、对外流出、内部调拨，任一端涉及范围的明细只计一次。分页重复返回同一筛选范围汇总，不可相加。as_of/basis查历史正式库存，历史计划为null，不提供估值。', {'sku_code': 'BAD-01-A'}),
     'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；默认最近30天，全量传 all_time=true；支持 identifier 查详情。资金流动不能直接当作经营收入费用或利润；代收交回是结算，不重复计为新增营业收入。', {'status': 'pending'}),
-    'stock_transfers': contract(queries.list_stock_transfers, '按sku_code等条件查货物转移；默认最近30天，全量传all_time=true；完成申请在父单详情中。', {'status': 'in_transit', 'sku_code': 'BAD-01-A'}),
+    'stock_transfers': contract(queries.list_stock_transfers, '按sku_code等条件查货物转移；默认最近30天，全量传all_time=true；完成报告在父单详情的完成记录中。', {'status': 'in_transit', 'sku_code': 'BAD-01-A'}),
     'stock_moves': contract(queries.list_stock_moves, '按sku_code查正式数量流水；默认最近30天，全量传all_time=true。', {'sku_code': 'BAD-01-A', 'all_time': True}),
     'settlement_overview': contract(queries.get_settlement_overview, '查一个私账的逐笔收支未结、付款及匹配；不从净余额推断，也不把单个私账结算当作整场经营核算。', {'identifier': 'FA-0003'}),
     'settlement_outstanding': contract(queries.list_settlement_outstanding, '跨私账查全部已过账未匹配记录，不限30天；kind=item 原收支、payment 结算付款，direction=expense 报销、receipt 交回。仅含未匹配项，不是全量经营收入费用；两侧金额不可相加为待付款额；匹配仍仅 high。', {'direction': 'expense', 'page': 1, 'limit': 20}),
@@ -61,7 +61,7 @@ DETAILS = {
 PROPOSALS = {
     'fund_transfer': contract(ops.propose_fund_transfer, '提交资金待审申请，不产生资金分录；high 调用也待审。', FUND),
     'stock_transfer': contract(ops.propose_stock_transfer, '提交货物待审申请，不改变库存；批准后仍须确认完成。', STOCK),
-    'stock_completion': contract(ops.propose_stock_completion, '需要人工审批到货时使用；identifier 是父货物单编号 ST。返回待审完成申请，批准后才记库存；high 也待审。申请状态查父单详情的 confirmations。', COMPLETION),
+    'stock_completion': contract(ops.propose_stock_completion, '报告整笔转移已完成、等待核实时使用；identifier 是父货物单编号 ST。返回待确认完成报告，主单仍待完成且库存不变；high 的 propose 也待确认。报告状态查父单详情的 confirmations。', COMPLETION),
 }
 EXECUTIONS = {
     'fund_account': {
@@ -87,23 +87,23 @@ EXECUTIONS = {
         'reverse': contract(ops.reverse_fund_transfer, '以反向资金记录更正已过账单，保留原单；不自动退款或退货。', {'identifier': 'FT-000001', 'reason': '用户说明的更正原因'}),
     },
     'stock_transfer': {
-        'create': contract(ops.create_stock_transfer, '登记在途货物单，库存不变；fund_transfer_codes 可关联已有付款，建单后也可用 link_fund 补充。到货后另行 complete。', STOCK),
-        'approve': contract(ops.approve_stock_transfer, '批准待审货物单进入在途，库存不变。', {'identifier': 'ST-000001'}),
+        'create': contract(ops.create_stock_transfer, '登记获批待完成的货物单，库存不变；fund_transfer_codes 可关联已有付款，建单后也可用 link_fund 补充。到货后另行 complete。', STOCK),
+        'approve': contract(ops.approve_stock_transfer, '批准转移后主单待完成，库存不变。', {'identifier': 'ST-000001'}),
         'reject': contract(ops.reject_stock_transfer, '拒绝待审货物单，保留原因。', {'identifier': 'ST-000001', 'reason': '用户说明的拒绝原因'}),
         'cancel': contract(ops.cancel_stock_transfer, '取消可取消的货物单，不自动退款；已完成货物须新增更正转移。', {'identifier': 'ST-000001', 'reason': '用户说明的取消原因'}),
-        'complete': contract(ops.complete_stock_transfer, '用户已确认整笔到货并授权直接登记时使用；identifier 是父货物单编号 ST。新建并完成确认，立即记库存。返回 stock_confirmation：confirmation_code/status 属于确认，stock_transfer_code/stock_transfer_status 属于父单。已有待审完成申请时应 approve 该申请。', COMPLETION),
+        'complete': contract(ops.complete_stock_transfer, '用户已确认整笔到货并授权直接登记时使用；identifier 是父货物单编号 ST。新建并完成确认，立即记库存。返回 stock_confirmation：confirmation_code/status 属于确认，stock_transfer_code/stock_transfer_status 属于父单。已有待确认完成报告时应 approve 该报告。', COMPLETION),
         'link_fund': contract(ops.add_stock_fund_reference, '引用已有资金单，不新建付款或改变库存。', {'identifier': 'ST-000001', 'fund_transfer_code': 'FT-000001'}),
     },
     'stock_completion': {
-        'approve': contract(ops.approve_stock_completion, '批准已有待审完成申请并记库存；identifier 填父货物单详情 confirmations 中的申请编号 SC，无需再执行 stock_transfer/complete。', {'identifier': 'SC-000001'}),
-        'reject': contract(ops.reject_stock_completion, '拒绝完成申请；identifier 是完成申请编号 SC，父单可能仍在途。', {'identifier': 'SC-000001', 'reason': '用户说明的拒绝原因'}),
+        'approve': contract(ops.approve_stock_completion, '核实并确认已有完成报告后记库存；identifier 填父货物单详情 confirmations 中的报告编号 SC，无需再执行 stock_transfer/complete。', {'identifier': 'SC-000001'}),
+        'reject': contract(ops.reject_stock_completion, '退回完成报告；identifier 是报告编号 SC，父单仍待完成。', {'identifier': 'SC-000001', 'reason': '用户说明的拒绝原因'}),
     },
     'settlement': {
         'create': contract(ops.create_settlement, '新记一笔结算付款并匹配原收支；已有付款应使用 match。', {'transfer': FUND, 'allocations': ALLOCATION}),
         'match': contract(ops.add_settlement_matches, '给已有结算付款追加匹配，不再次记钱；identifier 是付款单编号 FT。', {'identifier': 'FT-000003', 'allocations': ALLOCATION}),
     },
     'stock_operation': {
-        'create': contract(ops.create_stock_operation, '同一事务新建付款和货物单：付款过账，货物在途；已有付款用引用。', {'stock': STOCK, 'money': FUND}),
+        'create': contract(ops.create_stock_operation, '同一事务新建付款和货物单：付款过账，货物待完成；已有付款用引用。', {'stock': STOCK, 'money': FUND}),
     },
     'fund_stocktake': {
         'create': contract(ops.create_fund_stocktake, '创建资金盘点和专属盈亏账户；不调整余额。', {'name': '月末资金盘点'}),
@@ -137,7 +137,7 @@ class HelpInput(Input):
 
 QueryInput = create_model('QueryInput', __base__=Input,
     resource=(Literal[tuple(QUERIES)], Field(description='要查询的业务对象；参数不确定时用 fgas_help(topic=query, resource=...)。')),
-    identifier=(str | None, Field(default=None, min_length=1, description='货物账户和转移支持详情；详情不能附非空 filters。')),
+    identifier=(str | None, Field(default=None, min_length=1, description='货物账户、资金和货物转移用于查详情；settlement_overview 用于指定私账。不能附非空 filters。')),
     filters=(dict[str, Any], Field(default_factory=dict, description='该对象实际支持的过滤字段；事件列表默认最近30天，全量传 all_time=true；余额/库存支持 as_of/basis；按需查 help，不支持的字段会被拒绝。')))
 ProposeInput = create_model('ProposeInput', __base__=Input,
     resource=(Literal[tuple(PROPOSALS)], ...),
@@ -151,8 +151,8 @@ PUBLIC_INPUTS = {'fgas_help': HelpInput, 'fgas_query': QueryInput,
 TOOL_DESCRIPTIONS = {
     'fgas_help': '首次使用先无参调用，了解账本模型和当前权限；按 topic/resource/action 查输入参数与示例。已知用法无需重复查。',
     'fgas_query': '读取业务资料。首次使用先 fgas_help()；identifier 查详情，filters 查列表。事件默认近30天，全量传 all_time=true；has_more=true 继续翻页。',
-    'fgas_propose': '提交资金、货物或整笔完成申请，high 也始终待审、不记正式流水。首次使用先 fgas_help()，参数查 topic=propose。',
-    'fgas_execute': '仅 high 直接办理业务。首次使用先 fgas_help()，具体参数查 topic=execute；资金创建过账，货物创建在途、完成才记库存。',
+    'fgas_propose': '提交资金、货物申请或整笔完成报告，high 也始终待审、不记正式流水。首次使用先 fgas_help()，参数查 topic=propose。',
+    'fgas_execute': '仅 high 直接办理业务。首次使用先 fgas_help()，具体参数查 topic=execute；资金创建过账，货物创建后待完成，确认整笔完成才记库存。',
 }
 
 

@@ -247,28 +247,19 @@ onMounted(async () => {
         </header>
         <div class="main_background" aria-hidden="true"></div>
         <main class="workspace-main">
-          <div class="page-heading">
-            <div>
-              <h1>{{ currentPage.title }}</h1>
-            </div>
+          <div v-if="['home', 'accounts'].includes(tab)" class="page-heading">
             <div v-if="tab === 'home'" class="page-actions">
-              <NButton @click="createStock">登记货物</NButton>
+              <NButton @click="createStock">{{ trusted ? "登记转移" : "申请转移" }}</NButton>
               <NButton type="primary" @click="create()">登记资金</NButton>
             </div>
             <div
-              v-else-if="tab === 'accounts' || tab === 'transfers'"
+              v-else-if="tab === 'accounts'"
               class="page-actions"
             >
               <NButton v-if="tab === 'accounts'" @click="create(true)"
                 >登记期初</NButton
               ><NButton type="primary" @click="create()">登记资金转移</NButton>
             </div>
-            <NButton
-              v-else-if="tab === 'stock'"
-              type="primary"
-              @click="createStock"
-              >登记货物转移</NButton
-            >
           </div>
           <p v-if="error" class="banner error" role="alert">{{ error }}</p>
           <div v-if="notice" class="banner success" role="status">
@@ -391,6 +382,7 @@ onMounted(async () => {
               :accounts="accounts"
               :revision="revision"
               @changed="refresh"
+              @create="createStock"
             />
             <StocktakesView
               v-else-if="stocktakesEnabled && tab === 'stocktakes'"
@@ -459,6 +451,7 @@ onMounted(async () => {
         :locations="locations"
         :skus="skus"
         :accounts="accounts"
+        :trusted="trusted"
         @saved="
           notice = '货物转移已保存';
           refresh();

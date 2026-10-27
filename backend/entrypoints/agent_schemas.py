@@ -86,7 +86,7 @@ class FundTransferFilters(TransferFilters):
 
 class StockTransferFilters(TransferFilters):
     source_reference: str | None = None
-    status: Literal['pending', 'in_transit', 'completed', 'rejected', 'cancelled'] | None = Field(default=None, description='pending 待审；in_transit 在途；completed 已完成；rejected 已拒绝；cancelled 已取消。')
+    status: Literal['pending', 'in_transit', 'completed', 'rejected', 'cancelled'] | None = Field(default=None, description='pending 待审；in_transit 待完成（已获批，尚未确认完成）；completed 已完成；rejected 已拒绝；cancelled 已取消。')
     sku_code: str | None = None
 
 

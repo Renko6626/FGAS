@@ -144,7 +144,7 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
             </tbody>
           </table>
         </div>
-        <div v-else class="overview-empty operations-empty"><p>{{ filter === 'all' ? '暂无转移记录' : filter === 'funds' ? '暂无资金转移记录' : '暂无货物转移记录' }}</p><NButton @click="filter === 'stock' ? emit('createStock') : emit('create')">{{ filter === 'stock' ? '登记货物' : '登记资金' }}</NButton></div>
+        <div v-else class="overview-empty operations-empty"><p>{{ filter === 'all' ? '暂无转移记录' : filter === 'funds' ? '暂无资金转移记录' : '暂无货物转移记录' }}</p><NButton @click="filter === 'stock' ? emit('createStock') : emit('create')">{{ filter === 'stock' ? (trusted ? '登记转移' : '申请转移') : '登记资金' }}</NButton></div>
         <div class="records-footer"><small>近 7 天变化按实际入账统计，内部转移不改变合计。</small><div><NButton class="plain-button" text @click="emit('navigate', 'transfers')">全部资金流水</NButton><NButton class="plain-button" text @click="emit('navigate', 'stock')">全部货物转移</NButton></div></div>
       </section>
     </template>

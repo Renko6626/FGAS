@@ -17,6 +17,7 @@ const props = defineProps<{
   locations: StockAccount[];
   skus: Sku[];
   accounts: Account[];
+  trusted: boolean;
   hideTrigger?: boolean;
   initial?: Partial<StockInput>;
 }>();
@@ -104,12 +105,12 @@ async function save() {
 </script>
 <template>
   <NButton v-if="!hideTrigger" type="primary" :disabled="busy" @click="open()"
-    >新建货物转移</NButton
+    >{{ trusted ? "登记转移" : "申请转移" }}</NButton
   >
   <NModal
     v-model:show="show"
     preset="card"
-    title="货物转移"
+    :title="trusted ? '登记转移' : '申请转移'"
     class="dialog stock-dialog"
     :mask-closable="!busy"
     :closable="!busy"
@@ -139,10 +140,10 @@ async function save() {
           >原始单据编号<NInput v-model:value="reference" :disabled="busy"
         /></label>
         <label
-          >关联转移编号<NInput
+          >关联的原货物单编号<NInput
             v-model:value="related"
             :disabled="busy"
-            placeholder="可留空"
+            placeholder="填写 ST 编号，选填"
         /></label>
       </details>
       <details class="stock-extra">
@@ -209,7 +210,7 @@ async function save() {
     <div class="actions stock-actions">
       <NButton :disabled="busy" @click="show = false">关闭</NButton
       ><NButton type="primary" :loading="busy" :disabled="busy" @click="save"
-        >提交</NButton
+        >{{ trusted ? "登记转移" : "申请转移" }}</NButton
       >
     </div>
   </NModal>

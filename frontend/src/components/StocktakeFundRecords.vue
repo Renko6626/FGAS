@@ -20,7 +20,7 @@ const hasFilters = computed(() => hasFundFilters(filters.value));
 </script>
 
 <template>
-  <TransferFilters v-model="filters" :items="items" :approvals="false" :count="records.length" />
+  <TransferFilters v-model="filters" :items="items" :approvals="false" :count="records.length" hide-create />
   <TransferRecords :items="records" :accounts="accounts" :trusted="trusted" :approvals="false" hide-create
     :has-filters="hasFilters" @changed="emit('changed')" @notice="emit('notice', $event)" @reset="filters = emptyFundFilters()" />
 </template>
