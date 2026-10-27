@@ -120,3 +120,5 @@ validation_error 表示参数或业务校验失败；输入 Schema 校验还返�
 
 
 交接定位链接使用 `/#transfers?code=FT-000123`、`/#stock?code=ST-000123`、`/#settlements?account_code=FA-0001`（替换为实际编号）。链接只展示对象，不执行操作；保留 SC 完成申请号及 ST 父单号，交代状态和下一步，可由人工网页或用户已授权的 high Agent 接力。
+
+库存行的 incoming_planned_quantity / outgoing_planned_quantity 分别为该账户待完成流入、流出；仅含已批准尚未确认完成的货物单。正式 quantity 只来自已完成的 StockMove。totals 逐 SKU 返回 sku_code、sku_name、unit、quantity，以及 incoming_to_org_quantity（external→internal）、outgoing_from_org_quantity（internal→external）、internal_transfer_quantity（internal→internal）。账户或当前负责人筛选先限定账户范围，再选任一端涉及范围的计划明细，每明细只计一次；筛选不改变组织边界。各页 totals 重复同一筛选范围汇总，不可逐页相加。as_of 历史查询的两项行计划和三项汇总计划均为 null，区别于当前没有计划时的 0；不推算历史在途。计划量不代表实时运输、预占或可售数量。

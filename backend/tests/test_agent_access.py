@@ -378,7 +378,10 @@ def test_mcp_auth_discovery_and_structured_results(client, owner, level):
                         assert denied_match.is_error and denied_match.structured_content['code'] == 'permission_denied'
                         as_of = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {'as_of': '2026-10-01T00:00:00+08:00'}})
                         assert not as_of.is_error and as_of.structured_content['data']['basis'] == 'posted'
-                        assert all(row['in_transit_planned_quantity'] is None for row in as_of.structured_content['data']['items'])
+                        assert all(row[field] is None for row in as_of.structured_content['data']['items']
+                                   for field in ('incoming_planned_quantity', 'outgoing_planned_quantity'))
+                        assert all(row[field] is None for row in as_of.structured_content['data']['totals']
+                                   for field in ('incoming_to_org_quantity', 'outgoing_from_org_quantity', 'internal_transfer_quantity'))
                         pages = []
                         for page, limit in ((1, 20), (2, 20), (1, 100)):
                             result = await session.call_tool('fgas_query', {'resource': 'inventory', 'filters': {
@@ -643,21 +646,38 @@ def test_inventory_as_of_onhand_and_null_in_transit(client):
         stock = ops.create_stock_transfer(db, access, payload)['data']['stock_transfer_code']
         db.commit()
         current = queries.get_inventory(db, access, {'account_code': target})['data']['items'][0]
-        assert current['quantity'] == '0' and current['in_transit_planned_quantity'] == '2'
+        assert current['quantity'] == '0' and current['incoming_planned_quantity'] == '2'
         historical = queries.get_inventory(db, access, {'account_code': target, 'as_of': as_of.isoformat()})['data']['items'][0]
-        assert historical['quantity'] == '0' and historical['in_transit_planned_quantity'] is None
+        assert historical['quantity'] == '0' and historical['incoming_planned_quantity'] is None
 
         ops.complete_stock_transfer(db, access, stock, {'effective_date': '2026-10-15'})
         move = db.scalar(select(StockMove).order_by(StockMove.created_at.desc()))
         move.created_at = as_of
         db.commit()
         before = queries.get_inventory(db, access, {'account_code': target, 'as_of': (as_of - timedelta(seconds=1)).isoformat()})['data']
-        assert before['items'][0]['quantity'] == '0' and before['items'][0]['in_transit_planned_quantity'] is None
+        assert before['items'][0]['quantity'] == '0' and before['items'][0]['incoming_planned_quantity'] is None
         after = queries.get_inventory(db, access, {'account_code': target, 'as_of': (as_of + timedelta(seconds=1)).isoformat()})['data']
-        assert after['items'][0]['quantity'] == '2' and after['items'][0]['in_transit_planned_quantity'] is None
-        assert after['totals'] == [{'sku_code': sku['code'], 'quantity': '2', 'valuation': '未估值'}]
+        assert after['items'][0]['quantity'] == '2' and after['items'][0]['incoming_planned_quantity'] is None
+        assert after['totals'] == [dict(sku_code=sku['code'], sku_name=sku['name'], unit=sku['unit'], quantity='2', valuation='未估值', incoming_to_org_quantity=None, outgoing_from_org_quantity=None, internal_transfer_quantity=None)]
+        assert all(row['outgoing_planned_quantity'] is None for row in before['items'])
+        effective = queries.get_inventory(db, access, {'account_code': target, 'as_of': as_of.isoformat(), 'basis': 'effective_date'})['data']
+        assert effective['totals'][0]['incoming_to_org_quantity'] is None
+        assert effective['totals'][0]['internal_transfer_quantity'] is None
         current_after = queries.get_inventory(db, access, {'account_code': target})['data']['items'][0]
-        assert current_after['quantity'] == '2' and current_after['in_transit_planned_quantity'] == '0'
+        assert current_after['quantity'] == '2' and current_after['incoming_planned_quantity'] == '0'
+        other = client.post('/api/stock-accounts', json={'name': '调拨地点', 'kind': 'internal'}).json()['code']
+        internal_payload = {**payload, 'source_account_code': target, 'destination_account_code': other}
+        ops.create_stock_transfer(db, access, internal_payload)
+        db.commit()
+        scope = queries.get_inventory(db, access, {'account_code': target})['data']
+        assert scope['items'][0]['outgoing_planned_quantity'] == '2'
+        assert scope['totals'][0]['internal_transfer_quantity'] == '2'
+        assert scope['totals'][0]['outgoing_from_org_quantity'] == '0'
+        all_scope = queries.get_inventory(db, access, {'page': 1, 'limit': 1})['data']
+        next_scope = queries.get_inventory(db, access, {'page': 2, 'limit': 1})['data']
+        assert all_scope['totals'] == next_scope['totals']
+        assert all_scope['totals'][0]['internal_transfer_quantity'] == '2'
+
 
 
 def test_stock_move_filters_sql(client):

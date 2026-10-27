@@ -293,6 +293,10 @@ def check(api, mapping):
     wanted = {mapping['stock_accounts'][key]: quantity for key, quantity in expected['bad_01_a_locations'].items()}
     equal(actual, wanted, 'BAD-01-A位置')
     equal(sum(actual.values()), 297, 'BAD-01-A组织库存')
+    totals = api.request('GET', '/api/inventory', params={'sku_code': 'BAD-01-A'})['totals'][0]
+    equal(tuple(int(totals[key]) for key in ('quantity', 'incoming_to_org_quantity', 'internal_transfer_quantity', 'outgoing_from_org_quantity')),
+          (297, 120, 10, 0), 'BAD-01-A正式与三类计划')
+    equal(sum(int(totals[key]) for key in ('incoming_to_org_quantity', 'internal_transfer_quantity', 'outgoing_from_org_quantity')), 130, '计划明细只计一次')
     for symbol, status in expected['stock_states'].items():
         value = api.request('GET', '/api/stock-transfers/' + mapping['stock'][symbol])
         equal(value['status'], status, symbol + '状态')
@@ -320,7 +324,7 @@ def check(api, mapping):
           [('admin', 'high'), ('admin', 'low'), ('trusted', 'low'), ('untrusted', 'low')], '四种连接身份')
     equal(len(api.pages('/api/transfers')), expected['fund_transfer_count'], '资金单数量')
     equal(len(api.pages('/api/stock-transfers')), expected['stock_transfer_count'], '货物单数量')
-    print('核对通过：32SKU，唯一公账16100元，BAD-01-A正式297（227/50/20），入途120/出途10，结算及负责人历史，四种连接')
+    print('核对通过：32SKU，唯一公账16100元，BAD-01-A正式297（227/50/20），外部流入计划120/内部调拨10/对外0，结算及负责人历史，四种连接')
 
 
 def main():

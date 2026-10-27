@@ -108,7 +108,30 @@ def test_stock_completion_and_exact_inventory(client):
         assert type(zero) is int and zero == 0
     first = stock_plan(client, a, b, skus, ['30', '2'], 'batch1')
     second = stock_plan(client, a, b, skus, ['20', '3'], 'batch2')
+    member = client.post('/api/members', json={'name': '库存负责人'}).json()
+    assert client.patch(f'/api/stock-accounts/{a}', json={'member_code': member['code']}).status_code == 200
+    for filters in ({}, {'account_code': a}, {'account_code': b}, {'member_code': member['code']}):
+        first_page = client.get('/api/inventory', params={**filters, 'sku_code': skus[0], 'limit': 1}).json()
+        total = first_page['totals'][0]
+        assert total['internal_transfer_quantity'] == '50'
+        assert total['incoming_to_org_quantity'] == total['outgoing_from_org_quantity'] == '0'
+        assert total['quantity'] == ('0' if filters.get('account_code') == b else '100')
+        if not filters:
+            second_page = client.get('/api/inventory', params={'sku_code': skus[0], 'limit': 1, 'page': 2}).json()
+            assert second_page['totals'] == first_page['totals']
+        for row in first_page['items']:
+            assert row['incoming_planned_quantity'] == ('50' if row['account_code'] == b else '0')
+            assert row['outgoing_planned_quantity'] == ('50' if row['account_code'] == a else '0')
+    assert client.get('/api/inventory', params={'sku_code': skus[1]}).json()['totals'][0]['internal_transfer_quantity'] == '5'
     assert balances(client)[a, skus[0]] == '100' and balances(client)[b, skus[0]] == '0'
+    stock_plan(client, opening, a, skus[:1], ['7'], 'incoming-plan')
+    stock_plan(client, a, opening, skus[:1], ['4'], 'outgoing-plan')
+    directional = client.get('/api/inventory', params={'account_code': a, 'sku_code': skus[0]}).json()
+    assert directional['items'][0]['incoming_planned_quantity'] == '7'
+    assert directional['items'][0]['outgoing_planned_quantity'] == '54'
+    assert directional['totals'][0]['incoming_to_org_quantity'] == '7'
+    assert directional['totals'][0]['outgoing_from_org_quantity'] == '4'
+    assert directional['totals'][0]['internal_transfer_quantity'] == '50'
     result = complete(client, first, 'batch1-complete')
     assert result.status_code == 200 and result.json()['status'] == 'completed'
     assert balances(client)[a, skus[0]] == '70' and balances(client)[b, skus[0]] == '30'

@@ -21,10 +21,20 @@ def inventory(db,filters=None,page=1,limit=20):
         value['member_code'] = store.get_member(db,member_id).code if member_id else None
         value.pop('sku_id')
         value['quantity'] = quantity_string(int(value['quantity']))
-        if value['in_transit_planned_quantity'] is not None:
-            value['in_transit_planned_quantity'] = quantity_string(int(value['in_transit_planned_quantity']))
+        for field in ('incoming_planned_quantity', 'outgoing_planned_quantity'):
+            if value[field] is not None:
+                value[field] = quantity_string(int(value[field]))
         value['valuation'] = '未估值'
         quantities.append(value)
+    totals = []
+    for row in result['totals']:
+        value = dict(row)
+        value.pop('sku_id')
+        for field in ('quantity', 'incoming_to_org_quantity', 'outgoing_from_org_quantity', 'internal_transfer_quantity'):
+            if value[field] is not None:
+                value[field] = quantity_string(int(value[field]))
+        value['valuation'] = '未估值'
+        totals.append(value)
     return dict(items=quantities,total=result['total'],page=page,limit=limit,snapshot_at=result['snapshot_at'],
-                totals=[dict(sku_code=row['sku_code'],quantity=quantity_string(int(row['quantity'])),valuation='未估值') for row in result['totals']],
+                totals=totals,
                 as_of=as_of,basis=basis if as_of is not None else None)

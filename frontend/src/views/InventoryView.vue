@@ -92,7 +92,8 @@ onMounted(refresh);
           <th>地点 / 负责人</th>
           <th>SKU</th>
           <th>库存数量</th>
-          <th>未完成转移涉及数量</th>
+          <th>待完成流入</th>
+          <th>待完成流出</th>
         </tr>
       </thead>
       <tbody>
@@ -110,7 +111,8 @@ onMounted(refresh);
             />
           </td>
           <td>{{ r.quantity }} {{ r.unit }}</td>
-          <td>{{ r.in_transit_planned_quantity }}</td>
+          <td>{{ r.incoming_planned_quantity ?? "不可用" }}</td>
+          <td>{{ r.outgoing_planned_quantity ?? "不可用" }}</td>
         </tr>
       </tbody>
     </table>
@@ -122,9 +124,11 @@ onMounted(refresh);
     @update:page="page = $event"
     @update:limit="limit = $event; page = 1"
   />
+  <p>汇总范围：{{ location || member || sku ? "当前筛选范围" : "全部组织" }}。计划量仅含已批准但尚未确认完成的单据。各页重复显示同一范围汇总，请勿相加。</p>
   <p v-for="t in totals" :key="t.sku_code">
-    {{ t.sku_code }} {{ skus.find((s) => s.code === t.sku_code)?.name }} 合计：{{
-      t.quantity
-    }}，{{ t.valuation }}
+    {{ t.sku_code }} {{ t.sku_name }}：正式数量 {{ t.quantity }} {{ t.unit }}；
+    外部流入计划 {{ t.incoming_to_org_quantity ?? "不可用" }}；
+    对外流出计划 {{ t.outgoing_from_org_quantity ?? "不可用" }}；
+    内部调拨计划 {{ t.internal_transfer_quantity ?? "不可用" }}。{{ t.valuation }}
   </p>
 </template>

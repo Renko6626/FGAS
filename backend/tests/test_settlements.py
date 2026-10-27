@@ -1,5 +1,6 @@
 """Settlement behavior over real transfers and journal lines."""
 from backend.tests.conftest import seed_code
+from backend.application.directory_views import by_code
 from backend.tests.test_funds import transfer
 
 def private(client,name='小王'):

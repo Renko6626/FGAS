@@ -109,10 +109,16 @@ export interface InventoryRow {
   unit: string;
   quantity: string;
   valuation: string;
-  in_transit_planned_quantity: string;
+  incoming_planned_quantity: string | null;
+  outgoing_planned_quantity: string | null;
 }
 export interface InventoryTotals {
   sku_code: string;
+  sku_name: string;
+  unit: string;
+  incoming_to_org_quantity: string | null;
+  outgoing_from_org_quantity: string | null;
+  internal_transfer_quantity: string | null;
   quantity: string;
   valuation: string;
 }

@@ -399,7 +399,7 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 
 按用户确认的方案，MCP 事件类列表（资金单、货物单、货物流水）默认只返回最近 30 天按 `created_at` 录入的记录；`all_time=true` 或任一显式时间条件关闭默认窗口，`identifier` 详情不受影响。目录、余额、库存、盘点和结算不套用默认窗口。
 
-`fund_balances` 和 `inventory` 新增 `as_of` / `basis`：默认 `posted`，按实际过账时间；也可显式使用 `effective_date` 按业务日期。资金侧新增 `transfers.posted_at`，由 `funds.post()` 写入；as-of 查询按该时间加总分录，不按当前 status 过滤，因此冲销前后都正确。库存 as-of 只计算 on-hand，历史在途不可用，`in_transit_planned_quantity` 返回 null。结算、在途 as-of 和盘点窗口不在本轮范围。
+`fund_balances` 和 `inventory` 新增 `as_of` / `basis`：默认 `posted`，按实际过账时间；也可显式使用 `effective_date` 按业务日期。资金侧新增 `transfers.posted_at`，由 `funds.post()` 写入；as-of 查询按该时间加总分录，不按当前 status 过滤，因此冲销前后都正确。库存 as-of 只计算 on-hand，历史计划不可用；行的 `incoming_planned_quantity` / `outgoing_planned_quantity` 与汇总的三类计划均返回 null。结算、在途 as-of 和盘点窗口不在本轮范围。
 
 已有库升级新增显式脚本 `scripts/upgrade-posted-at.sql`：增加可空列、从 `audit_events(action='posted')` 回填、补充查询索引；pending/rejected 保持 null。脚本未在日常开发库执行，部署顺序要求先备份并执行 SQL，再上线依赖该列的代码。验证：`./tools/run_tests.sh` 的 56 项测试全部通过，覆盖默认窗口、`all_time`、显式时间条件绕过、详情豁免、资金 as-of 与冲销、库存 as-of、货物流水 SQL 过滤和帮助 Schema；未执行真实升级脚本或部署联调。
 
@@ -466,3 +466,7 @@ Docker daemon访问被permission denied拒绝，未构建真实镜像、启动�
 验证：fgas_test重建前备份到.runtime/backups/fgas-20261026T200113Z.dump；显式DATABASE_URL指向fgas_test执行./tools/run_tests.sh，74 passed in 30.28s。npm run build的vue-tsc/Vite通过（保留既有主JS超过500kB提示）。基准脚本reset成功备份并加载，独立check再次通过：公账16100元、BAD-01-A正式297（社团储藏室227/叶青宿舍50/临时储藏室20），入途120/出途10、结算与负责人历史及四种连接正确；再次init按预期拒绝非空库，未重复灌入。初次加载遇本机代理、备份DSN传递问题，已分别改为回环直连和显式无密码DSN，随后实际reset/check通过。只读审阅修正一处F01黄金答案账户名，其余无重要问题。
 
 未运行外部模型的24张任务、浏览器自动交互、真实SSO、公网或生产部署。数据已加载与软件检查通过，不代表Agent已通过任务。实现已按用户要求提交并归并至main；历史分支提交均已包含于main，旧工作目录解除分支绑定并保留未提交文件。独立基准库可用于后续试验。
+
+### 2026-10-27 库存方向与计划汇总
+
+库存行分别显示待完成流入、流出。逐 SKU totals 含名称、单位、正式数量，以及外部流入、对外流出、内部调拨三类互斥计划；计划仅来自已批准尚未确认完成的货物单，正式数量只来自 StockMove。账户/当前负责人筛选选择任一端涉及范围的明细，各计一次，内部调拨不因仅选来源账户变成组织出库。SKU 筛选同时约束计划，分页重复同一筛选范围的 totals，不可累加。历史查询不推算在途，所有计划返回 null；当前无计划为 0。基准预期 BAD-01-A 正式297，外部流入120，内部调拨10，对外0，共130计划明细数量；本轮仅更新核对脚本，未运行基准数据库加载或模型验收。

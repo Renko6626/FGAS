@@ -290,20 +290,27 @@ class StockTransferDetail(StockTransferRow):
     audit: list[StockAuditRow]
 
 
-class InventoryTotal(BaseModel):
+class InventoryQuantity(BaseModel):
     sku_code: str
+    sku_name: str
+    unit: str
     quantity: str
     valuation: Literal['未估值']
 
 
-class InventoryRow(InventoryTotal):
+class InventoryTotal(InventoryQuantity):
+    incoming_to_org_quantity: str | None
+    outgoing_from_org_quantity: str | None
+    internal_transfer_quantity: str | None
+
+
+class InventoryRow(InventoryQuantity):
     account_code: str
     account_name: str
     member_code: str | None
     member_name: str | None
-    sku_name: str
-    unit: str
-    in_transit_planned_quantity: str | None
+    incoming_planned_quantity: str | None
+    outgoing_planned_quantity: str | None
 
 
 class StockMoveRow(BaseModel):

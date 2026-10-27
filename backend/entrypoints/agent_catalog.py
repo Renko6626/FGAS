@@ -41,7 +41,7 @@ QUERIES = {
     'skus': contract(queries.list_skus, '按业务SKU代号code精确查询，q搜代号/完整名称，tag筛选类别或角色；返回code、名称、标签和整数单位。', {'code': 'ARC-01-A'}),
     'members': contract(queries.list_members, '查业务联系人名称及 note 备注。', {'q': '小王'}),
     'fund_balances': contract(queries.get_fund_balances, '查账面余额；total 始终为全部公账合计，不是筛选行合计；支持 as_of/basis 查截止时点。', {'kind': 'public', 'as_of': '2026-10-01T00:00:00+08:00', 'basis': 'posted'}),
-    'inventory': contract(queries.get_inventory, '按sku_code查正式库存和在途计划量；member_code筛选当前负责人，totals是全部筛选结果合计。as_of/basis查历史库存，历史在途不可用，不提供估值。', {'sku_code': 'BAD-01-A'}),
+    'inventory': contract(queries.get_inventory, '按sku_code查正式库存及待完成流入/流出；计划仅含已批准尚未确认完成。account_code/member_code筛选账户范围；totals逐SKU汇总正式数量及外部流入、对外流出、内部调拨，任一端涉及范围的明细只计一次。分页重复返回同一筛选范围汇总，不可相加。as_of/basis查历史正式库存，历史计划为null，不提供估值。', {'sku_code': 'BAD-01-A'}),
     'fund_transfers': contract(queries.list_fund_transfers, '按条件查资金转移；默认最近30天，全量传 all_time=true；支持 identifier 查详情。', {'status': 'pending'}),
     'stock_transfers': contract(queries.list_stock_transfers, '按sku_code等条件查货物转移；默认最近30天，全量传all_time=true；完成申请在父单详情中。', {'status': 'in_transit', 'sku_code': 'BAD-01-A'}),
     'stock_moves': contract(queries.list_stock_moves, '按sku_code查正式数量流水；默认最近30天，全量传all_time=true。', {'sku_code': 'BAD-01-A', 'all_time': True}),
