@@ -6,10 +6,11 @@ import { stockStatuses } from "../presentation/warehouse";
 import type { Dashboard } from "../api/dashboard";
 import type { Account } from "../api/accounts";
 import AccountAvatar from "../components/AccountAvatar.vue";
+import AccountRoute from "../components/AccountRoute.vue";
 
 const props = defineProps<{ data: Dashboard | null; accounts: Account[]; loading: boolean; trusted: boolean }>();
 const emit = defineEmits<{
-  navigate: [string, ("funds" | "stock")?];
+  navigate: [string, ("funds" | "stock")?, string?];
   create: [];
   createStock: [];
 }>();
@@ -38,22 +39,17 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
 
 <template>
   <div class="dashboard dashboard-overview" :aria-busy="loading">
-    <section v-if="unsettledAccounts.length" class="member-balances fantasy_guide_div_1" aria-labelledby="member-balances-heading">
+    <section class="member-balances fantasy_guide_div_1" aria-labelledby="member-balances-heading">
       <div class="overview-heading">
         <h2 id="member-balances-heading">成员往来待结清</h2>
         <NButton class="overview-link" type="primary" size="small" @click="emit('navigate', 'settlements')">查看私账结算</NButton>
       </div>
-      <p class="member-balances-note">{{ unsettledAccounts.length }} 个成员私账余额非零，请及时核对处理，尽量结清归零。</p>
+      <p class="member-balances-note">{{ unsettledAccounts.length ? `${unsettledAccounts.length} 个私账余额未结清` : "目前没有未结清的私账余额" }}</p>
       <div class="member-balances-summary">
         <div><span>成员应交回</span><strong>¥ {{ money(memberReceivable) }}</strong></div>
         <div><span>社团应偿还</span><strong>¥ {{ money(memberPayable) }}</strong></div>
       </div>
-      <ul class="member-balances-list">
-        <li v-for="account in unsettledAccounts" :key="account.code">
-          <div class="member-balance-account"><strong>{{ account.name }}</strong><small v-if="!account.active">已停用</small></div>
-          <div class="member-balance-amount"><span>{{ account.balance_minor > 0 ? '成员应交回' : '社团应偿还' }}</span><strong>¥ {{ money(Math.abs(account.balance_minor)) }}</strong></div>
-        </li>
-      </ul>
+
     </section>
     <template v-if="data">
       <div class="overview-caption">
@@ -118,9 +114,9 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
 
       <section class="dashboard-pending" aria-label="待办事项">
         <span class="pending-label">{{ trusted ? '待办事项' : '记录状态' }}</span>
-        <button @click="emit('navigate', trusted ? 'approvals' : 'transfers', 'funds')">资金待审批 <strong>{{ data.counts.pendingFunds }}</strong><span> 笔</span></button>
+        <button @click="emit('navigate', trusted ? 'approvals' : 'transfers', 'funds', trusted ? undefined : 'pending')">资金待审批 <strong>{{ data.counts.pendingFunds }}</strong><span> 笔</span></button>
         <button v-if="trusted" @click="emit('navigate', 'approvals', 'stock')">货物待审批 <strong>{{ data.counts.pendingStock }}</strong><span> 笔</span></button>
-        <button @click="emit('navigate', 'stock')">货物待完成 <strong>{{ data.counts.inTransit }}</strong><span> 笔</span></button>
+        <button @click="emit('navigate', 'stock', undefined, 'in_transit')">货物待完成 <strong>{{ data.counts.inTransit }}</strong><span> 笔</span></button>
       </section>
 
       <section class="home-records fantasy_guide_div_1" aria-labelledby="operations-heading">
@@ -137,7 +133,7 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
               <tr v-for="item in operations" :key="`${item.kind}-${item.code}`">
                 <td class="operation-date" :title="`创建于 ${fullDate(item.created_at)}；业务日期 ${item.effective_date}`">{{ dateTime(item.created_at) }}</td>
                 <td class="operation-description"><small>{{ item.kind === 'funds' ? (item.reversal_of_code ? '资金冲销' : '资金转移') : '货物转移' }}</small><p>{{ item.description || '未填写说明' }}</p></td>
-                <td class="operation-route"><span>{{ item.source_account_name }}</span><small>转入 {{ item.destination_account_name }}</small></td>
+                <td class="operation-route"><AccountRoute :accounts="[]" source-id="" destination-id="" :source-name="item.source_account_name" :destination-name="item.destination_account_name" /></td>
                 <td class="numeric operation-amount">
                   <strong v-if="item.kind === 'funds'">¥ {{ money(item.amount_minor) }}</strong>
                   <template v-else><p v-for="line in item.lines" :key="line.sku_code">{{ line.sku_code }} {{ line.sku_name }} <strong>{{ line.quantity }} {{ line.unit }}</strong></p></template>

@@ -59,6 +59,12 @@ def other_active_admin_count(db, user_id):
 
 def accounts(db, tag=None, kind=None, member_id=None):
     return catalog_items(db, FundAccount, tag, kind, member_id)
+def account_last_posted(db):
+    rows = db.execute(select(JournalLine.account_id, func.max(Transfer.posted_at))
+        .join(Transfer, Transfer.id == JournalLine.transfer_id)
+        .where(Transfer.posted_at.is_not(None)).group_by(JournalLine.account_id))
+    return dict(rows.all())
+
 def stock_accounts(db, tag=None, kind=None, member_id=None):
     return catalog_items(db, StockAccount, tag, kind, member_id)
 def catalog_items(db, model, tag, kind, member_id):

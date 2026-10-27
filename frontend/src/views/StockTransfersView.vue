@@ -16,13 +16,14 @@ const props = defineProps<{
   approvals?: boolean;
   revision?: number;
   targetCode?: string;
+  initialStatus?: string;
 }>();
 const emit = defineEmits<{
   changed: [];
 }>();
 const records = ref<InstanceType<typeof StockTransferRecords> | null>(null);
 const items = ref<StockTransfer[]>([]);
-const filters = ref(emptyStockFilters());
+const filters = ref({ ...emptyStockFilters(), status: props.initialStatus || null });
 const page = ref(1);
 const limit = ref(20);
 const total = ref(0);
@@ -72,11 +73,11 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
 </script>
 
 <template>
-  <div class="toolbar">
-    <h2>{{ approvals ? "货物审批与完成申报" : "货物转移记录" }}</h2>
+  <div v-if="approvals" class="toolbar">
+    <h2>货物审批与完成申报</h2>
     <NButton :disabled="records?.busy" @click="emit('changed')">刷新</NButton>
   </div>
-  <StockTransferFilters v-model="filters" :items="items" :skus="skus" />
+  <StockTransferFilters v-model="filters" :approvals="approvals" :count="total" />
   <StockTransferRecords :target-code="targetCode" ref="records" :items="items" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
     :approvals="approvals" :loading="loading" :error="error" @changed="emit('changed')" />
   <PaginationBar :page="page" :limit="limit" :total="total" @update:page="page = $event" @update:limit="limit = $event" />

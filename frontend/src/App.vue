@@ -23,6 +23,7 @@ import { stocktakesEnabled } from "./features";
 const tab = ref("home");
 const targetCode = ref("");
 const targetAccountCode = ref("");
+const targetStatus = ref("");
 const error = ref("");
 const notice = ref("");
 const busy = ref(false);
@@ -118,12 +119,13 @@ const currentPage = computed(() => pages[tab.value] || pages.home!);
 const approvalCount = computed(
   () => counts.value.pendingFunds + counts.value.pendingStock,
 );
-function navigate(value: string, approval?: "funds" | "stock") {
+function navigate(value: string, approval?: "funds" | "stock", status?: string) {
   if (approval) approvalType.value = approval;
   if (!nav.value.some((item) => item.value === value)) return;
   tab.value = value;
   mobileNav.value = false;
-  window.location.hash = value;
+  targetStatus.value = status || "";
+  window.location.hash = value + (status ? `?status=${encodeURIComponent(status)}` : "");
 }
 function readPageHash() {
   if (!user.value) return;
@@ -131,6 +133,7 @@ function readPageHash() {
   const params = new URLSearchParams(search);
   targetCode.value = params.get("code") || "";
   targetAccountCode.value = params.get("account_code") || "";
+  targetStatus.value = params.get("status") || "";
   tab.value = nav.value.some((item) => item.value === value) ? value : "home";
   mobileNav.value = false;
 }
@@ -308,6 +311,7 @@ onMounted(async () => {
           >
             <TransfersView
               :target-code="targetCode"
+              :initial-status="targetStatus"
               :key="`${user.id}:${identityEpoch}`"
               :accounts="accounts"
               :approvals="false"
@@ -378,6 +382,7 @@ onMounted(async () => {
             />
             <StockTransfersView
               :target-code="targetCode"
+              :initial-status="targetStatus"
               v-else-if="tab === 'stock'"
               :key="`${user.id}:${identityEpoch}:stock`"
               :locations="locations"

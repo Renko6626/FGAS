@@ -20,6 +20,7 @@ export interface AccountBase<Kind extends string = AccountKind | StockAccountKin
 }
 export interface Account extends AccountBase<AccountKind> {
   balance_minor: number;
+  last_posted_at?: string | null;
 }
 export type StockAccount = AccountBase<StockAccountKind>;
 export interface ResponsibilityHistory {

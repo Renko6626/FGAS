@@ -938,3 +938,35 @@ section.fantasy_guide_div_1 {
 .fantasy_guide_div_1 .n-button .n-button__content span {
   color: inherit;
 }
+
+/* Workbench surfaces: keep the identity in the logo and let content lead. */
+:root { --serif: system-ui, -apple-system, "Microsoft YaHei", sans-serif; --paper: #f5f6f8; --ink: #20242a; --muted: #66707c; }
+body { background: #f5f6f8; color: #20242a; font-family: system-ui, -apple-system, "Microsoft YaHei", sans-serif; }
+h1, h2, h3, .header-title strong, .header-left, .user-avatar,
+.nav-group-label, .nav-item, .n-card-header__main, .dialog .n-button,
+.fantasy_guide_div_1 h1, .fantasy_guide_div_1 h2, .fantasy_guide_div_1 h3,
+.fantasy_guide_div_1 h4, .fantasy_guide_div_1 span, .fantasy_guide_div_1 button { font-family: inherit !important; }
+h1 { font-size: 26px; font-weight: 700; }
+h2, h3 { font-weight: 650; }
+.workspace-header { border-bottom: 1px solid #e3e7eb; }
+.header-title strong { font-weight: 700; font-size: 28px; }
+.header-left { background: #26313c; font-size: 14px; }
+.main_background { display: none; }
+.fantasy_guide_div_1, .dialog, .fantasy-dialog { border-image: none; box-shadow: none; color: inherit !important; }
+.fantasy_guide_div_1 { border-radius: 8px; }
+.fantasy_guide_div_1 button { border-image: none; }
+.fantasy_guide_div_1 .n-button:not(.n-button--text-type):not(.n-button--quaternary-type) .n-button__border { border: var(--n-border); }
+.fantasy_guide_div_1 hr::before, .fantasy_guide_div_1 hr::after { display: none; }
+.nav-group.fantasy_guide_div_1 { background: transparent; margin: 0; padding: 8px 4px; }
+.side-nav { gap: 8px; }
+.nav-group-label { border: 0; font-size: 13px; font-weight: 600; color: #687381 !important; padding: 4px 10px; margin: 0; }
+.nav-item { border-radius: 5px; font-size: 14px; color: #35404c; padding: 8px 10px; }
+.nav-item:hover { background: #e9edf1; text-decoration: none; }
+.nav-item.active { background: #dce5ed; color: #1e394e; font-weight: 650; }
+.nav-item.active span { color: inherit; }
+.sidebar-foot { border-color: #dce1e6; }
+.page-surface.fantasy_guide_div_1, .dashboard .fantasy_guide_div_1 { box-shadow: none; }
+.page-surface.fantasy_guide_div_1 { background: white; }
+.page-heading { margin-left: 0; margin-right: 0; }
+.n-button__border, .n-button__state-border { border-radius: 5px !important; }
+@media (max-width: 760px) { .sidebar { background: #f5f6f8; } }

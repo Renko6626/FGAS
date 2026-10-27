@@ -46,7 +46,13 @@ const rows = computed(() =>
       (!filterKind.value || a.kind === filterKind.value) &&
       (!filterTag.value || a.tags.includes(filterTag.value)) &&
       (!filterMember.value || a.member_code === filterMember.value),
-  ),
+  ).sort((a, b) => {
+    if (props.mode !== "accounts") return 0;
+    const left = (a as Account).last_posted_at;
+    const right = (b as Account).last_posted_at;
+    if (!left || !right) return left ? -1 : right ? 1 : a.name.localeCompare(b.name, "zh-CN");
+    return Date.parse(right) - Date.parse(left) || a.name.localeCompare(b.name, "zh-CN");
+  }),
 );
 const tagOptions = computed(() =>
   [...new Set(all.value.flatMap((a) => a.tags))].map((value) => ({
@@ -122,13 +128,14 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
     class="catalog-categories"
     aria-label="账户类型"
   >
-    <button :class="{ active: filterKind === null }" @click="filterKind = null">
+    <button :class="{ active: filterKind === null }" :aria-pressed="filterKind === null" @click="filterKind = null">
       全部 <span>{{ all.length }}</span>
     </button>
     <button
       v-for="(label, value) in kinds"
       :key="value"
       :class="{ active: filterKind === value }"
+      :aria-pressed="filterKind === value"
       @click="filterKind = value"
     >
       {{ label }} <span>{{ all.filter((a) => a.kind === value).length }}</span>
@@ -182,46 +189,18 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
       >清空筛选</NButton
     ><NButton v-else-if="editable" @click="edit()">新建账户</NButton>
   </div>
-  <div v-else-if="mode === 'accounts'" class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>账户</th>
-          <th>类型</th>
-          <th>联系人</th>
-          <th class="numeric">余额（元）</th>
-          <th>标签</th>
-          <th>状态</th>
-          <th v-if="editable"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="a in rows" :key="a.code">
-          <td class="account-name">
-            <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}<small>{{ a.code }}</small>
-          </td>
-          <td>{{ kindLabels[a.kind] }}</td>
-          <td>{{ a.member_name || "—" }}</td>
-          <td class="numeric">{{ money((a as Account).balance_minor) }}</td>
-          <td>
-            <span v-for="tag in a.tags" :key="tag" class="tag">{{ tag }}</span
-            ><span v-if="!a.tags.length">—</span>
-          </td>
-          <td>
-            <span
-              class="status-pill"
-              :class="a.active ? 'status-active' : 'status-inactive'"
-              >{{ a.active ? "启用" : "停用" }}</span
-            >
-          </td>
-          <td v-if="editable">
-            <NButton size="small" class="plain-button" text @click="edit(a)"
-              >编辑</NButton
-            >
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div v-else-if="mode === 'accounts'" class="account-grid">
+    <article v-for="a in rows" :key="a.code" class="account-card">
+      <div class="card-heading">
+        <AccountAvatar :name="a.name" :url="a.avatar_url" />
+        <div class="card-name"><strong>{{ a.name }}</strong><small>{{ a.code }}</small></div>
+        <span v-if="!a.active" class="status-pill status-inactive">已停用</span>
+      </div>
+      <div class="card-balance"><span>账户余额</span><strong>¥ {{ money((a as Account).balance_minor) }}</strong></div>
+      <div class="card-meta"><span>{{ kindLabels[a.kind] }}</span><span v-if="a.member_name">联系人：{{ a.member_name }}</span></div>
+      <div v-if="a.tags.length" class="card-tags"><span v-for="tag in a.tags" :key="tag" class="tag">{{ tag }}</span></div>
+      <div v-if="editable" class="card-actions"><NButton text @click="edit(a)">编辑账户</NButton></div>
+    </article>
   </div>
   <div v-else class="table-wrap">
     <table>
@@ -330,32 +309,24 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
 </template>
 
 <style scoped>
-.catalog-categories {
-  display: flex;
-  gap: 24px;
-  border-bottom: 1px solid black;
-  margin-bottom: 20px;
-}
-.catalog-categories button {
-  border: 0 !important;
-  border-image: none !important;
-  background: none;
-  padding: 8px 0 12px;
-  color: #666;
-  font-size: 18px;
-  min-width: 0 !important;
-}
-.catalog-categories button.active {
-  color: black;
-  text-decoration: underline;
-  text-underline-offset: 14px;
-}
-.catalog-categories span {
-  font-family: Arial, sans-serif !important;
-  font-size: 12px;
-  margin-left: 5px;
-  color: #666 !important;
-}
+.catalog-categories { display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid #e3e8ec; margin-bottom:16px; }
+.catalog-categories button { border:0 !important; border-bottom:2px solid transparent !important; border-image:none !important; background:none; padding:9px 14px; color:#66707c; font-size:14px; min-width:0 !important; }
+.catalog-categories button.active { color:#244a66; border-bottom-color:#345d78 !important; font-weight:650; }
+.catalog-categories span { font-size:12px; margin-left:5px; color:#66707c !important; }
+.account-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; }
+.account-card { min-width:0; display:flex; flex-direction:column; padding:18px; border:1px solid #e3e8ec; border-radius:8px; background:#fff; }
+.card-heading { display:flex; align-items:center; gap:10px; min-width:0; }
+.card-heading :deep(.account-avatar) { width:44px; height:44px; margin:0; border-radius:50%; font-size:18px; }
+.card-name { flex:1; min-width:0; }
+.card-name strong,.card-name small { display:block; overflow-wrap:anywhere; }
+.card-name strong { font-size:15px; }
+.card-name small { font-size:12px; margin-top:2px; }
+.card-balance { display:flex; flex-direction:column; gap:3px; margin-top:20px; }
+.card-balance span,.card-meta { color:#66707c; font-size:12px; }
+.card-balance strong { font-size:22px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.card-meta { display:flex; flex-wrap:wrap; gap:5px 14px; margin-top:12px; }
+.card-tags { margin-top:8px; }
+.card-actions { margin-top:auto; padding-top:12px; }
 .catalog-filters {
   display: flex;
   gap: 12px;

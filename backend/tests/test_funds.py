@@ -36,12 +36,17 @@ def test_pending_approval_and_roles(client):
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
     pending = transfer(client, seed_code('opening'), seed_code('fund_pool'), '100').json()
     assert pending['status'] == 'pending' and pending['journal_lines'] == []
+    before = {a['code']: a for a in client.get('/api/accounts').json()}
+    assert before[seed_code('fund_pool')]['last_posted_at'] is None
     assert client.get('/api/funds/summary').json()['total_minor'] == 0
     assert client.post('/api/accounts', json={'name': '禁止', 'kind': 'public'}).status_code == 403
     assert client.patch('/api/users/trusted', json={'role': 'admin'}).status_code == 403
     client.post('/api/auth/login', json={'user_id': 'trusted'})
     assert client.post(f"/api/transfers/{pending['code']}/approve", json={'expected_version': pending['version']}).status_code == 200
     assert client.get('/api/funds/summary').json()['total_minor'] == 10000
+    after = {a['code']: a for a in client.get('/api/accounts').json()}
+    assert after[seed_code('fund_pool')]['last_posted_at'] is not None
+    assert after[seed_code('opening')]['last_posted_at'] == after[seed_code('fund_pool')]['last_posted_at']
     assert client.post(f"/api/transfers/{pending['code']}/approve", json={'expected_version': pending['version']}).status_code == 409
 
 def test_amount_precision(client):

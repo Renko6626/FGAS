@@ -6,7 +6,7 @@ watch(
   () => props.url,
   () => (failed.value = false),
 );
-const initial = computed(() => Array.from(props.name.trim())[0] || "?");
+const initial = computed(() => Array.from(props.name.trim()).find(character => !/[\p{P}\p{S}\s]/u.test(character)) || "?");
 const colors = computed(() => {
   let hash = 0;
   for (const character of props.name.trim()) {

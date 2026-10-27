@@ -78,7 +78,7 @@
 .operation-description { width: 23%; min-width: 140px; max-width: 300px; }
 .operation-description p { margin: 0; overflow-wrap: anywhere; }
 .operation-description small { font-size: 10px; margin-top: 0; }
-.operation-route { min-width: 120px; max-width: 240px; overflow-wrap: anywhere; }
+.operation-route { min-width: 200px; max-width: 300px; overflow-wrap: anywhere; }
 .operation-route small { display: block; margin-top: 1px; font-size: 10px; }
 .operation-amount p { margin: 0 0 2px; }
 .operation-amount strong { font-weight: 500; }
@@ -110,4 +110,33 @@
   .operation-filters { margin-left: auto; }
   .stock-summary-table { font-size: 11px; }
   .sku-name :deep(.account-avatar) { display: none; }
+}
+
+/* Overview first, with a compact, directly accessible queue below it. */
+.dashboard-overview { gap: 16px; }
+.dashboard-overview .overview-caption { order: 0; padding: 0; }
+.dashboard-overview .overview-panel { order: 1; padding: 22px 24px; margin: 0; background: #fff; }
+.dashboard-overview .member-balances { order: 2; padding: 18px 24px; margin: 0; background: #fff; }
+.dashboard-overview .dashboard-pending { order: 3; }
+.dashboard-overview .home-records { order: 4; padding: 22px 24px; margin: 0; background: #fff; }
+.dashboard-overview .dashboard-placeholder { order: 5; }
+.member-balances .overview-heading h2 { color: inherit; }
+.member-balances-note { color: #66707c; font-size: 13px; }
+.member-balances-summary { border: 0; padding: 0; gap: 18px 40px; }
+.member-balances-summary span { font-size: 13px; color: #66707c; }
+.member-balances-summary strong { font-size: 20px; font-weight: 650; }
+.overview-heading h2 { font-size: 18px; font-weight: 650; }
+.overview-note, .overview-caption small { font-size: 13px; }
+.fund-balance strong { font-weight: 650; }
+.week-summary small, .changes-heading small, .stock-heading small { font-size: 12px; }
+.change-list li, .stock-summary-table, .operations-table td { font-size: 13px; }
+.change-list time, .stock-summary-table th, .operations-table th { font-size: 12px; }
+.dashboard-pending { background: #eaf0f5; border: 0; border-radius: 8px; margin: 0; padding: 14px 20px; gap: 10px 24px; }
+.dashboard-pending .pending-label { font-size: 14px; font-weight: 650; color: #35404c; }
+.dashboard-pending button { font-size: 13px; color: #234b69; padding: 5px 8px; border-radius: 4px; }
+.dashboard-pending button:hover { background: #dbe6ee; text-decoration: none; }
+.dashboard-pending button strong { font-size: 16px; font-weight: 700; }
+@media (max-width: 600px) {
+  .dashboard-overview .overview-panel, .dashboard-overview .member-balances, .dashboard-overview .home-records { padding: 18px 16px; }
+  .dashboard-pending { padding: 14px 16px; }
 }

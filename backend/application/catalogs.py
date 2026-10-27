@@ -20,7 +20,10 @@ def catalog_account_view(db,item):
     return directory_views.account_view(db, item) | dict(
         avatar_url=item.avatar_url, balance_minor=funds.balance(db, item),
         stocktake=stocktake_store.endpoint_metadata(db, 'fund', item.id))
-def accounts(db,tag=None,kind=None,member_code=None): return [catalog_account_view(db,a) for a in store.accounts(db,tag,kind,by_code(db,Member,member_code).id if member_code else None)]
+def accounts(db,tag=None,kind=None,member_code=None):
+    last_posted = store.account_last_posted(db)
+    return [catalog_account_view(db,a) | {'last_posted_at': last_posted.get(a.id)}
+            for a in store.accounts(db,tag,kind,by_code(db,Member,member_code).id if member_code else None)]
 def stock_accounts(db,tag=None,kind=None,member_code=None): return [warehouse_catalogs.account_view(db,a) for a in store.stock_accounts(db,tag,kind,by_code(db,Member,member_code).id if member_code else None)]
 def create_account(db,user,values):
     authorize_write(db,user); validate_account(db,values)

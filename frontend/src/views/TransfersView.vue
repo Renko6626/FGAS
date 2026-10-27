@@ -13,6 +13,7 @@ const props = defineProps<{
   hideCreate?: boolean;
   revision?: number;
   targetCode?: string;
+  initialStatus?: string;
 }>();
 const emit = defineEmits<{
   changed: [];
@@ -20,7 +21,7 @@ const emit = defineEmits<{
   create: [];
 }>();
 const items = ref<Transfer[]>([]);
-const filters = ref(emptyFundFilters());
+const filters = ref({ ...emptyFundFilters(), status: props.initialStatus || null });
 const page = ref(1);
 const limit = ref(20);
 const total = ref(0);
