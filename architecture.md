@@ -152,3 +152,5 @@ low 暴露 help/query/propose，high 再增加 execute，共3/4个公开工具�
 v2 直接替换旧公开工具名；旧名只返回 tool_migrated，不调用旧动作。客户端重连/重新发现，固定旧名脚本需更新；地址、凭据与业务数据不变。仍未正式发布。
 
 新装与升级统一执行 Alembic revision；`0001_baseline_schema.py` 包含 Agent 凭据、SSO、`transfers.posted_at` 等全部当前结构。旧库若不可丢弃，先备份并显式执行 `scripts/upgrade-agent-access.sql`、`scripts/upgrade-user-auth.sql`、`scripts/upgrade-posted-at.sql`，校验 schema 与基线一致后 `alembic stamp 0001`；可丢弃的旧库直接重建。有 FGAS 表但无 Alembic 版本记录的旧库不会在普通启动时自动收养；迁移失败即停止，不自动降级。具体命令、客户端版本和联调限制见阶段记录。
+
+2026-10-27 Agent 定向复测已完成：13个最新选定场景为11通过、2回答部分符合（人工入口/权限措辞），共18轮，保留早轮反例；不代表全26场景或生产验收。版本、状态与答案分判、软件检查及基准清理见 [定向复测记录](docs/ai/2026-10-27-agent-access-followup.md)。

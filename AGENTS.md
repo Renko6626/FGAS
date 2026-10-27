@@ -74,3 +74,5 @@ npm run db:init    # Alembic upgrade + 开发种子
 - 2026-10-27 用户明确货物负责人调整无需旧数据迁移、开发阶段直接重建：StockAccount 删除独立 member_id 存储列，统一由既有 StockAccountCustody 记录当前负责人及历史，当时 API 的 member_id/member_name 为其投影，当前公开接口已切换 member_code/member_name；同步0001建库基线，无回填/兼容。专用fgas_test重建前已备份，日常fgas未改。首次记账确认本人资料仍处于独立方案阶段，不得描述为已实现。
 
 - 2026-10-27 当前分支已实现 MCP `me` 身份/连接等级查询、FA/SA/M/FT/ST/SC 自动业务编号、公开业务 code 契约、FT/ST/FA 网页定位、人工与已授权 high 并列交接，以及方向明确的当前库存计划与逐 SKU 汇总。历史计划为 null，内部调拨只计一次。编号只同步 `0001` 基线，未迁移旧库，日常 `fgas` 未改；定向真实模型复测结论见 `docs/ai/2026-10-27-agent-access-followup.md`，不要把旧轮结果当成新契约验收。
+
+2026-10-27 Agent 定向复测已完成：13个最新选定场景为11通过、2回答部分符合（人工入口/权限措辞），共18轮，保留早轮反例；不代表全26场景或生产验收。版本、状态与答案分判、软件检查及基准清理见 [定向复测记录](docs/ai/2026-10-27-agent-access-followup.md)。
