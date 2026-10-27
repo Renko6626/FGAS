@@ -10,6 +10,25 @@ from typing import Any, Generic, TypeVar
 from pydantic import BaseModel
 
 
+class MeFilters(Input):
+    pass
+
+
+class CurrentUser(BaseModel):
+    display_name: str
+    role: Literal['untrusted', 'trusted', 'admin']
+
+
+class CurrentConnection(BaseModel):
+    name: str
+    level: Literal['low', 'high']
+
+
+class MeData(BaseModel):
+    user: CurrentUser
+    connection: CurrentConnection
+
+
 class PageFilters(Input):
     page: int = Field(default=1, ge=1)
     limit: int = Field(default=20, ge=1, le=100)
@@ -437,6 +456,7 @@ class SettlementOutstandingData(PageData[SettlementOutstandingRow, SettlementOut
 
 
 QUERY_OUTPUT_SCHEMAS = {
+    'me': QueryResult[MeData],
     'list_fund_accounts': QueryResult[PageData[AccountRow, AccountFilters]],
     'list_stock_accounts': QueryResult[PageData[StockAccountRow, StockAccountFilters]],
     'get_stock_account': QueryResult[StockAccountDetail],
@@ -458,6 +478,7 @@ QUERY_OUTPUT_SCHEMAS = {
 }
 
 QUERY_INPUT_SCHEMAS = {
+    'me': MeFilters,
     'list_fund_accounts': AccountFilters, 'list_stock_accounts': StockAccountFilters,
     'get_stock_account': IdentifierInput,
     'list_skus': SkuDirectoryFilters, 'list_members': DirectoryFilters,

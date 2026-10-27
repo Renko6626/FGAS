@@ -295,7 +295,8 @@ def test_independent_apps_start_on_separate_event_loops(client):
     assert first and second == first
 
 
-def test_mcp_auth_discovery_and_structured_results(client):
+@pytest.mark.parametrize('owner,level', [('untrusted', 'low'), ('admin', 'low'), ('admin', 'high')])
+def test_mcp_auth_discovery_and_structured_results(client, owner, level):
     stock = stock_data(client)
     responsible = client.post('/api/members', json={'name': '仓库负责人'}).json()['id']
     assert client.patch('/api/stock-accounts/' + stock['destination_account_id'], json={'member_id': responsible}).status_code == 200
@@ -307,7 +308,11 @@ def test_mcp_auth_discovery_and_structured_results(client):
     private_id = client.post('/api/accounts', json={'name': '待匹配私账', 'kind': 'private'}).json()['id']
     expense = client.post('/api/transfers', json=fund_data(private_id, 'expense', '2')).json()
     payment = client.post('/api/transfers', json=fund_data('fund_pool', private_id, '2')).json()
-    connection = issue(client, owner='untrusted')
+    connection = issue(client, owner=owner, level=level, name='身份验证连接')
+    with Session() as db:
+        user = db.get(User, owner)
+        expected_identity = {'user': {'display_name': user.display_name, 'role': user.role},
+                             'connection': {'name': '身份验证连接', 'level': level}}
     for headers in ({}, {'Authorization': 'Bearer invalid'}, {'Cookie': '; '.join(f'{k}={v}' for k, v in client.cookies.items())}):
         assert client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}, headers=headers).status_code == 401
 
@@ -320,10 +325,24 @@ def test_mcp_auth_discovery_and_structured_results(client):
                         await session.initialize()
                         tools = (await session.list_tools()).tools
                         names = {tool.name for tool in tools}
-                        assert names == {'fgas_help', 'fgas_query', 'fgas_propose'}
+                        assert names == {'fgas_help', 'fgas_query', 'fgas_propose'} | ({'fgas_execute'} if level == 'high' else set())
                         assert all(tool.input_schema and tool.output_schema for tool in tools)
                         overview = await session.call_tool('fgas_help', {})
-                        assert overview.structured_content['data']['level'] == 'low'
+                        assert overview.structured_content['data']['level'] == level
+                        identity = await session.call_tool('fgas_query', {'resource': 'me'})
+                        assert not identity.is_error
+                        assert identity.structured_content == {'api_version': '2', 'data': expected_identity}
+                        identity_help = await session.call_tool('fgas_help', {'topic': 'query', 'resource': 'me', 'include_output_schema': True})
+                        contract = identity_help.structured_content['data']['object']
+                        Draft202012Validator(contract['output_schema']).validate(identity.structured_content)
+                        _, prepared = catalog.prepare_call('fgas_query', contract['example'])
+                        assert prepared == {}
+                        for unsupported in ({'identifier': 'admin'}, {'filters': {'user_id': 'admin'}},
+                                            {'filters': {'page': 1}}, {'filters': {'as_of': '2026-10-01T00:00:00+08:00'}}):
+                            rejected = await session.call_tool('fgas_query', {'resource': 'me', **unsupported})
+                            assert rejected.is_error and rejected.structured_content['code'] == 'validation_error'
+                        if level == 'high':
+                            return
                         read = await session.call_tool('fgas_query', {'resource': 'fund_accounts'})
                         assert not read.is_error and read.structured_content['api_version'] == '2'
                         assert read.structured_content['data']['items']
@@ -440,6 +459,10 @@ def test_compact_help_contract_and_patch_inputs():
 @pytest.mark.parametrize('arguments, field', [
     ({'resource': 'fund_transfers', 'identifier': 'id', 'filters': {'status': 'pending'}}, 'filters'),
     ({'resource': 'members', 'identifier': 'id'}, 'identifier'),
+    ({'resource': 'me', 'identifier': 'admin'}, 'identifier'),
+    *[({'resource': 'me', 'filters': {key: value}}, 'filters.' + key) for key, value in (
+        ('user_id', 'admin'), ('role', 'admin'), ('level', 'high'), ('name', 'other'),
+        ('page', 1), ('limit', 20), ('as_of', '2026-10-01T00:00:00+08:00'))],
     ({'resource': 'fund_transfers', 'filters': {'amount': '100'}}, 'filters.amount'),
     ({'resource': 'fund_transfers', 'filters': {'status': 'approved'}}, 'filters.status'),
     ({'resource': 'stock_transfers', 'filters': {'status': 'posted'}}, 'filters.status'),

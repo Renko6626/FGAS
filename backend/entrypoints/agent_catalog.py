@@ -35,6 +35,7 @@ COMPLETION = dict(identifier='stock-transfer-id', effective_date='2026-10-22')
 ALLOCATION = [dict(item_transfer_id='expense-or-receipt-id', amount='120.50')]
 
 QUERIES = {
+    'me': contract(queries.me, '查看当前真实登录用户的名称、角色，以及本连接名称和执行等级；返回单对象，不接受查询条件。', {}),
     'fund_accounts': contract(queries.list_fund_accounts, '查资金账户及其公私分类、联系人和标签。', {'q': '公账', 'active': True}),
     'stock_accounts': contract(queries.list_stock_accounts, '查货物账户及 member_id/member_name 当前负责人；按 member_id 筛选，identifier 详情含负责人历史。', {'q': '仓库', 'active': True}),
     'skus': contract(queries.list_skus, '按业务SKU代号code精确查询，q搜代号/完整名称，tag筛选类别或角色；返回code、名称、标签和整数单位。', {'code': 'ARC-01-A'}),
@@ -224,7 +225,9 @@ def describe(topic, resource, selected, action=None, detail=False, *, include_ou
     """Generate an exact, executable call schema only for the requested operation."""
     fields = {'resource': (Literal[resource], ...)}
     if topic == 'query':
-        if detail:
+        if resource == 'me':
+            example = dict(resource=resource)
+        elif detail:
             fields['identifier'] = (str, Field(min_length=1))
             example = dict(resource=resource, **selected.example)
         else:
@@ -265,6 +268,8 @@ def help_data(level, *, topic, resource=None, action=None, include_output_schema
     if topic == 'query':
         if resource not in QUERIES:
             invalid('resource', '未知查询对象', help_call(topic))
+        if resource == 'me':
+            return dict(resource=resource, object=describe(topic, resource, QUERIES[resource], include_output_schema=include_output_schema))
         result = dict(resource=resource, list=describe(topic, resource, QUERIES[resource], include_output_schema=include_output_schema))
         if resource in DETAILS:
             result['detail'] = describe(topic, resource, DETAILS[resource], detail=True, include_output_schema=include_output_schema)

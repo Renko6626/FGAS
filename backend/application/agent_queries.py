@@ -86,6 +86,11 @@ def _accounts(db, filters, stock=False):
     return sorted(result, key=lambda row: (row['name'], row['id']))
 
 
+def me(db, access: AgentAccess, filters: dict) -> dict:
+    return _result(dict(user=dict(display_name=access.user.display_name, role=access.user.role),
+                        connection=dict(name=access.credential_name, level=access.level)))
+
+
 def list_fund_accounts(db, access: AgentAccess, filters: dict) -> dict:
     filters = _filters(filters)
     return _page(_accounts(db, filters), filters)
