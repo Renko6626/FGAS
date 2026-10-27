@@ -10,10 +10,10 @@ const props = defineProps<{
   destinationName?: string;
 }>();
 const source = computed(() =>
-  props.accounts.find((a) => a.id === props.sourceId),
+  props.accounts.find((a) => a.code === props.sourceId),
 );
 const destination = computed(() =>
-  props.accounts.find((a) => a.id === props.destinationId),
+  props.accounts.find((a) => a.code === props.destinationId),
 );
 </script>
 
@@ -21,13 +21,13 @@ const destination = computed(() =>
   <span class="account-route"
     ><AccountLabel
       :name="sourceName || source?.name || sourceId"
-      :url="source?.avatar_url" /><span
+      :code="sourceId" :url="source?.avatar_url" /><span
       class="account-route-arrow"
       aria-label="转向"
       >→</span
     ><AccountLabel
       :name="destinationName || destination?.name || destinationId"
-      :url="destination?.avatar_url"
+      :code="destinationId" :url="destination?.avatar_url"
   /></span>
 </template>
 

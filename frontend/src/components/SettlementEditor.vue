@@ -43,31 +43,32 @@ const paymentOptions = computed(() =>
         p.transfer.status === "posted" &&
         p.unmatched_minor > 0 &&
         (props.direction === "expense"
-          ? p.transfer.destination_account_id === props.account.id
-          : p.transfer.source_account_id === props.account.id),
+          ? p.transfer.destination_account_code === props.account.code
+          : p.transfer.source_account_code === props.account.code),
     )
     .map((p) => ({
       label: `${p.transfer.effective_date}，${p.transfer.source_account_name} → ${p.transfer.destination_account_name}，¥${money(p.transfer.amount_minor)}，未匹配 ¥${money(p.unmatched_minor)}`,
-      value: p.transfer.id,
+      value: p.transfer.code,
     })),
 );
 function renderAccountLabel(option: SelectOption) {
-  const account = props.accounts.find((a) => a.id === option.value);
+  const account = props.accounts.find((a) => a.code === option.value);
   return h(AccountLabel, {
     name: account?.name || String(option.label ?? option.value),
+    code: account?.code,
     url: account?.avatar_url,
   });
 }
 function renderPaymentLabel(option: SelectOption) {
-  const payment = props.payments.find((p) => p.transfer.id === option.value);
+  const payment = props.payments.find((p) => p.transfer.code === option.value);
   if (!payment) return String(option.label ?? option.value);
   const transfer = payment.transfer;
   return h("span", { class: "payment-option" }, [
     h("span", `${transfer.effective_date}，`),
     h(AccountRoute, {
       accounts: props.accounts,
-      sourceId: transfer.source_account_id,
-      destinationId: transfer.destination_account_id,
+      sourceId: transfer.source_account_code,
+      destinationId: transfer.destination_account_code,
       sourceName: transfer.source_account_name,
       destinationName: transfer.destination_account_name,
     }),
@@ -78,7 +79,7 @@ function renderPaymentLabel(option: SelectOption) {
   ]);
 }
 const selectedPayment = computed(() =>
-  props.payments.find((payment) => payment.transfer.id === paymentId.value),
+  props.payments.find((payment) => payment.transfer.code === paymentId.value),
 );
 watch(
   () => props.show,
@@ -103,16 +104,16 @@ async function save() {
   try {
     const selected = Object.entries(allocations.value)
       .filter(([, v]) => v.trim())
-      .map(([item_transfer_id, amount]) => ({ item_transfer_id, amount }));
+      .map(([item_transfer_code, amount]) => ({ item_transfer_code, amount }));
     if (mode.value === "existing")
       await settlementsApi.add(paymentId.value, selected);
     else
       await settlementsApi.create(
         {
-          source_account_id:
-            props.direction === "expense" ? publicId.value : props.account.id,
-          destination_account_id:
-            props.direction === "expense" ? props.account.id : publicId.value,
+          source_account_code:
+            props.direction === "expense" ? publicId.value : props.account.code,
+          destination_account_code:
+            props.direction === "expense" ? props.account.code : publicId.value,
           amount: amount.value,
           effective_date: date.value,
           description: description.value,
@@ -161,15 +162,15 @@ async function save() {
             :options="
               accounts
                 .filter((a) => a.kind === 'public' && a.active)
-                .map((a) => ({ label: a.name, value: a.id }))
+                .map((a) => ({ label: `${a.name}（${a.code}）`, value: a.code }))
             "
             :render-label="renderAccountLabel"
         /></label>
         <div v-if="publicId" class="payment-route">
           <AccountRoute
             :accounts="accounts"
-            :source-id="direction === 'expense' ? publicId : account.id"
-            :destination-id="direction === 'expense' ? account.id : publicId"
+            :source-id="direction === 'expense' ? publicId : account.code"
+            :destination-id="direction === 'expense' ? account.code : publicId"
           />
         </div>
         <div class="pair">
@@ -201,8 +202,8 @@ async function save() {
         <div v-if="selectedPayment" class="payment-route">
           <AccountRoute
             :accounts="accounts"
-            :source-id="selectedPayment.transfer.source_account_id"
-            :destination-id="selectedPayment.transfer.destination_account_id"
+            :source-id="selectedPayment.transfer.source_account_code"
+            :destination-id="selectedPayment.transfer.destination_account_code"
             :source-name="selectedPayment.transfer.source_account_name"
             :destination-name="
               selectedPayment.transfer.destination_account_name
@@ -227,13 +228,13 @@ async function save() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in items" :key="item.transfer.id">
+            <tr v-for="item in items" :key="item.transfer.code">
               <td>
                 <p class="item-date">{{ item.transfer.effective_date }}</p>
                 <AccountRoute
                   :accounts="accounts"
-                  :source-id="item.transfer.source_account_id"
-                  :destination-id="item.transfer.destination_account_id"
+                  :source-id="item.transfer.source_account_code"
+                  :destination-id="item.transfer.destination_account_code"
                   :source-name="item.transfer.source_account_name"
                   :destination-name="item.transfer.destination_account_name"
                 />
@@ -250,13 +251,13 @@ async function save() {
               <td class="numeric">¥{{ money(item.outstanding_minor) }}</td>
               <td class="allocation-input">
                 <NInput
-                  :value="allocations[item.transfer.id] || ''"
+                  :value="allocations[item.transfer.code] || ''"
                   :disabled="busy"
                   placeholder="留空不匹配"
                   :input-props="{
                     'aria-label': `${item.transfer.effective_date} ${item.transfer.description || item.transfer.source_account_name + ' → ' + item.transfer.destination_account_name} 本次匹配金额`,
                   }"
-                  @update:value="allocations[item.transfer.id] = $event"
+                  @update:value="allocations[item.transfer.code] = $event"
                 />
               </td>
             </tr>

@@ -85,7 +85,7 @@ async function save() {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="s in filteredItems" :key="s.id">
+        <tr v-for="s in filteredItems" :key="s.code">
           <td>{{ s.code }}</td>
           <td>
             <AccountLabel :name="s.name" :url="s.avatar_url" />

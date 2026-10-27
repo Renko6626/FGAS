@@ -48,91 +48,91 @@
       "key": "public",
       "name": "幻想结界同好社公账",
       "kind": "public",
-      "seed_id": "fund_pool",
+      "seed_name": "社团资金池",
       "member": null
     },
     {
       "key": "customers",
       "name": "展会顾客",
       "kind": "external",
-      "seed_id": "income",
+      "seed_name": "销售收款",
       "member": null
     },
     {
       "key": "daily",
       "name": "日常支出",
       "kind": "external",
-      "seed_id": "expense",
+      "seed_name": "日常支出",
       "member": null
     },
     {
       "key": "opening",
       "name": "期初",
       "kind": "external",
-      "seed_id": "opening",
+      "seed_name": "期初",
       "member": null
     },
     {
       "key": "print",
       "name": "红枫印刷社",
       "kind": "external",
-      "seed_id": null,
+      "seed_name": null,
       "member": null
     },
     {
       "key": "badge",
       "name": "星砂徽章工坊",
       "kind": "external",
-      "seed_id": null,
+      "seed_name": null,
       "member": null
     },
     {
       "key": "acrylic",
       "name": "月影亚克力工坊",
       "kind": "external",
-      "seed_id": null,
+      "seed_name": null,
       "member": null
     },
     {
       "key": "difference",
       "name": "资金差异",
       "kind": "external",
-      "seed_id": null,
+      "seed_name": null,
       "member": null
     },
     {
       "key": "chen",
       "name": "陈墨私账",
       "kind": "private",
-      "seed_id": null,
+      "seed_name": null,
       "member": "chen"
     },
     {
       "key": "su",
       "name": "苏禾私账",
       "kind": "private",
-      "seed_id": null,
+      "seed_name": null,
       "member": "su"
     },
     {
       "key": "zhou",
       "name": "周宁私账",
       "kind": "private",
-      "seed_id": null,
+      "seed_name": null,
       "member": "zhou"
     },
     {
       "key": "ye",
       "name": "叶青私账",
       "kind": "private",
-      "seed_id": null,
+      "seed_name": null,
       "member": "ye"
     },
     {
       "key": "shen",
       "name": "沈言私账",
       "kind": "private",
-      "seed_id": null,
+      "seed_name": null,
       "member": "shen"
     }
   ],
@@ -142,77 +142,77 @@
       "name": "社团储藏室",
       "kind": "internal",
       "member": "tang",
-      "seed_id": "main"
+      "seed_name": "主存放处"
     },
     {
       "key": "temporary",
       "name": "临时储藏室",
       "kind": "internal",
       "member": "shen",
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "ye",
       "name": "叶青宿舍书架",
       "kind": "internal",
       "member": "ye",
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "shen",
       "name": "沈言宿舍床下箱",
       "kind": "internal",
       "member": "shen",
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "chen",
       "name": "陈墨宿舍收纳箱",
       "kind": "internal",
       "member": "chen",
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "booth",
       "name": "展会摊位周转箱",
       "kind": "internal",
       "member": "su",
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "supplier",
       "name": "供应商交货处",
       "kind": "external",
       "member": null,
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "customers",
       "name": "展会顾客",
       "kind": "external",
       "member": null,
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "gifts",
       "name": "宣传赠品",
       "kind": "external",
       "member": null,
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "loss",
       "name": "盘亏与遗失",
       "kind": "external",
       "member": null,
-      "seed_id": null
+      "seed_name": null
     },
     {
       "key": "opening",
       "name": "存货期初",
       "kind": "external",
       "member": null,
-      "seed_id": null
+      "seed_name": null
     }
   ],
   "skus": [

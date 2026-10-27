@@ -21,6 +21,8 @@ import TransferEditor from "./components/TransferEditor.vue";
 import AccountAvatar from "./components/AccountAvatar.vue";
 import { stocktakesEnabled } from "./features";
 const tab = ref("home");
+const targetCode = ref("");
+const targetAccountCode = ref("");
 const error = ref("");
 const notice = ref("");
 const busy = ref(false);
@@ -40,8 +42,7 @@ const {
   refresh: () => workspace.refresh(),
   closeTransfer: () => { showTransfer.value = false; },
   onLogin: () => {
-    tab.value = "home";
-    window.location.hash = "home";
+    readPageHash();
     showIdentity.value = false;
     mobileNav.value = false;
   },
@@ -126,7 +127,10 @@ function navigate(value: string, approval?: "funds" | "stock") {
 }
 function readPageHash() {
   if (!user.value) return;
-  const value = window.location.hash.slice(1);
+  const [value = "home", search = ""] = window.location.hash.slice(1).split("?");
+  const params = new URLSearchParams(search);
+  targetCode.value = params.get("code") || "";
+  targetAccountCode.value = params.get("account_code") || "";
   tab.value = nav.value.some((item) => item.value === value) ? value : "home";
   mobileNav.value = false;
 }
@@ -303,6 +307,7 @@ onMounted(async () => {
             class="fantasy_guide_div_1 page-surface"
           >
             <TransfersView
+              :target-code="targetCode"
               :key="`${user.id}:${identityEpoch}`"
               :accounts="accounts"
               :approvals="false"
@@ -364,6 +369,7 @@ onMounted(async () => {
               @changed="refresh"
             />
             <SettlementsView
+              :target-account-code="targetAccountCode"
               v-else-if="tab === 'settlements'"
               :key="`${user.id}:${identityEpoch}`"
               :accounts="accounts"
@@ -371,6 +377,7 @@ onMounted(async () => {
               @changed="refresh"
             />
             <StockTransfersView
+              :target-code="targetCode"
               v-else-if="tab === 'stock'"
               :key="`${user.id}:${identityEpoch}:stock`"
               :locations="locations"

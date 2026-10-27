@@ -45,7 +45,7 @@ const rows = computed(() =>
         )) &&
       (!filterKind.value || a.kind === filterKind.value) &&
       (!filterTag.value || a.tags.includes(filterTag.value)) &&
-      (!filterMember.value || a.member_id === filterMember.value),
+      (!filterMember.value || a.member_code === filterMember.value),
   ),
 );
 const tagOptions = computed(() =>
@@ -55,13 +55,13 @@ const tagOptions = computed(() =>
   })),
 );
 const memberOptions = computed(() =>
-  props.members.map((m) => ({ label: m.name, value: m.id })),
+  props.members.map((m) => ({ label: `${m.name}（${m.code}）`, value: m.code })),
 );
 function edit(a?: AccountBase) {
-  id.value = a?.id || "";
+  id.value = a?.code || "";
   name.value = a?.name || "";
   kind.value = a?.kind || (props.mode === "accounts" ? "public" : "internal");
-  member.value = a?.member_id || null;
+  member.value = a?.member_code || null;
   avatar.value = a?.avatar_url || "";
   tags.value = [...(a?.tags || [])];
   active.value = a?.active ?? true;
@@ -74,7 +74,7 @@ async function save() {
   error.value = "";
   try {
     const body = {
-      name: name.value, member_id: member.value,
+      name: name.value, member_code: member.value,
       avatar_url: avatar.value || null, tags: tags.value, active: active.value,
     };
     if (props.mode === "accounts") {
@@ -101,7 +101,7 @@ async function history(a: AccountBase) {
   historyBusy.value = true;
   error.value = "";
   try {
-    historyRows.value = (await accountsApi.stockDetail(a.id)).responsibility_history;
+    historyRows.value = (await accountsApi.stockDetail(a.code)).responsibility_history;
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -196,9 +196,9 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
         </tr>
       </thead>
       <tbody>
-        <tr v-for="a in rows" :key="a.id">
+        <tr v-for="a in rows" :key="a.code">
           <td class="account-name">
-            <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}
+            <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}<small>{{ a.code }}</small>
           </td>
           <td>{{ kindLabels[a.kind] }}</td>
           <td>{{ a.member_name || "—" }}</td>
@@ -236,9 +236,9 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
         </tr>
       </thead>
       <tbody>
-        <tr v-for="a in rows" :key="a.id">
+        <tr v-for="a in rows" :key="a.code">
           <td>
-            <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}
+            <AccountAvatar :name="a.name" :url="a.avatar_url" />{{ a.name }}<small>{{ a.code }}</small>
           </td>
           <td>{{ kindLabels[a.kind] }}</td>
           <td>{{ a.member_name || "未指定" }}</td>
@@ -317,7 +317,7 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
       <table>
         <thead><tr><th>负责人</th><th>开始时间</th><th>结束时间</th><th>设置人</th><th>结束人</th></tr></thead>
         <tbody>
-          <tr v-for="row in historyRows" :key="row.id">
+          <tr v-for="row in historyRows" :key="row.member_code + row.valid_from">
             <td>{{ row.member_name }}</td><td>{{ dateText(row.valid_from) }}</td>
             <td>{{ row.valid_to ? dateText(row.valid_to) : '至今' }}</td>
             <td>{{ row.actor_name }}</td><td>{{ row.ended_by_name || '—' }}</td>

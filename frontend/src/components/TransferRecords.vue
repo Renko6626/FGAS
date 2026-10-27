@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { NButton } from "naive-ui";
 import { type Transfer } from "../api/funds";
 import { money, statuses } from "../presentation/funds";
@@ -7,6 +7,7 @@ import { type Account } from "../api/accounts";
 import AccountRoute from "./AccountRoute.vue";
 import TransferDetail from "./TransferDetail.vue";
 const props = defineProps<{
+  targetCode?: string;
   items: Transfer[];
   accounts: Account[];
   approvals: boolean;
@@ -24,6 +25,11 @@ const emit = defineEmits<{
 }>();
 const detailDialog = ref<InstanceType<typeof TransferDetail> | null>(null);
 const detailError = ref("");
+onMounted(() => { if (props.targetCode) void detailDialog.value?.open({ code: props.targetCode }); });
+watch(() => props.targetCode, (code) => {
+  if (code) void detailDialog.value?.open({ code });
+}, { flush: "post" });
+
 watch(() => props.items, () => {
   detailError.value = "";
 });
@@ -61,13 +67,13 @@ watch(() => props.items, () => {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="t in items" :key="t.id">
-          <td class="ledger-date">{{ t.effective_date }}</td>
+        <tr v-for="t in items" :key="t.code">
+          <td class="ledger-date">{{ t.effective_date }}<small>{{ t.code }}</small></td>
           <td class="ledger-route">
             <AccountRoute
               :accounts="accounts"
-              :source-id="t.source_account_id"
-              :destination-id="t.destination_account_id"
+              :source-id="t.source_account_code"
+              :destination-id="t.destination_account_code"
               :source-name="t.source_account_name"
               :destination-name="t.destination_account_name"
             /><small v-if="t.description">{{ t.description }}</small>

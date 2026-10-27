@@ -20,9 +20,9 @@ export function useFundTransferOptions(selected: () => string[], prependSelected
         const result = await fundsApi.transfers({ q: query.trim() || undefined, limit: 20 });
         if (sequence !== requestSequence) return;
         results.value = result.items.map(item => {
-          const label = `${item.description || item.id}（${statuses[item.status] || item.status}）`;
-          cache.value[item.id] = label;
-          return { label, value: item.id };
+          const label = `${item.description || "资金单"} ${item.code}（${statuses[item.status] || item.status}）`;
+          cache.value[item.code] = label;
+          return { label, value: item.code };
         });
       }
       catch {

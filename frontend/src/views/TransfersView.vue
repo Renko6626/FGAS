@@ -12,6 +12,7 @@ const props = defineProps<{
   trusted: boolean;
   hideCreate?: boolean;
   revision?: number;
+  targetCode?: string;
 }>();
 const emit = defineEmits<{
   changed: [];
@@ -74,7 +75,7 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
 
 <template>
   <TransferFilters v-model="filters" :items="items" :approvals="approvals" :count="total" />
-  <TransferRecords :items="items" :accounts="accounts" :approvals="approvals" :trusted="trusted"
+  <TransferRecords :target-code="targetCode" :items="items" :accounts="accounts" :approvals="approvals" :trusted="trusted"
     :hide-create="hideCreate" :has-filters="hasFilters" :loading="loading" :error="error"
     @changed="emit('changed')" @notice="emit('notice', $event)" @create="emit('create')" @reset="filters = emptyFundFilters()" />
   <PaginationBar :page="page" :limit="limit" :total="total" @update:page="page = $event" @update:limit="limit = $event" />

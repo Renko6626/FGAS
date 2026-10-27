@@ -2,7 +2,6 @@ import { request, query, type Page } from './client';
 import type { TransferInput } from "./funds";
 import type { AgentSource, AgentAudit } from './audit';
 export interface Sku {
-  id: string;
   name: string;
   code: string;
   tags: string[];
@@ -11,38 +10,36 @@ export interface Sku {
   active: boolean;
 }
 export interface StockLine {
-  id: string;
-  sku_id: string;
   sku_code: string;
   sku_name: string;
   unit: string;
   quantity: string;
 }
 export interface Confirmation extends AgentSource {
-  id: string;
+  code: string;
+  transfer_code: string;
   status: string;
   actor_id: string;
   effective_date: string;
   approved_by: string | null;
 }
 export interface RelatedTransfer {
-  id: string;
+  code: string;
   status: string;
   lines: {
-    sku_id: string;
     sku_code: string;
     quantity: string;
   }[];
-  source_account_id: string;
-  destination_account_id: string;
+  source_account_code: string;
+  destination_account_code: string;
 }
 export interface StockTransfer extends AgentSource {
   actor_id: string;
   approved_by: string | null;
   approval_mode: string | null;
-  id: string;
-  source_account_id: string;
-  destination_account_id: string;
+  code: string;
+  source_account_code: string;
+  destination_account_code: string;
   source_account_name: string;
   destination_account_name: string;
   source_kind: string;
@@ -51,23 +48,23 @@ export interface StockTransfer extends AgentSource {
   effective_date: string;
   description: string;
   status: string;
-  related_transfer_id: string | null;
+  related_transfer_code: string | null;
   related_transfers: RelatedTransfer[];
   lines: StockLine[];
   confirmations: Confirmation[];
   fund_references: {
-    id: string;
+    code: string;
     status: string;
     description: string;
     amount_minor: number;
-    reversal_of: string | null;
-    source_account_id: string;
-    destination_account_id: string;
+    reversal_of_code: string | null;
+    source_account_code: string;
+    destination_account_code: string;
   }[];
   audit: (AgentAudit & {
     detail: {
-      confirmation_id?: string;
-      fund_transfer_id?: string;
+      confirmation_code?: string;
+      fund_transfer_code?: string;
       effective_date?: string;
       status?: string;
       reason?: string | null;
@@ -85,28 +82,28 @@ export interface SkuCreateInput {
 }
 export type SkuUpdateInput = Partial<SkuCreateInput>;
 export interface StockInput {
-  source_account_id: string;
-  destination_account_id: string;
+  source_account_code: string;
+  destination_account_code: string;
   effective_date: string;
   description: string;
   tags: string[];
   source_reference: string | null;
-  fund_transfer_ids: string[];
+  fund_transfer_codes: string[];
   lines: {
     sku_code: string;
     quantity: string;
   }[];
-  related_transfer_id?: string | null;
+  related_transfer_code?: string | null;
 }
 export interface OperationInput {
   stock: StockInput;
   money: TransferInput;
 }
 export interface InventoryRow {
-  account_id: string;
+  account_code: string;
   account_name: string;
+  member_code: string | null;
   member_name: string | null;
-  sku_id: string;
   sku_code: string;
   sku_name: string;
   unit: string;
@@ -115,7 +112,6 @@ export interface InventoryRow {
   in_transit_planned_quantity: string;
 }
 export interface InventoryTotals {
-  sku_id: string;
   sku_code: string;
   quantity: string;
   valuation: string;

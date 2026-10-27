@@ -15,6 +15,7 @@ const props = defineProps<{
   accounts: Account[];
   approvals?: boolean;
   revision?: number;
+  targetCode?: string;
 }>();
 const emit = defineEmits<{
   changed: [];
@@ -76,7 +77,7 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
     <NButton :disabled="records?.busy" @click="emit('changed')">刷新</NButton>
   </div>
   <StockTransferFilters v-model="filters" :items="items" :skus="skus" />
-  <StockTransferRecords ref="records" :items="items" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
+  <StockTransferRecords :target-code="targetCode" ref="records" :items="items" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
     :approvals="approvals" :loading="loading" :error="error" @changed="emit('changed')" />
   <PaginationBar :page="page" :limit="limit" :total="total" @update:page="page = $event" @update:limit="limit = $event" />
 </template>

@@ -22,13 +22,20 @@ const audit = computed(() => detail.value?.audit || []);
 const approvalAgent = computed(() =>
   audit.value.find(event => event.action === "posted" && event.agent_credential_id),
 );
-async function open(item: Transfer) {
+async function copyReference(link = false) {
+  if (!detail.value) return;
+  try {
+    const code = detail.value.code;
+    await navigator.clipboard.writeText(link ? `${window.location.origin}/#transfers?code=${encodeURIComponent(code)}` : code);
+  } catch { error.value = "复制失败，请手动复制编号或链接"; }
+}
+async function open(item: Pick<Transfer, "code">) {
   error.value = "";
   emit("error", "");
   reason.value = "";
   processing.value = null;
   try {
-    detail.value = await fundsApi.detail(item.id);
+    detail.value = await fundsApi.detail(item.code);
   } catch (e) {
     error.value = (e as Error).message;
     emit("error", error.value);
@@ -50,7 +57,7 @@ async function decide(approve: boolean) {
     emit("notice", approve ? "审批已过账" : "已拒绝");
   } catch (e) {
     error.value = (e as Error).message;
-    detail.value = await fundsApi.detail(detail.value.id).catch(() => detail.value);
+    detail.value = await fundsApi.detail(detail.value.code).catch(() => detail.value);
   } finally {
     busy.value = false;
   }
@@ -65,9 +72,9 @@ async function reverse() {
   busy.value = true;
   error.value = "";
   try {
-    const result = await fundsApi.reverse(detail.value.id, reason.value);
+    const result = await fundsApi.reverse(detail.value.code, reason.value);
     emit("notice", "冲销流水" + (statuses[result.status] || result.status));
-    detail.value = await fundsApi.detail(detail.value.id);
+    detail.value = await fundsApi.detail(detail.value.code);
     processing.value = null;
     emit("changed");
   } catch (e) {
@@ -101,8 +108,8 @@ defineExpose({ open });
       <div class="ledger-detail-route">
         <AccountRoute
           :accounts="accounts"
-          :source-id="detail.source_account_id"
-          :destination-id="detail.destination_account_id"
+          :source-id="detail.source_account_code"
+          :destination-id="detail.destination_account_code"
           :source-name="detail.source_account_name"
           :destination-name="detail.destination_account_name"
         />
@@ -143,8 +150,8 @@ defineExpose({ open });
               <tr v-for="(line, index) in detail.journal_lines" :key="index">
                 <td>
                   {{
-                    accounts.find((a) => a.id === line.account_id)?.name ||
-                    line.account_id
+                    accounts.find((a) => a.code === line.account_code)?.name ||
+                    line.account_code
                   }}
                 </td>
                 <td class="numeric">{{ money(line.debit_minor) }}</td>
@@ -174,11 +181,11 @@ defineExpose({ open });
         </ol>
         <dl class="internal-id">
           <dt>流水编号</dt>
-          <dd>{{ detail.id }}</dd>
+          <dd>{{ detail.code }} <NButton @click="copyReference()">复制编号</NButton> <NButton @click="copyReference(true)">复制定位链接</NButton></dd>
           <dt>版本</dt>
           <dd>{{ detail.version }}</dd>
-          <dt v-if="detail.reversal_of">冲销原流水</dt>
-          <dd v-if="detail.reversal_of">{{ detail.reversal_of }}</dd>
+          <dt v-if="detail.reversal_of_code">冲销原流水</dt>
+          <dd v-if="detail.reversal_of_code">{{ detail.reversal_of_code }}</dd>
         </dl>
       </details>
       <p v-if="error" class="error" role="alert">{{ error }}</p>

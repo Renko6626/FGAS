@@ -24,7 +24,7 @@ async function save() {
   busy.value = true;
   error.value = "";
   try {
-    await warehouse.action(`/stock-transfers/${props.item.id}/completion`, {
+    await warehouse.action(`/stock-transfers/${props.item.code}/completion`, {
       effective_date: date.value,
     });
     show.value = false;
@@ -57,8 +57,8 @@ async function save() {
   >
     <AccountRoute
       :accounts="locations || []"
-      :source-id="item.source_account_id"
-      :destination-id="item.destination_account_id"
+      :source-id="item.source_account_code"
+      :destination-id="item.destination_account_code"
       :source-name="item.source_account_name"
       :destination-name="item.destination_account_name"
     />
@@ -73,7 +73,7 @@ async function save() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="l in item.lines" :key="l.id">
+          <tr v-for="l in item.lines" :key="l.sku_code">
             <td>
               <AccountLabel
                 :name="`${l.sku_code} ${l.sku_name}`"

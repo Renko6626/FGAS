@@ -38,13 +38,13 @@ const moneyMode = ref("none"),
   amount = ref("");
 function open(initial: Partial<StockInput> = props.initial || {}) {
   if (busy.value) return;
-  source.value = initial.source_account_id || "";
-  destination.value = initial.destination_account_id || "";
+  source.value = initial.source_account_code || "";
+  destination.value = initial.destination_account_code || "";
   date.value = today();
   description.value = initial.description || "";
   tags.value = [...(initial.tags || [])];
   reference.value = "";
-  related.value = initial.related_transfer_id || "";
+  related.value = initial.related_transfer_code || "";
   refs.value = [];
   lines.value = initial.lines?.map((l) => ({ ...l })) || [
     { sku_code: "", quantity: "" },
@@ -74,14 +74,14 @@ async function save() {
   error.value = "";
   try {
     const stock: StockInput = {
-      source_account_id: source.value,
-      destination_account_id: destination.value,
+      source_account_code: source.value,
+      destination_account_code: destination.value,
       effective_date: date.value,
       description: description.value,
       tags: tags.value,
       source_reference: reference.value || null,
-      related_transfer_id: related.value || null,
-      fund_transfer_ids: moneyMode.value === "none" ? refs.value : [],
+      related_transfer_code: related.value || null,
+      fund_transfer_codes: moneyMode.value === "none" ? refs.value : [],
       lines: lines.value,
     };
     if (moneyMode.value === "none") await warehouse.submit(stock);
@@ -89,8 +89,8 @@ async function save() {
       await warehouse.operation({
         stock,
         money: {
-          source_account_id: moneySource.value,
-          destination_account_id: moneyDestination.value,
+          source_account_code: moneySource.value,
+          destination_account_code: moneyDestination.value,
           amount: amount.value,
           effective_date: date.value,
           description: description.value,

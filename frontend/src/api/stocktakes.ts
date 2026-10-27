@@ -10,8 +10,8 @@ export interface Stocktake {
   status: "in_progress" | "ended";
   created_by: string;
   created_at: string;
-  gain_account_id: string;
-  loss_account_id: string;
+  gain_account_code: string;
+  loss_account_code: string;
   gain_account_name: string;
   loss_account_name: string;
 }

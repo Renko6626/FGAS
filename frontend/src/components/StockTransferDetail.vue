@@ -38,8 +38,15 @@ const approvalAgent = computed(() =>
 );
 function completionAudit(confirmationId: string) {
   return detail.value?.audit.find(event =>
-    event.action === 'completed' && event.detail.confirmation_id === confirmationId,
+    event.action === 'completed' && event.detail.confirmation_code === confirmationId,
   );
+}
+async function copyReference(link = false) {
+  if (!detail.value) return;
+  try {
+    const code = detail.value.code;
+    await navigator.clipboard.writeText(link ? `${window.location.origin}/#stock?code=${encodeURIComponent(code)}` : code);
+  } catch { error.value = "复制失败，请手动复制编号或链接"; }
 }
 async function open(id: string) {
   if (busy.value)
@@ -62,7 +69,7 @@ async function open(id: string) {
 async function changed() {
   emit("changed");
   if (detail.value)
-    await open(detail.value.id);
+    await open(detail.value.code);
 }
 async function run(path: string, body: unknown) {
   if (busy.value)
@@ -81,7 +88,7 @@ async function run(path: string, body: unknown) {
 function decide(item: StockTransfer, action: string, confirmationId?: string) {
   const path = confirmationId
     ? `/stock-confirmations/${confirmationId}/${action}`
-    : `/stock-transfers/${item.id}/${action}`;
+    : `/stock-transfers/${item.code}/${action}`;
   run(path, ["reject", "cancel"].includes(action) ? { reason: reason.value } : {});
 }
 defineExpose({ open, busy });
@@ -101,8 +108,8 @@ defineExpose({ open, busy });
       <div class="stock-detail-heading">
         <AccountRoute
           :accounts="locations"
-          :source-id="detail.source_account_id"
-          :destination-id="detail.destination_account_id"
+          :source-id="detail.source_account_code"
+          :destination-id="detail.destination_account_code"
           :source-name="detail.source_account_name"
           :destination-name="detail.destination_account_name"
         /><span class="status-pill" :class="`status-${detail.status}`">{{
@@ -123,7 +130,7 @@ defineExpose({ open, busy });
           <dt>发起人</dt><dd>{{ detail.actor_id }}<p v-if="detail.submitted_credential_id">由 {{ detail.submitted_credential_name || detail.submitted_credential_id }} 提交</p></dd>
           <dt>审批</dt><dd>{{ approvalLabel(detail.approval_mode) }}<template v-if="approvalAgent">（{{ approvalAgent.agent_credential_name || approvalAgent.agent_credential_id }}）</template><template v-if="detail.approved_by">，审批人 {{ detail.approved_by }}</template></dd>
           <dt>转移编号</dt>
-          <dd>{{ detail.id }}</dd>
+          <dd>{{ detail.code }} <NButton @click="copyReference()">复制编号</NButton> <NButton @click="copyReference(true)">复制定位链接</NButton></dd>
         </dl>
         <div class="table-wrap">
           <table>
@@ -134,7 +141,7 @@ defineExpose({ open, busy });
               </tr>
             </thead>
             <tbody>
-              <tr v-for="l in detail.lines" :key="l.id">
+              <tr v-for="l in detail.lines" :key="l.sku_code">
                 <td>
                   <AccountLabel
                     :name="`${l.sku_code} ${l.sku_name}`"
@@ -152,7 +159,7 @@ defineExpose({ open, busy });
       <section class="stock-section">
         <div class="toolbar">
           <h3>当前操作</h3>
-          <NButton :loading="busy" :disabled="busy" @click="open(detail.id)"
+          <NButton :loading="busy" :disabled="busy" @click="open(detail.code)"
             >刷新详情</NButton
           >
         </div>
@@ -170,7 +177,7 @@ defineExpose({ open, busy });
               detail.status === 'in_transit' &&
               !detail.confirmations.some((c) => c.status === 'pending')
             "
-            :key="detail.id"
+            :key="detail.code"
             :item="detail"
             :locations="locations"
             :skus="skus"
@@ -183,20 +190,20 @@ defineExpose({ open, busy });
           v-for="c in detail.confirmations.filter(
             (c) => c.status === 'pending',
           )"
-          :key="c.id"
+          :key="c.code"
           class="stock-confirmation"
         >
           <div class="stock-detail-heading">
             <span class="status-pill status-pending">完成申报待审阅</span
             ><span>完成日期 {{ c.effective_date }}</span>
           </div>
-          <p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template></p>
+          <p>完成申请 {{ c.code }}，货物单 {{ c.transfer_code }}</p><p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template></p>
           <template v-if="trusted"
             ><p>核对整条转移已实际完成后，批准并记录上述数量。</p>
             <NButton
               type="primary"
               :disabled="busy"
-              @click="decide(detail, 'approve', c.id)"
+              @click="decide(detail, 'approve', c.code)"
               >批准完成申报</NButton
             >
             <details class="stock-secondary">
@@ -207,7 +214,7 @@ defineExpose({ open, busy });
                   :disabled="busy" /></label
               ><NButton
                 :disabled="busy || !reason.trim()"
-                @click="decide(detail, 'reject', c.id)"
+                @click="decide(detail, 'reject', c.code)"
                 >确认拒绝完成申报</NButton
               >
             </details>
@@ -245,19 +252,19 @@ defineExpose({ open, busy });
       <section class="stock-section">
         <h3>资金关联</h3>
         <p>资金与货物独立生效，关联记录不代表已付款。</p>
-        <div v-for="f in detail.fund_references" :key="f.id" class="stock-fund">
+        <div v-for="f in detail.fund_references" :key="f.code" class="stock-fund">
           <div class="stock-detail-heading">
-            <strong>{{ f.description || f.id }}</strong
+            <strong>{{ f.description || f.code }}</strong
             ><span class="status-pill" :class="`status-${f.status}`">{{
               fundStatuses[f.status] || f.status
             }}</span
             ><strong>¥ {{ money(f.amount_minor) }}</strong>
           </div>
           <AccountRoute
-            v-if="f.source_account_id"
+            v-if="f.source_account_code"
             :accounts="accounts"
-            :source-id="f.source_account_id"
-            :destination-id="f.destination_account_id!"
+            :source-id="f.source_account_code"
+            :destination-id="f.destination_account_code!"
           />
         </div>
         <p v-if="!detail.fund_references.length">未关联资金记录</p>
@@ -276,8 +283,8 @@ defineExpose({ open, busy });
           ><NButton
             :disabled="busy || !fund"
             @click="
-              run(`/stock-transfers/${detail.id}/fund-references`, {
-                fund_transfer_id: fund,
+              run(`/stock-transfers/${detail.code}/fund-references`, {
+                fund_transfer_code: fund,
               })
             "
             >关联资金记录</NButton
@@ -291,37 +298,37 @@ defineExpose({ open, busy });
             :disabled="busy"
             @click="
               editor?.open({
-                related_transfer_id: detail.id,
-                source_account_id: detail.source_account_id,
-                destination_account_id: detail.destination_account_id,
+                related_transfer_code: detail.code,
+                source_account_code: detail.source_account_code,
+                destination_account_code: detail.destination_account_code,
               })
             "
             >新建关联转移</NButton
           >
         </div>
         <NButton
-          v-if="detail.related_transfer_id"
+          v-if="detail.related_transfer_code"
           text
           :disabled="busy"
-          @click="open(detail.related_transfer_id)"
-          >查看关联原单 {{ detail.related_transfer_id }}</NButton
+          @click="open(detail.related_transfer_code)"
+          >查看关联原单 {{ detail.related_transfer_code }}</NButton
         >
         <div
           v-for="a in detail.related_transfers"
-          :key="a.id"
+          :key="a.code"
           class="stock-related"
         >
           <div class="stock-detail-heading">
             <AccountRoute
               :accounts="locations"
-              :source-id="a.source_account_id"
-              :destination-id="a.destination_account_id"
+              :source-id="a.source_account_code"
+              :destination-id="a.destination_account_code"
             /><span class="status-pill" :class="`status-${a.status}`">{{
               stockStatuses[a.status] || a.status
             }}</span
-            ><NButton :disabled="busy" @click="open(a.id)">查看详情</NButton>
+            ><NButton :disabled="busy" @click="open(a.code)">查看详情</NButton>
           </div>
-          <div v-for="l in a.lines" :key="l.sku_id">
+          <div v-for="l in a.lines" :key="l.sku_code">
             <AccountLabel
               :name="`${l.sku_code} ${skus.find((s) => s.code === l.sku_code)?.name || ''}`.trim()"
               :url="skus.find((s) => s.code === l.sku_code)?.avatar_url"
@@ -333,7 +340,7 @@ defineExpose({ open, busy });
           </div>
         </div>
         <p
-          v-if="!detail.related_transfer_id && !detail.related_transfers.length"
+          v-if="!detail.related_transfer_code && !detail.related_transfers.length"
         >
           暂无关联转移
         </p>
@@ -349,13 +356,13 @@ defineExpose({ open, busy });
             v-for="c in detail.confirmations.filter(
               (c) => c.status !== 'pending',
             )"
-            :key="c.id"
+            :key="c.code"
           >
             <span class="status-pill" :class="`status-${c.status}`">{{
               stockStatuses[c.status] || fundStatuses[c.status] || c.status
             }}</span>
-            <p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template>；完成日期 {{ c.effective_date }}</p>
-            <p v-if="c.approved_by">{{ approvalLabel(completionAudit(c.id)?.detail.mode) }}<template v-if="completionAudit(c.id)?.agent_credential_id">（{{ completionAudit(c.id)?.agent_credential_name || completionAudit(c.id)?.agent_credential_id }}）</template>，审批人 {{ c.approved_by }}</p>
+            <p>完成申请 {{ c.code }}，货物单 {{ c.transfer_code }}</p><p>申报人 {{ c.actor_id }}<template v-if="c.submitted_credential_id">，由 {{ c.submitted_credential_name || c.submitted_credential_id }} 提交</template>；完成日期 {{ c.effective_date }}</p>
+            <p v-if="c.approved_by">{{ approvalLabel(completionAudit(c.code)?.detail.mode) }}<template v-if="completionAudit(c.code)?.agent_credential_id">（{{ completionAudit(c.code)?.agent_credential_name || completionAudit(c.code)?.agent_credential_id }}）</template>，审批人 {{ c.approved_by }}</p>
           </div>
         </details>
         <details class="stock-secondary">

@@ -49,7 +49,7 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
         <div><span>社团应偿还</span><strong>¥ {{ money(memberPayable) }}</strong></div>
       </div>
       <ul class="member-balances-list">
-        <li v-for="account in unsettledAccounts" :key="account.id">
+        <li v-for="account in unsettledAccounts" :key="account.code">
           <div class="member-balance-account"><strong>{{ account.name }}</strong><small v-if="!account.active">已停用</small></div>
           <div class="member-balance-amount"><span>{{ account.balance_minor > 0 ? '成员应交回' : '社团应偿还' }}</span><strong>¥ {{ money(Math.abs(account.balance_minor)) }}</strong></div>
         </li>
@@ -75,9 +75,9 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
         </div>
         <div class="changes-heading"><h3>最近余额变化</h3><small>按实际入账时间</small></div>
         <ul v-if="data.funds.recent.length" class="change-list">
-          <li v-for="item in data.funds.recent" :key="item.id">
+          <li v-for="item in data.funds.recent" :key="item.code">
             <time :datetime="item.posted_at ?? undefined" :title="item.posted_at ? fullDate(item.posted_at) : '入账时间未记录'">{{ shortDate(item.posted_at) }}</time>
-            <p class="change-description" :title="`${item.description || '资金转移'}；${item.source_account_name} → ${item.destination_account_name}`">{{ item.description || (item.reversal_of ? '资金冲销' : '资金转移') }}</p>
+            <p class="change-description" :title="`${item.description || '资金转移'}；${item.source_account_name} → ${item.destination_account_name}`">{{ item.description || (item.reversal_of_code ? '资金冲销' : '资金转移') }}</p>
             <strong class="change-value" :class="tone(item.delta_minor)">{{ signedMoney(item.delta_minor) }} 元</strong>
           </li>
         </ul>
@@ -94,7 +94,7 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
           <table class="stock-summary-table">
             <thead><tr><th>货物</th><th class="numeric">当前数量</th><th class="numeric">近 7 天净变化</th></tr></thead>
             <tbody>
-              <tr v-for="sku in featuredSkus" :key="sku.sku_id">
+              <tr v-for="sku in featuredSkus" :key="sku.sku_code">
                 <td><div class="sku-name"><AccountAvatar :name="sku.sku_name" :url="sku.avatar_url" /><span>{{ sku.sku_code }} {{ sku.sku_name }}</span></div></td>
                 <td class="numeric"><strong>{{ sku.quantity }}</strong> {{ sku.unit }}</td>
                 <td class="numeric" :title="`近 7 天入库 ${sku.incoming_quantity} ${sku.unit}，出库 ${sku.outgoing_quantity} ${sku.unit}`"><strong :class="tone(sku.net_quantity)">{{ signedQuantity(sku.net_quantity) }} {{ sku.unit }}</strong></td>
@@ -105,11 +105,11 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
         <p v-else class="overview-empty stock-empty">暂无已入账的社团库存</p>
         <div class="changes-heading"><h3>最近库存变化</h3><small>内部调拨不计增减</small></div>
         <ul v-if="data.stock.recent.length" class="change-list">
-          <li v-for="item in data.stock.recent" :key="item.id">
+          <li v-for="item in data.stock.recent" :key="item.code">
             <time :datetime="item.posted_at" :title="fullDate(item.posted_at)">{{ shortDate(item.posted_at) }}</time>
             <p class="change-description" :title="`${item.description || '货物转移'}；${item.source_account_name} → ${item.destination_account_name}`">{{ item.description || '货物转移' }}</p>
             <div class="change-value stock-change-value" :title="stockChangeText(item)">
-              <strong v-for="line in item.lines" :key="line.sku_id" :class="tone(line.delta_quantity)">{{ line.sku_code }} {{ line.sku_name }} {{ signedQuantity(line.delta_quantity) }} {{ line.unit }}</strong>
+              <strong v-for="line in item.lines" :key="line.sku_code" :class="tone(line.delta_quantity)">{{ line.sku_code }} {{ line.sku_name }} {{ signedQuantity(line.delta_quantity) }} {{ line.unit }}</strong>
             </div>
           </li>
         </ul>
@@ -134,13 +134,13 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
           <table class="operations-table">
             <thead><tr><th>创建时间</th><th>类型与说明</th><th>来源 → 去向</th><th class="numeric">金额 / 货物</th><th>状态</th><th>操作人</th></tr></thead>
             <tbody>
-              <tr v-for="item in operations" :key="`${item.kind}-${item.id}`">
+              <tr v-for="item in operations" :key="`${item.kind}-${item.code}`">
                 <td class="operation-date" :title="`创建于 ${fullDate(item.created_at)}；业务日期 ${item.effective_date}`">{{ dateTime(item.created_at) }}</td>
-                <td class="operation-description"><small>{{ item.kind === 'funds' ? (item.reversal_of ? '资金冲销' : '资金转移') : '货物转移' }}</small><p>{{ item.description || '未填写说明' }}</p></td>
+                <td class="operation-description"><small>{{ item.kind === 'funds' ? (item.reversal_of_code ? '资金冲销' : '资金转移') : '货物转移' }}</small><p>{{ item.description || '未填写说明' }}</p></td>
                 <td class="operation-route"><span>{{ item.source_account_name }}</span><small>转入 {{ item.destination_account_name }}</small></td>
                 <td class="numeric operation-amount">
                   <strong v-if="item.kind === 'funds'">¥ {{ money(item.amount_minor) }}</strong>
-                  <template v-else><p v-for="line in item.lines" :key="line.sku_id">{{ line.sku_code }} {{ line.sku_name }} <strong>{{ line.quantity }} {{ line.unit }}</strong></p></template>
+                  <template v-else><p v-for="line in item.lines" :key="line.sku_code">{{ line.sku_code }} {{ line.sku_name }} <strong>{{ line.quantity }} {{ line.unit }}</strong></p></template>
                 </td>
                 <td><span class="status-pill" :class="`status-${item.status}`">{{ (item.kind === 'funds' ? statuses : stockStatuses)[item.status] || item.status }}</span></td>
                 <td>{{ item.actor_name }}</td>

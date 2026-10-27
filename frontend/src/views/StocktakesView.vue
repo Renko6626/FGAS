@@ -50,7 +50,7 @@ const endpointAccounts = computed(() =>
 );
 const hasFilters = computed(() => !!search.value.trim() || statusFilter.value !== "all");
 function avatar(id: string) {
-  return endpointAccounts.value.find((a) => a.id === id)?.avatar_url;
+  return endpointAccounts.value.find((a) => a.code === id)?.avatar_url;
 }
 async function loadList() {
   const result = await stocktakesApi.list(kind.value, {
@@ -149,16 +149,16 @@ function createTransfer(gain: boolean) {
   if (!item) return;
   if (kind.value === "fund") {
     const fund =
-      props.accounts.find((a) => a.kind === "public" && a.active)?.id || "";
+      props.accounts.find((a) => a.kind === "public" && a.active)?.code || "";
     initial.value = {
-      source_account_id: gain ? item.gain_account_id : fund,
-      destination_account_id: gain ? fund : item.loss_account_id,
+      source_account_code: gain ? item.gain_account_code : fund,
+      destination_account_code: gain ? fund : item.loss_account_code,
     };
     showFund.value = true;
   } else
     stockEditor.value?.open({
-      source_account_id: gain ? item.gain_account_id : "",
-      destination_account_id: gain ? "" : item.loss_account_id,
+      source_account_code: gain ? item.gain_account_code : "",
+      destination_account_code: gain ? "" : item.loss_account_code,
       tags: [gain ? "盘盈" : "盘亏"],
     });
 }
@@ -361,14 +361,14 @@ onMounted(load);
         <dd>
           <AccountLabel
             :name="detail.stocktake.gain_account_name"
-            :url="avatar(detail.stocktake.gain_account_id)"
+            :url="avatar(detail.stocktake.gain_account_code)"
           />
         </dd>
         <dt>盘亏账户</dt>
         <dd>
           <AccountLabel
             :name="detail.stocktake.loss_account_name"
-            :url="avatar(detail.stocktake.loss_account_id)"
+            :url="avatar(detail.stocktake.loss_account_code)"
           />
         </dd>
         <dt>创建时间</dt>

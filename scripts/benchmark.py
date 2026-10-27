@@ -195,47 +195,48 @@ def load(api):
     mapping = {kind: {} for kind in ('members', 'accounts', 'stock_accounts', 'skus', 'funds', 'stock', 'confirmations')}
     for member in scenario['members']:
         value = api.request('POST', '/api/members', {k: member[k] for k in ('name', 'note')})
-        mapping['members'][member['key']] = value['id']
+        mapping['members'][member['key']] = value['code']
     for collection, path in [('accounts', '/api/accounts'), ('stock_accounts', '/api/stock-accounts')]:
         for account in scenario[collection]:
             values = {k: account[k] for k in ('name', 'kind')}
             values['tags'] = ['基准:幻想结界']
             if account['member']:
-                values['member_id'] = mapping['members'][account['member']]
-            if account['seed_id']:
+                values['member_code'] = mapping['members'][account['member']]
+            if account['seed_name']:
                 values.pop('kind')
-                value = api.request('PATCH', path + '/' + account['seed_id'], values)
+                seed = next(row for row in api.request('GET', path) if row['name'] == account['seed_name'])
+                value = api.request('PATCH', path + '/' + seed['code'], values)
             else:
                 value = api.request('POST', path, values)
-            mapping[collection][account['key']] = value['id']
+            mapping[collection][account['key']] = value['code']
     for sku in scenario['skus']:
         # Old variants are disabled after their historical movements have been recorded.
         value = api.request('POST', '/api/skus', sku | {'active': True})
-        mapping['skus'][sku['code']] = value['id']
+        mapping['skus'][sku['code']] = value['code']
     for event in scenario['events']:
         kind = event['type']
         if kind in ('fund', 'stock'):
             collection = 'accounts' if kind == 'fund' else 'stock_accounts'
-            values = dict(source_account_id=mapping[collection][event['source']],
-                          destination_account_id=mapping[collection][event['destination']],
+            values = dict(source_account_code=mapping[collection][event['source']],
+                          destination_account_code=mapping[collection][event['destination']],
                           effective_date=event['date'], description=event['description'], tags=event['tags'])
             state = event['state']
             if kind == 'fund':
                 values['amount'] = event['amount']
                 value = api.request('POST', '/api/transfers', values, role='untrusted')
-                mapping['funds'][event['key']] = value['id']
+                mapping['funds'][event['key']] = value['code']
                 action = 'approve' if state == 'posted' else 'reject' if state == 'rejected' else None
                 if action:
                     decision = {'expected_version': value['version']}
                     if action == 'reject':
                         decision['reason'] = '基准历史：重复申请'
-                    api.request('POST', f'/api/transfers/{value["id"]}/{action}', decision)
+                    api.request('POST', f'/api/transfers/{value["code"]}/{action}', decision)
             else:
                 values |= dict(lines=event['lines'], source_reference=event['reference'],
-                               related_transfer_id=mapping['stock'].get(event['related']),
-                               fund_transfer_ids=[mapping['funds'][ref] for ref in event['funds']])
+                               related_transfer_code=mapping['stock'].get(event['related']),
+                               fund_transfer_codes=[mapping['funds'][ref] for ref in event['funds']])
                 value = api.request('POST', '/api/stock-transfers', values, role='untrusted')
-                identifier = value['id']
+                identifier = value['code']
                 mapping['stock'][event['key']] = identifier
                 path = '/api/stock-transfers/' + identifier
                 if state == 'rejected':
@@ -246,16 +247,16 @@ def load(api):
                         api.request('POST', path + '/cancel', {'reason': '基准历史：供应商无货'})
                     elif state in ('completed', 'confirmation_pending'):
                         completion = api.request('POST', path + '/completion', {'effective_date': event['date']}, role='untrusted')
-                        confirmation = completion['confirmation_id']
+                        confirmation = completion['confirmation_code']
                         mapping['confirmations'][event['key']] = confirmation
                         if state == 'completed':
                             api.request('POST', f'/api/stock-confirmations/{confirmation}/approve', {})
         elif kind == 'match':
             api.request('POST', f'/api/transfers/{mapping["funds"][event["payment"]]}/settlement-matches',
-                        {'allocations': [{'item_transfer_id': mapping['funds'][event['item']], 'amount': event['amount']}]})
+                        {'allocations': [{'item_transfer_code': mapping['funds'][event['item']], 'amount': event['amount']}]})
         elif kind == 'custody':
             api.request('PATCH', '/api/stock-accounts/' + mapping['stock_accounts'][event['account']],
-                        {'member_id': mapping['members'][event['member']]})
+                        {'member_code': mapping['members'][event['member']]})
         else:
             raise RuntimeError('未知事件：' + kind)
     for sku in scenario['skus']:
@@ -286,9 +287,9 @@ def check(api, mapping):
     accounts = api.request('GET', '/api/accounts')
     equal(sum(a['kind'] == 'public' for a in accounts), 1, '唯一公账')
     for symbol, amount in expected['balances_minor'].items():
-        equal(next(a['balance_minor'] for a in accounts if a['id'] == mapping['accounts'][symbol]), amount, symbol + '余额')
+        equal(next(a['balance_minor'] for a in accounts if a['code'] == mapping['accounts'][symbol]), amount, symbol + '余额')
     rows = api.pages('/api/inventory', sku_code='BAD-01-A')
-    actual = {r['account_id']: int(r['quantity']) for r in rows if int(r['quantity'])}
+    actual = {r['account_code']: int(r['quantity']) for r in rows if int(r['quantity'])}
     wanted = {mapping['stock_accounts'][key]: quantity for key, quantity in expected['bad_01_a_locations'].items()}
     equal(actual, wanted, 'BAD-01-A位置')
     equal(sum(actual.values()), 297, 'BAD-01-A组织库存')
@@ -303,17 +304,17 @@ def check(api, mapping):
     unarrived = api.request('GET', '/api/transfers/' + mapping['funds']['unarrived_payment'])
     equal((unarrived['status'], unarrived['amount_minor']), ('posted', 96000), '在途已付款')
     detail = api.request('GET', '/api/stock-accounts/' + mapping['stock_accounts']['main'])
-    equal(detail['member_id'], mapping['members']['xu'], '当前负责人许棠')
+    equal(detail['member_code'], mapping['members']['xu'], '当前负责人许棠')
     history = detail['responsibility_history']
     equal(len(history), 2, '两段负责人历史')
-    equal({h['member_id'] for h in history}, {mapping['members']['tang'], mapping['members']['xu']}, '负责人唐悦交接许棠')
+    equal({h['member_code'] for h in history}, {mapping['members']['tang'], mapping['members']['xu']}, '负责人唐悦交接许棠')
     equal(sum(h['valid_to'] is None for h in history), 1, '唯一当前负责人')
     outstanding = api.pages('/api/settlement-outstanding')
     normalized = sorted((r['account_name'], r['kind'], r['direction'], r['remaining_minor']) for r in outstanding)
     equal(normalized, sorted(tuple(row) for row in expected['outstanding']), '未结原收支及付款')
     ye = api.request('GET', '/api/accounts/' + mapping['accounts']['ye'] + '/settlement-overview')
-    equal(next(r['outstanding_minor'] for r in ye['expenses'] if r['transfer']['id'] == mapping['funds']['ye_wrong']), 0, '叶青错单已匹配')
-    equal(next(r['matched_minor'] for r in ye['settlements'] if r['transfer']['id'] == mapping['funds']['ye_refund']), 30000, '叶青原付款已匹配300')
+    equal(next(r['outstanding_minor'] for r in ye['expenses'] if r['transfer']['code'] == mapping['funds']['ye_wrong']), 0, '叶青错单已匹配')
+    equal(next(r['matched_minor'] for r in ye['settlements'] if r['transfer']['code'] == mapping['funds']['ye_refund']), 30000, '叶青原付款已匹配300')
     credentials = api.request('GET', '/api/agent-credentials')
     equal(sorted((c['owner_user_id'], c['level']) for c in credentials if c['active']),
           [('admin', 'high'), ('admin', 'low'), ('trusted', 'low'), ('untrusted', 'low')], '四种连接身份')

@@ -18,11 +18,11 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ close: []; saved: [string] }>();
 const fresh = (): TransferInput => ({
-  source_account_id: props.opening
-    ? props.accounts.find((a) => a.id === "opening")?.id || ""
+  source_account_code: props.opening
+    ? props.accounts.find((a) => a.name === "期初")?.code || ""
     : "",
-  destination_account_id: props.opening
-    ? props.accounts.find((a) => a.kind === "public" && a.active)?.id || ""
+  destination_account_code: props.opening
+    ? props.accounts.find((a) => a.kind === "public" && a.active)?.code || ""
     : "",
   amount: "",
   effective_date: new Date().toLocaleDateString("sv-SE"),
@@ -40,15 +40,15 @@ const category = ref<string | null>(null),
   search = ref(""),
   showEnded = ref(false);
 const source = computed(() =>
-  props.accounts.find((a) => a.id === form.value.source_account_id),
+  props.accounts.find((a) => a.code === form.value.source_account_code),
 );
 const destination = computed(() =>
-  props.accounts.find((a) => a.id === form.value.destination_account_id),
+  props.accounts.find((a) => a.code === form.value.destination_account_code),
 );
 const selectedId = computed(() =>
   selecting.value === "source"
-    ? form.value.source_account_id
-    : form.value.destination_account_id,
+    ? form.value.source_account_code
+    : form.value.destination_account_code,
 );
 const tagOptions = computed(() =>
   [
@@ -62,7 +62,7 @@ const ready = computed(
   () =>
     !!source.value &&
     !!destination.value &&
-    source.value.id !== destination.value.id &&
+    source.value.code !== destination.value.code &&
     /^\d+(?:\.\d{1,2})?$/.test(form.value.amount) &&
     Number(form.value.amount) > 0,
 );
@@ -84,8 +84,8 @@ function openPicker(side: "source" | "destination") {
   selecting.value = side;
 }
 function choose(account: Account) {
-  if (selecting.value === "source") form.value.source_account_id = account.id;
-  else form.value.destination_account_id = account.id;
+  if (selecting.value === "source") form.value.source_account_code = account.code;
+  else form.value.destination_account_code = account.code;
   selecting.value = null;
 }
 function close() {
@@ -200,7 +200,7 @@ async function submit() {
       </div>
     </div>
     <p
-      v-if="source && destination && source.id === destination.id"
+      v-if="source && destination && source.code === destination.code"
       class="error"
     >
       来源与去向需要不同。
@@ -302,11 +302,11 @@ async function submit() {
     <div v-if="options.length" class="picker-grid">
       <button
         v-for="account in options"
-        :key="account.id"
+        :key="account.code"
         type="button"
         class="picker-account"
-        :class="{ selected: account.id === selectedId }"
-        :aria-pressed="account.id === selectedId"
+        :class="{ selected: account.code === selectedId }"
+        :aria-pressed="account.code === selectedId"
         @click="choose(account)"
       >
         <AccountAvatar :name="account.name" :url="account.avatar_url" />

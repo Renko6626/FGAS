@@ -27,15 +27,16 @@ const options = computed(() =>
   props.accounts
     .filter(
       (a) =>
-        a.id === props.modelValue ||
+        a.code === props.modelValue ||
         matchesAccountFilters(a, { showEnded: showEnded.value, category: category.value, tag: tag.value }),
     )
-    .map((a) => ({ label: a.name, value: a.id })),
+    .map((a) => ({ label: `${a.name}（${a.code}）`, value: a.code })),
 );
 function renderLabel(option: SelectOption) {
-  const account = props.accounts.find((a) => a.id === option.value);
+  const account = props.accounts.find((a) => a.code === option.value);
   return h(AccountLabel, {
     name: account?.name || String(option.label || ""),
+    code: account?.code,
     url: account?.avatar_url,
   });
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { NButton } from "naive-ui";
 import { money, statuses as fundStatuses } from "../presentation/funds";
 import { type StockAccount, type Account } from "../api/accounts";
@@ -10,6 +10,7 @@ import AccountRoute from "./AccountRoute.vue";
 import AccountLabel from "./AccountLabel.vue";
 import StockTransferDetail from "./StockTransferDetail.vue";
 const props = defineProps<{
+  targetCode?: string;
   items: StockTransfer[];
   locations: StockAccount[];
   trusted: boolean;
@@ -24,6 +25,11 @@ const emit = defineEmits<{
 }>();
 const detailDialog = ref<InstanceType<typeof StockTransferDetail> | null>(null);
 const detailError = ref("");
+onMounted(() => { if (props.targetCode) void detailDialog.value?.open(props.targetCode); });
+watch(() => props.targetCode, (code) => {
+  if (code) void detailDialog.value?.open(code);
+}, { flush: "post" });
+
 watch(() => props.items, () => {
   detailError.value = "";
 });
@@ -45,23 +51,23 @@ defineExpose({ busy: computed(() => detailDialog.value?.busy ?? false) });
         </tr>
       </thead>
       <tbody>
-        <tr v-for="t in items" :key="t.id">
+        <tr v-for="t in items" :key="t.code">
           <td>
-            <div>{{ t.effective_date }}</div>
+            <div>{{ t.effective_date }}</div><small>{{ t.code }}</small>
             <div v-if="t.description">{{ t.description }}</div>
             <small v-if="t.tags.length">{{ t.tags.join("，") }}</small>
           </td>
           <td>
             <AccountRoute
               :accounts="locations"
-              :source-id="t.source_account_id"
-              :destination-id="t.destination_account_id"
+              :source-id="t.source_account_code"
+              :destination-id="t.destination_account_code"
               :source-name="t.source_account_name"
               :destination-name="t.destination_account_name"
             />
           </td>
           <td>
-            <div v-for="l in t.lines" :key="l.id">
+            <div v-for="l in t.lines" :key="l.sku_code">
               <AccountLabel
                 :name="`${l.sku_code} ${l.sku_name}`"
                 :url="skus.find((s) => s.code === l.sku_code)?.avatar_url"
@@ -83,7 +89,7 @@ defineExpose({ busy: computed(() => detailDialog.value?.busy ?? false) });
           <td>
             <div
               v-for="f in t.fund_references"
-              :key="f.id"
+              :key="f.code"
               class="stock-fund-status"
             >
               <span class="status-pill" :class="`status-${f.status}`">{{
@@ -94,7 +100,7 @@ defineExpose({ busy: computed(() => detailDialog.value?.busy ?? false) });
             <span v-if="!t.fund_references.length">未关联</span>
           </td>
           <td>
-            <NButton :disabled="detailDialog?.busy" @click="detailDialog?.open(t.id)">详情 / 处理</NButton>
+            <NButton :disabled="detailDialog?.busy" @click="detailDialog?.open(t.code)">详情 / 处理</NButton>
           </td>
         </tr>
         <tr v-if="!items.length">

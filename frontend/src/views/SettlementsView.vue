@@ -7,7 +7,7 @@ import { settlementsApi, type SettlementOverview } from "../api/settlements";
 import AccountLabel from "../components/AccountLabel.vue";
 import AccountRoute from "../components/AccountRoute.vue";
 import SettlementEditor from "../components/SettlementEditor.vue";
-const props = defineProps<{ accounts: Account[]; trusted: boolean }>();
+const props = defineProps<{ accounts: Account[]; trusted: boolean; targetAccountCode?: string }>();
 const emit = defineEmits<{ changed: [] }>();
 const selected = ref<string | null>(null),
   detail = ref<SettlementOverview | null>(null),
@@ -19,12 +19,13 @@ const selected = ref<string | null>(null),
 const options = computed(() =>
   props.accounts
     .filter((a) => a.kind === "private")
-    .map((a) => ({ label: a.name, value: a.id })),
+    .map((a) => ({ label: `${a.name}（${a.code}）`, value: a.code })),
 );
 function renderAccountLabel(option: SelectOption) {
-  const account = props.accounts.find((a) => a.id === option.value);
+  const account = props.accounts.find((a) => a.code === option.value);
   return h(AccountLabel, {
     name: account?.name || String(option.label ?? option.value),
+    code: account?.code,
     url: account?.avatar_url,
   });
 }
@@ -64,7 +65,7 @@ const originalItems = computed(
       [
         ...(detail.value?.expenses ?? []),
         ...(detail.value?.receipts ?? []),
-      ].map((item) => [item.transfer.id, item.transfer]),
+      ].map((item) => [item.transfer.code, item.transfer]),
     ),
 );
 let requestSequence = 0;
@@ -91,7 +92,14 @@ watch(selected, () => {
   show.value = false;
   void load();
 }, { flush: "sync" });
+watch(() => props.targetAccountCode, (code) => { if (code) selected.value = code; }, { immediate: true });
 onBeforeUnmount(() => { ++requestSequence; });
+async function copyLink() {
+  if (!selected.value) return;
+  try {
+    await navigator.clipboard.writeText(`${window.location.origin}/#settlements?account_code=${encodeURIComponent(selected.value)}`);
+  } catch { error.value = "复制失败，请手动复制账户编号"; }
+}
 async function changed() {
   emit("changed");
   await load();
@@ -106,6 +114,7 @@ function edit(value: "expense" | "receipt") {
   <div class="toolbar">
     <h2>私账结算</h2>
     <NButton :disabled="!selected" :loading="busy" @click="load">刷新</NButton>
+    <NButton :disabled="!selected" @click="copyLink">复制定位链接</NButton>
   </div>
   <label class="account-picker"
     >私账账户<NSelect
@@ -189,13 +198,13 @@ function edit(value: "expense" | "receipt") {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in group.items" :key="item.transfer.id">
+            <tr v-for="item in group.items" :key="item.transfer.code">
               <td>{{ item.transfer.effective_date }}</td>
               <td>
                 <AccountRoute
                   :accounts="accounts"
-                  :source-id="item.transfer.source_account_id"
-                  :destination-id="item.transfer.destination_account_id"
+                  :source-id="item.transfer.source_account_code"
+                  :destination-id="item.transfer.destination_account_code"
                   :source-name="item.transfer.source_account_name"
                   :destination-name="item.transfer.destination_account_name"
                 />
@@ -212,7 +221,7 @@ function edit(value: "expense" | "receipt") {
                 >
                 <details class="record-detail">
                   <summary>记录编号</summary>
-                  <small>{{ item.transfer.id }}</small>
+                  <small>{{ item.transfer.code }}</small>
                 </details>
               </td>
               <td class="numeric">¥{{ money(item.transfer.amount_minor) }}</td>
@@ -250,14 +259,14 @@ function edit(value: "expense" | "receipt") {
           <tbody>
             <tr
               v-for="payment in detail.settlements"
-              :key="payment.transfer.id"
+              :key="payment.transfer.code"
             >
               <td>{{ payment.transfer.effective_date }}</td>
               <td>
                 <AccountRoute
                   :accounts="accounts"
-                  :source-id="payment.transfer.source_account_id"
-                  :destination-id="payment.transfer.destination_account_id"
+                  :source-id="payment.transfer.source_account_code"
+                  :destination-id="payment.transfer.destination_account_code"
                   :source-name="payment.transfer.source_account_name"
                   :destination-name="payment.transfer.destination_account_name"
                 />
@@ -290,17 +299,17 @@ function edit(value: "expense" | "receipt") {
                   <summary>匹配记录（{{ payment.matches.length }}）</summary>
                   <div
                     v-for="(match, index) in payment.matches"
-                    :key="`${match.item_transfer_id}-${index}`"
+                    :key="`${match.item_transfer_code}-${index}`"
                     class="match-record"
                   >
-                    <template v-if="originalItems.get(match.item_transfer_id)"
+                    <template v-if="originalItems.get(match.item_transfer_code)"
                       ><p>
                         {{
-                          originalItems.get(match.item_transfer_id)!
+                          originalItems.get(match.item_transfer_code)!
                             .effective_date
                         }}，原单 ¥{{
                           money(
-                            originalItems.get(match.item_transfer_id)!
+                            originalItems.get(match.item_transfer_code)!
                               .amount_minor,
                           )
                         }}
@@ -308,23 +317,23 @@ function edit(value: "expense" | "receipt") {
                       <AccountRoute
                         :accounts="accounts"
                         :source-id="
-                          originalItems.get(match.item_transfer_id)!
-                            .source_account_id
+                          originalItems.get(match.item_transfer_code)!
+                            .source_account_code
                         "
                         :destination-id="
-                          originalItems.get(match.item_transfer_id)!
-                            .destination_account_id
+                          originalItems.get(match.item_transfer_code)!
+                            .destination_account_code
                         "
                         :source-name="
-                          originalItems.get(match.item_transfer_id)!
+                          originalItems.get(match.item_transfer_code)!
                             .source_account_name
                         "
                         :destination-name="
-                          originalItems.get(match.item_transfer_id)!
+                          originalItems.get(match.item_transfer_code)!
                             .destination_account_name
                         "
                     /></template>
-                    <p v-else>{{ match.item_transfer_id }}</p>
+                    <p v-else>{{ match.item_transfer_code }}</p>
                     <p>
                       匹配 ¥{{ money(match.amount_minor) }}
                       <span
@@ -337,7 +346,7 @@ function edit(value: "expense" | "receipt") {
                     </p>
                   </div>
                   <small class="history-id"
-                    >结算编号：{{ payment.transfer.id }}</small
+                    >结算编号：{{ payment.transfer.code }}</small
                   >
                 </details>
               </td>

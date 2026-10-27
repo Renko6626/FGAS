@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import AccountAvatar from "./AccountAvatar.vue";
-defineProps<{ name: string; url?: string | null }>();
+defineProps<{ name: string; code?: string; url?: string | null }>();
 </script>
 
 <template>
   <span class="account-label"
     ><AccountAvatar :name="name" :url="url" /><span
       class="account-label-name"
-      >{{ name }}</span
+      >{{ name }}<small v-if="code">{{ code }}</small></span
     ></span
   >
 </template>

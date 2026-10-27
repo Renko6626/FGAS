@@ -1,7 +1,7 @@
 import { request } from "./client";
 
 export interface Member {
-  id: string;
+  code: string;
   name: string;
   note: string;
 }

@@ -8,10 +8,10 @@ export interface StocktakeMetadata {
 export type AccountKind = "public" | "private" | "external";
 export type StockAccountKind = "internal" | "external";
 export interface AccountBase<Kind extends string = AccountKind | StockAccountKind> {
-  id: string;
+  code: string;
   name: string;
   kind: Kind;
-  member_id: string | null;
+  member_code: string | null;
   member_name: string | null;
   avatar_url: string | null;
   tags: string[];
@@ -23,8 +23,7 @@ export interface Account extends AccountBase<AccountKind> {
 }
 export type StockAccount = AccountBase<StockAccountKind>;
 export interface ResponsibilityHistory {
-  id: string;
-  member_id: string;
+  member_code: string;
   member_name: string;
   valid_from: string;
   valid_to: string | null;
@@ -39,7 +38,7 @@ export interface StockAccountDetail extends StockAccount {
 
 export interface AccountUpdateInput {
   name?: string;
-  member_id?: string | null;
+  member_code?: string | null;
   avatar_url?: string | null;
   tags?: string[];
   active?: boolean;

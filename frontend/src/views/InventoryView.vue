@@ -29,9 +29,9 @@ async function refresh() {
   busy.value = true;
   try {
     const result = await warehouse.inventory({
-      account_id: location.value,
+      account_code: location.value,
       sku_code: sku.value,
-      member_id: member.value,
+      member_code: member.value,
     }, page.value, limit.value);
     if (sequence !== requestSequence) return;
     rows.value = result.items;
@@ -68,7 +68,7 @@ onMounted(refresh);
       :options="
         props.locations
           .filter((l) => l.kind !== 'external')
-          .map((l) => ({ label: l.name, value: l.id }))
+          .map((l) => ({ label: l.name, value: l.code }))
       "
     /><NSelect
       v-model:value="sku"
@@ -80,7 +80,7 @@ onMounted(refresh);
       v-model:value="member"
       clearable
       placeholder="所有负责人"
-      :options="members.map((m) => ({ label: m.name, value: m.id }))"
+      :options="members.map((m) => ({ label: `${m.name}（${m.code}）`, value: m.code }))"
     />
   </div>
   <p class="error">{{ error }}</p>
@@ -96,11 +96,11 @@ onMounted(refresh);
         </tr>
       </thead>
       <tbody>
-        <tr v-for="r in rows" :key="r.account_id + r.sku_id">
+        <tr v-for="r in rows" :key="r.account_code + r.sku_code">
           <td>
             <AccountLabel
               :name="r.account_name"
-              :url="locations.find((a) => a.id === r.account_id)?.avatar_url"
+              :url="locations.find((a) => a.code === r.account_code)?.avatar_url"
             /><small>{{ r.member_name || "未指定负责人" }}</small>
           </td>
           <td>
@@ -122,7 +122,7 @@ onMounted(refresh);
     @update:page="page = $event"
     @update:limit="limit = $event; page = 1"
   />
-  <p v-for="t in totals" :key="t.sku_id">
+  <p v-for="t in totals" :key="t.sku_code">
     {{ t.sku_code }} {{ skus.find((s) => s.code === t.sku_code)?.name }} 合计：{{
       t.quantity
     }}，{{ t.valuation }}

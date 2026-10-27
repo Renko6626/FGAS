@@ -58,7 +58,7 @@ export function filterStockTransfers(items: StockTransfer[], filters: StockFilte
     (!filters.tag || t.tags.includes(filters.tag)) &&
     (!filters.status || t.status === filters.status) &&
     (!filters.search || [
-      t.id,
+      t.code,
       t.description,
       t.source_account_name,
       t.destination_account_name,
