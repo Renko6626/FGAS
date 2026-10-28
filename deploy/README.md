@@ -6,19 +6,19 @@
 
 | 路线 | 定位 | 适用情况 |
 | --- | --- | --- |
-| Docker Compose | 首选 | 新部署，统一管理数据库、后端和前端；按本文发布 |
+| Coolify + GitHub Actions | 当前正式路线 | Actions 构建 ACR 镜像，Coolify 管理 Compose、域名和持久化 |
+| Docker Compose / SSH | 手动备选 | 本机打包后传给独立服务器，不与 Coolify 管理同一实例 |
 | systemd 原生部署 | 替代 | 明确不使用 Docker，按 [原生部署说明](README.native.md)维护主机依赖和服务 |
 | PM2 | 保留的兼容备选 | 继续维护既有 PM2 环境；新原生部署优先 systemd |
-| Coolify 专用接入 | 已撤回 | 本项目不沿用旧接入流程 |
 
-`scripts/push-acr.sh` 是保留的手动镜像上传工具，不是第四套部署流程；当前自动发布使用 GHCR。不要同时用 Compose、systemd 或 PM2 启动同一实例。
+`scripts/push-acr.sh` 是保留的手动镜像上传工具，不是第四套部署流程；当前自动发布使用阿里云 ACR。不要同时用 Compose、systemd 或 PM2 启动同一实例。
 
 有两种交付方式，启动和配置完全相同：
 
 | 方式 | 在哪里构建 | 怎么送到服务器 |
 | --- | --- | --- |
 | 手动发布 | 本机 | SSH 传完整镜像包，服务器加载后启动 |
-| GitHub 自动发布 | GitHub Actions | 镜像放 GHCR，服务器拉取后启动 |
+| GitHub 自动发布 | GitHub Actions | 镜像放 ACR，Coolify 拉取后部署 |
 
 目前仅支持 Linux amd64。Python 依赖在构建镜像时用现有 requirements.txt 安装，服务器不会现场执行 pip 或 uv。手动镜像包还包含 PostgreSQL，目标机无需访问镜像仓库；第一次在本机构建仍需联网下载基础镜像和依赖。
 
@@ -28,7 +28,7 @@
 
 ## 第一次准备服务器
 
-下面统一使用 `/opt/fgas`。部署用户需要能创建这个目录、通过 SSH 登录，并运行 `docker` 和 `docker compose`。建议使用 Compose v2.24 或更新版本；先确认：
+本节是独立 Compose/SSH 手动路线，Coolify 路线跳到后面的专节。下面统一使用 `/opt/fgas`。部署用户需要能创建这个目录、通过 SSH 登录，并运行 `docker` 和 `docker compose`。建议使用 Compose v2.24 或更新版本；先确认：
 
 ```bash
 docker info
@@ -81,55 +81,40 @@ bash scripts/push-release.sh .releases/fgas-manual-20261023-1.tar.gz deploy@你�
 bash /opt/fgas/releases/fgas-版本号/apply-release.sh --init-db
 ```
 
-## GitHub Actions：构建、发布 GHCR、按需更新服务器
+## GitHub Actions 与 Coolify
 
-工作流在 [.github/workflows/release.yml](../.github/workflows/release.yml)。推送 `v*` 版本标签或在 Actions 页面手动运行 **Build and deploy** 时触发，普通提交不发布。
+当前正式站点为 `https://fgas.secret-sealing.club`。工作流在 [.github/workflows/release.yml](../.github/workflows/release.yml)，推送 `v*` 标签或手动运行 **Build and deploy** 时触发，普通 push 不发布。Actions 构建 amd64 API/web 镜像，执行原有前端类型检查和容器/Nginx/API/MCP 基础检查，通过后推送阿里云 ACR。镜像标签包含完整提交 SHA、运行编号与重试编号，不覆盖旧版本。
 
-每次运行会：
+仓库 Actions 配置：
 
-1. 构建 amd64 前后端镜像，前端构建同时执行现有类型检查。
-2. 在 runner 的临时数据库上初始化并启动容器，检查 Nginx 提供的网页、指南、API 健康接口和 MCP 未认证响应。
-3. 推送镜像到 `ghcr.io/仓库所有者/仓库名-api` 和 `…-web`，标签含提交 SHA、运行编号及重试编号，不覆盖旧发布。
-4. 上传名为 `fgas-release` 的小发布包。这里没有镜像，服务器启动时会拉取 GHCR 镜像及 PostgreSQL。
-
-GHCR 发布使用工作流自带的 `GITHUB_TOKEN`，已声明 `packages: write`。仓库或组织若禁用了包发布，需要先允许。第一次发布的包通常是私有的；若保持私有，在服务器上以实际部署用户登录一次：
-
-```bash
-docker login ghcr.io -u 你的GitHub用户名
-```
-
-密码输入有对应包读取权限的 PAT classic（`read:packages`），不要填 GitHub 登录密码，也不要把令牌写进 `.env`。如果主动把镜像包设为公开，拉取无需登录。[GitHub 的 GHCR 权限说明](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
-
-### 第一次从 GHCR 部署
-
-先运行一次工作流，不勾选部署。从运行页面下载 `fgas-release` artifact，解开 GitHub 外层 ZIP 后得到 `fgas-版本号.tar.gz`。用同一个传包脚本发布它：
-
-```bash
-bash scripts/push-release.sh /下载目录/fgas-版本号.tar.gz deploy@你的服务器 /opt/fgas --init-db
-```
-
-脚本会识别包中没有 images.tar，改为拉取镜像。确认服务正常后，再启用后续自动更新。
-
-### 启用 SSH 自动更新
-
-在 GitHub 仓库 **Settings → Secrets and variables → Actions** 配置：
-
-| 类型 | 名称 | 内容 |
+| 类型 | 名称 | 用途 |
 | --- | --- | --- |
-| Secret | `DEPLOY_HOST` | 服务器主机名或 IPv4 地址 |
-| Secret | `DEPLOY_USER` | 运行 Docker 的 SSH 用户 |
-| Secret | `DEPLOY_SSH_KEY` | 专用部署私钥，无交互口令；对应公钥已加入服务器 authorized_keys |
-| Secret | `DEPLOY_KNOWN_HOSTS` | 经可信渠道核对的服务器 SSH 主机公钥记录 |
-| Variable | `DEPLOY_PATH` | `/opt/fgas`，与首次部署保持一致 |
-| Variable | `DEPLOY_ENABLED` | 填 `true` 后，推送 `v*` 标签会自动更新服务器 |
+| Variable | `ACR_REGISTRY` | ACR 实例域名 |
+| Variable | `ACR_NAMESPACE` | 命名空间，当前为 `renko` |
+| Secret | `ACR_USERNAME` / `ACR_PASSWORD` | Actions 推送镜像 |
+| Secret | `COOLIFY_API_TOKEN` | CI 专用 Coolify read/write/deploy 凭据 |
+| Variable | `COOLIFY_APPLICATION_UUID` | FGAS 应用 UUID |
+| Variable | `DEPLOY_ENABLED` | 为 `true` 时，推送版本标签会部署 |
 
-不要关闭 SSH 主机校验。`DEPLOY_KNOWN_HOSTS` 使用完整 known_hosts 行；可以采集后通过服务器控制台核对指纹，再填入。GitHub runner 必须能连接目标机默认 SSH 端口 22；只在内网可达的服务器先用手动方式。
+手动运行勾选部署也会更新服务器，不要求 `DEPLOY_ENABLED=true`。不勾选则只构建和发布镜像。CI 使用 `scripts/deploy-coolify.py` 更新 `FGAS_API_IMAGE`、`FGAS_WEB_IMAGE` 与源码提交，再触发 Coolify，并等待其部署结果。GitHub Secrets 不放 Casdoor 或数据库密码。
 
-手动运行工作流时，勾选 **Deploy to the configured server after publishing** 也会部署，不要求 `DEPLOY_ENABLED=true`。未勾选且未启用标签自动部署时，只构建和发布，不连接服务器。自动部署会先备份数据库，再运行 Compose 一次性 `migrate` 服务；迁移失败时不会启动新 API。
+Coolify 使用 Git Compose 应用，GitHub App `renko6626`，仓库 `Renko6626/FGAS`，配置文件 `/docker-compose.coolify.yml`。关闭平台的 push 自动部署和预览部署，避免绕过 CI。开启 **Preserve Repository**，Custom Build Command 为 `true`，Custom Start Command 为：
 
-工作流提交到默认分支后才能从 Actions 页面手动运行。这里仅准备配置，没有替你创建 Secrets、推送版本标签或执行远程部署。
+```bash
+bash deploy/apply-coolify.sh
+```
 
-## 访问、日志和维护
+web 绑定上述 HTTPS 域名，内部端口 80；API 和数据库不映射宿主机端口。全局 ACR 登录负责拉取镜像。平台保留的仓库用于运行部署脚本，脚本使用 Coolify 生成的 Compose、`.env` 和项目名，不另建一套容器。
+
+运行时变量在 Coolify 配置：`POSTGRES_PASSWORD`、`CASDOOR_ISSUER`、`CASDOOR_CLIENT_ID`、`CASDOOR_CLIENT_SECRET`、`CASDOOR_REDIRECT_URI`、`INITIAL_ADMIN_SUBJECT`，以及 CI 管理的两个镜像变量。会话 Cookie 固定为 Secure，登录模式固定为 Casdoor。
+
+本次凭据来源是本机 `.env` 的 `FGAS_CASDOOR_KEY` → `CASDOOR_CLIENT_ID`、`FGAS_CASDOOR_SECRET` → `CASDOOR_CLIENT_SECRET`。不要使用认证系统管理 API 的 `CASDOOR_KEY` / `CASDOOR_SECRET`。issuer 为 `https://auth.fantasyguide.cn`，回调为 `https://fgas.secret-sealing.club/api/auth/casdoor/callback`，首位管理员用户名为 `Renko_1055`。Casdoor 应用必须登记该回调。
+
+首发使用新空库，Alembic 建表，不导入开发记录或创建开发用户；首次真实登录时绑定管理员。后续发布在迁移前备份到宿主机 `/data/fgas-backups`（目录 0700，文件 0600，保留 30 天），检查备份归档可读后执行迁移，失败停止发布，不自动恢复或降级。不要在面板中移除自定义启动命令，否则会绕过备份步骤。
+
+数据库使用应用自己的 `postgres-data` 持久卷；从 Coolify 删除资源时不要删除该卷。日志和容器状态以应用面板为准。Compose/SSH 的 `/opt/fgas`、回环 8080 和固定 `fgas` 项目名仅适用于下方保留的手动路线，不用于 Coolify 实例。
+
+## 手动 Compose 的访问、日志和维护
 
 服务器本机检查：
 

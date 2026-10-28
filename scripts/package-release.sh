@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Build an offline bundle, or assemble a small bundle for already-published GHCR images.
+# Build an offline bundle, or assemble a small bundle for registry images.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-usage() { echo "Usage: $0 VERSION [--registry ghcr.io/owner/repository]" >&2; exit 2; }
+usage() { echo "Usage: $0 VERSION [--registry registry/namespace/prefix]" >&2; exit 2; }
 [[ $# == 1 || ( $# == 3 && $2 == --registry ) ]] || usage
 version=$1
 [[ $version =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}$ ]] || usage
 prefix=${3:-fgas}
 if [[ $# == 3 ]]; then
-    [[ $prefix =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]+$ && $prefix != *..* && $prefix != */ ]] || usage
+    [[ $prefix =~ ^[a-z0-9][a-z0-9.-]+/[a-z0-9][a-z0-9._/-]+$ && $prefix != *..* && $prefix != */ ]] || usage
 fi
 api_image="$prefix-api:$version"
-web_image="$prefix-web:$version"
+web_image="${FGAS_WEB_IMAGE:-$prefix-web:$version}"
 release="fgas-$version"
 mkdir -p .releases
 output="$PWD/.releases/$release.tar.gz"

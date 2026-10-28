@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: fgas-release
@@ -21,14 +20,18 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
       - name: Choose unique image version
         id: images
+        env:
+          ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}
+          ACR_NAMESPACE: ${{ vars.ACR_NAMESPACE }}
         shell: bash
         run: |
-          prefix="ghcr.io/${GITHUB_REPOSITORY,,}"
+          test -n "$ACR_REGISTRY" && test -n "$ACR_NAMESPACE"
+          prefix="$ACR_REGISTRY/$ACR_NAMESPACE/fgas"
           version="sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -38,8 +41,8 @@ jobs:
           VERSION: ${{ steps.images.outputs.version }}
         run: |
           docker build --platform linux/amd64 --build-arg "FGAS_VERSION=$VERSION" --build-arg "FGAS_GIT_SHA=$GITHUB_SHA" --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -f deploy/Dockerfile -t "$PREFIX-api:$VERSION" .
-          docker build --platform linux/amd64 --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -f deploy/Dockerfile.web -t "$PREFIX-web:$VERSION" .
-          bash scripts/package-release.sh "$VERSION" --registry "$PREFIX"
+          docker build --platform linux/amd64 --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -f deploy/Dockerfile.web -t "$PREFIX:$VERSION" .
+          FGAS_WEB_IMAGE="$PREFIX:$VERSION" bash scripts/package-release.sh "$VERSION" --registry "$PREFIX"
       - name: Check containers and Nginx
         env:
           PREFIX: ${{ steps.images.outputs.prefix }}
@@ -59,7 +62,7 @@ jobs:
             "$RUNNER_TEMP/fgas/.env"
           # Exercise the same complete-image loading path as an offline manual release.
           docker pull postgres:14
-          docker image save -o "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/images.tar" "$PREFIX-api:$VERSION" "$PREFIX-web:$VERSION" postgres:14
+          docker image save -o "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/images.tar" "$PREFIX-api:$VERSION" "$PREFIX:$VERSION" postgres:14
           bash "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/apply-release.sh" --init-db
           docker compose --project-name fgas --env-file "$RUNNER_TEMP/fgas/.env" --env-file "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/release.env" -f "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/compose.yaml" run --rm --no-deps migrate alembic -c alembic.ini check
           curl --fail http://127.0.0.1:8080/api/health
@@ -67,34 +70,28 @@ jobs:
           curl --fail http://127.0.0.1:8080/ > /dev/null
           curl --fail http://127.0.0.1:8080/agent-setup.md > /dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/mcp)" = 401
-      - name: Publish to GHCR
+      - name: Publish to Aliyun ACR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
           PREFIX: ${{ steps.images.outputs.prefix }}
           VERSION: ${{ steps.images.outputs.version }}
         run: |
-          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          printf '%s' "$ACR_PASSWORD" | docker login "$ACR_REGISTRY" -u "$ACR_USERNAME" --password-stdin
           docker push "$PREFIX-api:$VERSION"
-          docker push "$PREFIX-web:$VERSION"
+          docker push "$PREFIX:$VERSION"
       - uses: actions/upload-artifact@v6
         with:
           name: fgas-release
           path: .releases/*.tar.gz
           if-no-files-found: error
-      - name: Deploy over SSH
+      - name: Deploy with Coolify
         if: (github.event_name == 'workflow_dispatch' && inputs.deploy) || (github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true')
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
-          VERSION: ${{ steps.images.outputs.version }}
-        run: |
-          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER" && test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS" && test -n "$DEPLOY_PATH"
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-          printf 'Host *\n  BatchMode yes\n  StrictHostKeyChecking yes\n' > ~/.ssh/config
-          bash scripts/push-release.sh ".releases/fgas-$VERSION.tar.gz" "$DEPLOY_USER@$DEPLOY_HOST" "$DEPLOY_PATH"
+          COOLIFY_URL: https://coolify.secret-sealing.club
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APPLICATION_UUID: ${{ vars.COOLIFY_APPLICATION_UUID }}
+          FGAS_API_IMAGE: ${{ steps.images.outputs.prefix }}-api:${{ steps.images.outputs.version }}
+          FGAS_WEB_IMAGE: ${{ steps.images.outputs.prefix }}:${{ steps.images.outputs.version }}
+        run: python3 scripts/deploy-coolify.py

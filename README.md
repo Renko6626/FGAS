@@ -32,7 +32,7 @@ npm run dev
 两条发布路径共用同一套配置：
 
 - 手动发布：本机构建完整镜像，打包后通过 SSH 传到服务器加载。
-- 自动发布：GitHub Actions 构建镜像并推送 GHCR，服务器拉取后更新。
+- 自动发布：GitHub Actions 构建镜像并推送阿里云 ACR，由 Coolify 拉取并部署到 `https://fgas.secret-sealing.club`。
 
 首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。不依赖 Docker 时，可用 [systemd 原生方式](deploy/README.native.md)（含 PM2 备选）。Compose 发布脚本在首次部署和普通更新时先备份数据库、再通过一次性 `migrate` 服务执行 Alembic；迁移失败时 API 不启动。原生部署按其文档执行备份与迁移。部署路线定位见[部署说明中的对照表](deploy/README.md)。
 

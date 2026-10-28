@@ -61,11 +61,11 @@ Vue / 人工 HTTP       Agent / MCP
 
 2026-10-22 用户进一步确认采用 Docker Compose，统一管理 PostgreSQL 14、Python 3.13 后端、内置 Nginx 的静态前端。Node 22 只参与镜像构建；目标 Linux amd64 服务器不需要 Python、Node、PM2 或 uv。Nginx 提供网页和接入指南，将 /api 与 /mcp 转发到后端。数据库与后端不映射主机端口，网页默认映射127.0.0.1:8080。
 
-发布保留两条路径：本机构建完整镜像并通过 SSH 传包加载；GitHub Actions 构建镜像并发布 GHCR，服务器拉取。两者共用运行 Compose 和启动脚本，持久配置位于部署根目录.env，数据库位于固定 fgas_postgres-data 卷。首次初始化与普通更新都通过 Compose 一次性 `migrate` 服务执行 `alembic upgrade head`；API 依赖迁移成功后才启动。发布前自动 `pg_dump` 备份，迁移失败即停止发布；不自动清库、不自动 downgrade。
+发布保留两条路径：本机构建完整镜像并通过 SSH 传包加载；GitHub Actions 构建镜像并发布阿里云 ACR，Coolify 拉取并部署。手动路线使用 deploy/compose.yaml 与 apply-release.sh，持久配置位于部署根目录.env，数据库位于固定 fgas_postgres-data 卷。Coolify 路线使用 docker-compose.coolify.yml 与 deploy/apply-coolify.sh，变量、项目名与持久卷由平台管理，备份放在宿主机 /data/fgas-backups。首次初始化与普通更新都通过 Compose 一次性 `migrate` 服务执行 `alembic upgrade head`；API 依赖迁移成功后才启动。发布前自动 `pg_dump` 备份，迁移失败即停止发布；不自动清库、不自动 downgrade。
 
 数据库迁移以 Alembic 为唯一 schema 演进路径，`backend/migrations/versions/0001_baseline_schema.py` 是当前基线；本轮编号经用户确认仅同步现有 `0001`，不迁移旧库；此后模型变更须新增 revision，不能回到 `create_all` 或手写升级 SQL。在线迁移使用独立 advisory lock，避免并发执行；测试在独立临时库验证 upgrade/check/downgrade。历史 `scripts/upgrade-*.sql` 只用于收养基线前旧库：备份、执行、校验后 `alembic stamp 0001`。
 
-工作流在版本标签或手动触发时构建，通过容器启动与反向代理检查后发布。配置服务器凭据并启用后可经 SSH 自动更新；不新增发布服务、队列或自动回滚。开发用 npm run dev 保持原有行为。Compose 为新部署首选；明确不使用 Docker 时，可采用 `deploy/*.service` 提供的 systemd 原生方式；PM2 仅作为兼容备选保留。各路线的定位以 [deploy/README.md 的对照表](deploy/README.md)为准，原生操作见 [deploy/README.native.md](deploy/README.native.md)。
+工作流在版本标签或手动触发时构建，通过容器启动与反向代理检查后发布。配置专用 API 凭据并启用后由 Coolify 自动更新，平台 push 自动部署关闭；不新增发布服务、队列或自动回滚。开发用 npm run dev 保持原有行为。Compose 为新部署首选；明确不使用 Docker 时，可采用 `deploy/*.service` 提供的 systemd 原生方式；PM2 仅作为兼容备选保留。各路线的定位以 [deploy/README.md 的对照表](deploy/README.md)为准，原生操作见 [deploy/README.native.md](deploy/README.native.md)。
 
 ## 4 数据结构
 

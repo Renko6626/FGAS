@@ -1,0 +1,69 @@
+# Images are built by GitHub Actions; Coolify owns routing and the project name.
+services:
+  db:
+    image: postgres:14
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fgas
+      POSTGRES_USER: fgas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fgas -d fgas"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    image: ${FGAS_API_IMAGE:?}
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fgas:${POSTGRES_PASSWORD}@db:5432/fgas
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
+
+  api:
+    image: ${FGAS_API_IMAGE:?}
+    restart: unless-stopped
+    environment:
+      AUTH_MODE: casdoor
+      DATABASE_URL: postgresql+psycopg2://fgas:${POSTGRES_PASSWORD}@db:5432/fgas
+      CASDOOR_ISSUER: ${CASDOOR_ISSUER:?}
+      CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID:?}
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:?}
+      CASDOOR_REDIRECT_URI: ${CASDOOR_REDIRECT_URI:?}
+      CASDOOR_SCOPE: ${CASDOOR_SCOPE:-openid profile email}
+      INITIAL_ADMIN_SUBJECT: ${INITIAL_ADMIN_SUBJECT:?}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-管理员}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+      COOKIE_SECURE: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:10622/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  web:
+    image: ${FGAS_WEB_IMAGE:?}
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  postgres-data:
