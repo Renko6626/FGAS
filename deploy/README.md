@@ -22,7 +22,7 @@
 
 目前仅支持 Linux amd64。Python 依赖在构建镜像时用现有 requirements.txt 安装，服务器不会现场执行 pip 或 uv。手动镜像包还包含 PostgreSQL，目标机无需访问镜像仓库；第一次在本机构建仍需联网下载基础镜像和依赖。
 
-登录支持两种模式：本地试用可把 `AUTH_MODE` 设为 `development` 使用账号选择；正式部署默认 `casdoor`，通过既有 Casdoor OIDC 登录。先在 Casdoor 为本系统建立应用，回调地址与 `CASDOOR_REDIRECT_URI` 完全一致，scope 默认 `openid profile email`；再在 `.env` 填写 client id/secret 和 `INITIAL_ADMIN_SUBJECT`。首次登录自动建立本地用户，默认普通用户；初始管理员只按首次登录的 Casdoor `sub` 或用户名绑定一次，之后角色由本系统管理员维护。默认入口是服务器的 `127.0.0.1:8080`，不直接开放公网；正式公网仍需域名、HTTPS 和真实 Casdoor 联调验收。原生 systemd 部署步骤见 [README.native.md](README.native.md)，PM2 作为备选保留。
+登录支持两种模式：本地试用可把 `AUTH_MODE` 设为 `development` 使用账号选择；正式部署默认 `casdoor`，通过既有 Casdoor OIDC 登录。先在 Casdoor 为本系统建立应用，回调地址与 `CASDOOR_REDIRECT_URI` 完全一致，scope 默认 `openid profile email`；再在 `.env` 填写 client id/secret 和 `INITIAL_ADMIN_SUBJECT`。首次登录自动建立本地用户，默认普通用户；初始管理员只按首次登录的 Casdoor `sub` 或用户名绑定一次，之后角色由本系统管理员维护。独立手动路线的默认入口是服务器的 `127.0.0.1:8080`；当前 Coolify 站点已完成 HTTPS 与登录跳转检查，真实用户登录仍需验收。原生 systemd 部署步骤见 [README.native.md](README.native.md)，PM2 作为备选保留。
 
 不要复用仓库或本机其他工具里的 `CASDOOR_KEY` / `CASDOOR_SECRET`；FGAS 只读取下文的 `CASDOOR_CLIENT_ID` / `CASDOOR_CLIENT_SECRET`。`CASDOOR_REDIRECT_URI` 必须与 Casdoor 应用登记值完全一致，否则登录回调会被拒绝。
 
@@ -104,7 +104,7 @@ Coolify 使用 Git Compose 应用，GitHub App `renko6626`，仓库 `Renko6626/F
 bash deploy/apply-coolify.sh
 ```
 
-web 绑定上述 HTTPS 域名，内部端口 80；API 和数据库不映射宿主机端口。全局 ACR 登录负责拉取镜像。平台保留的仓库用于运行部署脚本，脚本使用 Coolify 生成的 Compose、`.env` 和项目名，不另建一套容器。
+当前应用为 `j6grshmlx7t0lxyrwhe7mlmk`，可从 [Coolify 应用配置](https://coolify.secret-sealing.club/project/fsj7tn8gqtnhlmlqrnws4u0i/environment/wr3ynnxmxkkcxibfk7xuu9ft/application/j6grshmlx7t0lxyrwhe7mlmk) 维护。web 绑定上述 HTTPS 域名，内部端口 80；API 和数据库不映射宿主机端口。全局 ACR 登录负责拉取镜像。平台保留的仓库用于运行部署脚本，脚本使用 Coolify 生成的 Compose、`.env` 和项目名，不另建一套容器。
 
 运行时变量在 Coolify 配置：`POSTGRES_PASSWORD`、`CASDOOR_ISSUER`、`CASDOOR_CLIENT_ID`、`CASDOOR_CLIENT_SECRET`、`CASDOOR_REDIRECT_URI`、`INITIAL_ADMIN_SUBJECT`，以及 CI 管理的两个镜像变量。会话 Cookie 固定为 Secure，登录模式固定为 Casdoor。
 
@@ -112,7 +112,9 @@ web 绑定上述 HTTPS 域名，内部端口 80；API 和数据库不映射宿�
 
 首发使用新空库，Alembic 建表，不导入开发记录或创建开发用户；首次真实登录时绑定管理员。后续发布在迁移前备份到宿主机 `/data/fgas-backups`（目录 0700，文件 0600，保留 30 天），检查备份归档可读后执行迁移，失败停止发布，不自动恢复或降级。不要在面板中移除自定义启动命令，否则会绕过备份步骤。
 
-数据库使用应用自己的 `postgres-data` 持久卷；从 Coolify 删除资源时不要删除该卷。日志和容器状态以应用面板为准。Compose/SSH 的 `/opt/fgas`、回环 8080 和固定 `fgas` 项目名仅适用于下方保留的手动路线，不用于 Coolify 实例。
+现有 Traefik 为兼容旧站开启了 ACME bypass，FGAS 的证书验证需保留专用 HTTP 路由：[fgas-acme.yaml](fgas-acme.yaml) 对应 VPS `/data/coolify/proxy/dynamic/fgas-acme.yaml`。它仅将当前域名的 `/.well-known/acme-challenge/` 转给 `acme-http@internal`，避免验证请求被 HTTPS 跳转截获；无需修改主代理或重启。
+
+数据库使用应用自己的 `postgres-data` 持久卷（当前实际名 `j6grshmlx7t0lxyrwhe7mlmk_postgres-data`）；从 Coolify 删除资源时不要删除该卷。日志和容器状态以应用面板为准。Compose/SSH 的 `/opt/fgas`、回环 8080 和固定 `fgas` 项目名仅适用于下方保留的手动路线，不用于 Coolify 实例。
 
 ## 手动 Compose 的访问、日志和维护
 

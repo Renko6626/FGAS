@@ -40,8 +40,8 @@
 
 - [x] 创建 FGAS 项目/应用，设置域名、自定义启动命令、持久化与运行时变量；关闭 push/预览自动部署。
 - [x] 配置专用 CI 部署凭据及镜像访问方式；不输出凭据。
-- [ ] 提交并推送已验证的配置；运行现有 Actions 构建和容器检查，再首发到 Coolify。
-- [ ] 只读检查容器健康、schema、空业务数据、HTTPS、SSO 重定向和 MCP 未认证响应，记录实际结果及未验收项。
+- [x] 提交并推送已验证的配置；运行现有 Actions 构建和容器检查，再首发到 Coolify。
+- [x] 只读检查容器健康、schema、空业务数据、HTTPS、SSO 重定向和 MCP 未认证响应，记录实际结果及未验收项。
 
 ## 执行记录
 
@@ -50,3 +50,7 @@
 
 - Task 1 检查通过：shell 语法、Python 编译、工作流 YAML/内嵌 shell、占位凭据下的 Compose config、实际生成 ACR 小发布包并校验镜像引用；独立只读审阅无阻塞项。未新增永久测试，构建和容器检查由现有 Actions 执行。
 - ACR 的 `renko/fgas-api` 与 `renko/fgas` 已存在，平台全局登录有效；CI 使用同一 ACR 登录，专用 Coolify read/write/deploy token 有效期 365 天，值不记录。
+
+- Task 2 完成：运行代码 9e4210a；Actions 40662036112 成功，Coolify 部署 pps1hxge6axrhyncqs49p2kw finished，三服务 healthy。HTTPS/API/指南 200、匿名 MCP/me 401、开发入口 404，SSO 跳转/PKCE/Secure Cookie 正常，SQL 确认新空库 revision 0001。
+- 实际修正：早轮 CI 上传隐藏目录失败，添加 include-hidden-files；首发证书请求被 HTTP 跳转截获，按当前 Traefik 模式增加仅 FGAS 的 HTTP ACME 路由，未修改全局主配置或重启代理。模板保存在 deploy/fgas-acme.yaml。
+- 未验收：真实用户登录和首位管理员绑定、带凭据的远程 MCP、完整备份恢复；本轮未做浏览器交互或业务写入。初装空库未生成迁移前备份，后续更新走既定备份脚本。

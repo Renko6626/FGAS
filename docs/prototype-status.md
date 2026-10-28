@@ -12,6 +12,18 @@
 
 当前开发默认端口：前端 `5173`、后端 `10622`。下文的 `8000` 等端口为当时配置，当前启动方式以 [README](../README.md) 为准。
 
+## 2026-10-28：Coolify 首次发布
+
+正式入口为 [fgas.secret-sealing.club](https://fgas.secret-sealing.club)。用户确认 Actions 构建、阿里云 ACR 存镜像、Coolify 发布；仓库 `renko/fgas-api`、`renko/fgas` 沿用已有私有仓库。部署代码提交 `c6debc6`，修正隐藏发布包上传的提交为 `9e4210a`；运行版本为 `9e4210a21831`。成功的 [Actions 40662036112](https://github.com/Renko6626/FGAS/actions/runs/40662036112) 包含前端类型检查与构建、容器与反向代理检查、ACR 推送、发布包上传及 Coolify 发布。早轮 40661620339 在上传 `.releases` 隐藏目录时失败，未触发部署；现已明确启用该目录中发布包的上传。
+
+Coolify 项目 `fsj7tn8gqtnhlmlqrnws4u0i`，production 环境 `wr3ynnxmxkkcxibfk7xuu9ft`，应用 `j6grshmlx7t0lxyrwhe7mlmk`；部署 `pps1hxge6axrhyncqs49p2kw` finished，web/API/db 均 healthy。平台使用当前源码提交和精确镜像版本，保留仓库、自定义启动脚本；push 和预览自动部署关闭。版本标签 `v*` 或手动 Actions 发版，`DEPLOY_ENABLED=true`。持久卷为 `j6grshmlx7t0lxyrwhe7mlmk_postgres-data`；备份目录 `/data/fgas-backups` 为 root 0700，新库首次建表前无数据，首发未生成迁移前备份。
+
+本机 `.env` 的 `FGAS_CASDOOR_KEY` / `FGAS_CASDOOR_SECRET` 已映射为运行时 client ID/secret，未使用认证系统的管理 API 凭据。Casdoor 公开应用参数检查确认 FGAS 应用接受当前回调；配置的首位管理员为 `Renko_1055`。生产 SQL 只读确认 revision=0001，用户、资金单、货物单均为 0；未导入开发数据或创建测试用户，未改本地开发库。
+
+首次证书校验被应用的 HTTP 跳转截获；仅新增 FGAS 的 `/.well-known/acme-challenge/` HTTP 路由到 Traefik `acme-http@internal`，现有主代理与旧站规则未改。模板为 `deploy/fgas-acme.yaml`，VPS 生效文件 `/data/coolify/proxy/dynamic/fgas-acme.yaml`；文件热加载后证书签发成功，证书到期为 2027-01-26，验证时未跳过 TLS 校验。
+
+实际检查：shell 语法、Python 编译、工作流 YAML/内嵌 shell、占位凭据 Compose config、ACR 发布包镜像引用及 `git diff --check` 均通过；一次独立只读代码审阅无阻塞项。公网首页/API 健康/指南为 200，`/mcp` 和未登录 `/api/auth/me` 为 401，开发用户入口 404。Casdoor 登录入口 303，回调正确、PKCE S256、状态 Cookie 带 Secure。没有运行浏览器自动交互、业务写请求或新增永久测试；真实用户登录、首次管理员绑定、带凭据的远程 MCP 与完整备份恢复演练仍待验收。实施计划见 [发布实施计划](superpowers/plans/2026-10-28-coolify-actions.md)。
+
 ## 2026-10-27：Agent 接入改进分支现状
 
 在 `codex/agent-access-next-steps` 分支完成身份查询、业务编号、网页定位和在途口径调整。MCP `fgas_query({"resource":"me"})` 只报告当前真实用户的名称/角色及连接名称/等级；管理员使用 low 连接时仍只有 low 能力。接入顺序为核心说明、help、me、正常业务只读查询。low 无权办理的步骤可把同一业务编号和当前状态并列交给人工网页或用户已授权的 high Agent；已有付款只做匹配，已有完成申请只审批该申请，不重建原单。
@@ -64,7 +76,7 @@
 - `git diff --check`：通过。检查时工作区干净；未拉取远端。
 - 盘点已有资金与货物测试中的行为覆盖，目录也有部分覆盖；尚无独立盘点、目录专项测试文件，不能据此认定完全没有覆盖。
 
-Casdoor 登录代码及 mock IdP 测试已实现，真实 Casdoor、域名与 HTTPS、生产发布和备份恢复仍未验收。MCP v2 已有本机 DSH 真实模型调用记录（见 2026-10-23），远程 HTTPS 及其他客户端仍待联调。附件尚未实现；估值、成本、利润、订单、清点明细和请求恢复不在第一阶段范围。
+Casdoor 登录代码及 mock IdP 测试已实现；2026-10-28 已完成首次 Coolify 发布、HTTPS 与登录跳转检查，真实用户登录和备份恢复仍未验收。MCP v2 已有本机 DSH 真实模型调用记录（见 2026-10-23），远程 HTTPS 及其他客户端仍待联调。附件尚未实现；估值、成本、利润、订单、清点明细和请求恢复不在第一阶段范围。
 
 本次现状检查未修改开发数据库、未部署、未启动业务服务或执行浏览器交互；测试通过不代表生产验收完成。2026-10-24 的修复内容和当时验证见[审阅修复计划](superpowers/plans/2026-10-24-review-cleanup-plan.md)末尾的实施结果。本次状态文档更新仅核对差异并运行 `git diff --check`，未重复运行上述测试与构建。
 

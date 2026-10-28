@@ -58,7 +58,7 @@ npm run db:init    # Alembic upgrade + 开发种子
 - 不引入微服务、队列、缓存、多主同步、通用规则引擎、幂等键/自动重试/Outbox。
 - 数据库 schema 只通过 Alembic 演进：部署由 Compose `migrate` 一次性服务在 API 启动前执行 `alembic upgrade head`；迁移前必须备份，失败即停止发布。禁止用 `create_all` 或手写 SQL 作为新装/升级路径，禁止自动 downgrade。
 - 历史 `scripts/upgrade-*.sql` 仅用于收养基线前旧库：不可丢弃的库必须备份、执行遗留脚本、校验 schema，再 `alembic stamp 0001`；可丢弃的旧库直接重建。
-- 生产部署以 `deploy/README.md` 的 Docker Compose 路线为准；真实 Casdoor、HTTPS、生产发布及备份恢复尚未验收，附件尚未实现；MCP v2 已有本机 DSH 真实模型验证；DSH 0.2.1-rc.3 普通 Web 创造模式已跑通自助安装、热加载和 low 待审提交，SDK／标准模式受限不能代表该路径。远程 HTTPS 及其他客户端仍待联调——不要把开发环境行为当作生产已验收。
+- 当前发布以 `deploy/README.md` 的 Actions → ACR → Coolify 路线为准。2026-10-28 已发布 `https://fgas.secret-sealing.club`，空库 Alembic 0001、容器健康、HTTPS、SSO 跳转与匿名 MCP 拒绝访问检查通过；真实 Casdoor 登录与首位管理员绑定、带凭据的远程 MCP、备份恢复仍待验收，附件尚未实现。首位管理员配置为 `Renko_1055`，仅使用 FGAS 专用 Casdoor 凭据；平台 push/预览自动部署关闭，发版由 `v*` 标签或手动 Actions 触发。VPS 的 `fgas-acme.yaml` 保留证书验证路径，不要删除。MCP v2 已有本机 DSH 真实模型验证；DSH 0.2.1-rc.3 普通 Web 创造模式已跑通自助安装、热加载和 low 待审提交，SDK／标准模式受限不能代表该路径。
 
 ## 已知待办线索
 

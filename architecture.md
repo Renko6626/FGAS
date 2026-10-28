@@ -59,7 +59,7 @@ Vue / 人工 HTTP       Agent / MCP
 
 ### 部署与维护
 
-2026-10-22 用户进一步确认采用 Docker Compose，统一管理 PostgreSQL 14、Python 3.13 后端、内置 Nginx 的静态前端。Node 22 只参与镜像构建；目标 Linux amd64 服务器不需要 Python、Node、PM2 或 uv。Nginx 提供网页和接入指南，将 /api 与 /mcp 转发到后端。数据库与后端不映射主机端口，网页默认映射127.0.0.1:8080。
+2026-10-22 用户进一步确认采用 Docker Compose，统一管理 PostgreSQL 14、Python 3.13 后端、内置 Nginx 的静态前端。Node 22 只参与镜像构建；目标 Linux amd64 服务器不需要 Python、Node、PM2 或 uv。Nginx 提供网页和接入指南，将 /api 与 /mcp 转发到后端。数据库与后端不映射主机端口，独立手动路线的网页默认映射127.0.0.1:8080；当前正式 Coolify 路线由 Traefik 提供 HTTPS 域名入口。
 
 发布保留两条路径：本机构建完整镜像并通过 SSH 传包加载；GitHub Actions 构建镜像并发布阿里云 ACR，Coolify 拉取并部署。手动路线使用 deploy/compose.yaml 与 apply-release.sh，持久配置位于部署根目录.env，数据库位于固定 fgas_postgres-data 卷。Coolify 路线使用 docker-compose.coolify.yml 与 deploy/apply-coolify.sh，变量、项目名与持久卷由平台管理，备份放在宿主机 /data/fgas-backups。首次初始化与普通更新都通过 Compose 一次性 `migrate` 服务执行 `alembic upgrade head`；API 依赖迁移成功后才启动。发布前自动 `pg_dump` 备份，迁移失败即停止发布；不自动清库、不自动 downgrade。
 

@@ -1,0 +1,8 @@
+http:
+  routers:
+    fgas-acme-http:
+      entryPoints:
+        - http
+      rule: Host(`fgas.secret-sealing.club`) && PathPrefix(`/.well-known/acme-challenge/`)
+      priority: 10000
+      service: acme-http@internal
