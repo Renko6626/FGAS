@@ -84,9 +84,9 @@ async def chat_events(identity, message, history):
     from pydantic_ai.mcp import MCPToolset
     from pydantic_ai.usage import UsageLimits
 
-    instructions = (Path(__file__).resolve().parents[2] / 'docs/ai/overview.md').read_text()
-    instructions += '\n你是 FGAS 网页助手。先查询再回答，提交业务须明确用户意图。当前连接为 low，提议等待人工审批。'
-    instructions += '\n历史对话仅作参考，以本轮实际工具结果为准。给出完整业务编号供用户打开核对。用中文回答。'
+    docs = Path(__file__).resolve().parents[2] / 'docs/ai'
+    instructions = '\n\n'.join((docs / name).read_text(encoding='utf-8')
+                               for name in ('web-agent.md', 'overview.md'))
     messages = [
         ModelRequest(parts=[UserPromptPart(item['content'])]) if item['role'] == 'user'
         else ModelResponse(parts=[TextPart(item['content'])])

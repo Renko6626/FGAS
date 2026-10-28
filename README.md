@@ -4,9 +4,11 @@
 
 2026-10-27 起，资金与货物盘点暂时停用：隐藏网页入口，HTTP 返回 404，MCP 不再提供盘点资源；原实现与表保留。期初及账面调整仍可登记普通转移。历史余额／库存默认按实际入账时间查询，业务日期仅作明确指定的备选口径。本轮开发数据已按用户确认备份后重建。
 
-业务模型见 [transfer-model](docs/transfer-model.md)，架构见 [architecture](architecture.md)，实际验证状态见 [阶段记录](docs/prototype-status.md)。资金、结算、库存、首页、身份管理及 MCP v2 已实现；薄盘点代码保留但入口暂停。当前分支后端 84 项测试与前端构建通过，定向真实模型复测和生产验收见阶段记录。
+业务模型见 [transfer-model](docs/transfer-model.md)，架构见 [architecture](architecture.md)，实际验证状态见 [阶段记录](docs/prototype-status.md)。资金、结算、库存、首页、身份管理及 MCP v2 已实现；薄盘点代码保留但入口暂停。当前分支后端 85 项测试与前端构建通过，定向真实模型复测和生产验收见阶段记录。
 
 ## 本地开发
+
+网页助手原型已合并到主目录，默认关闭；独立依赖、启用方式与当前限制见 [网页助手说明](docs/web-agent-prototype.md)，助手提示词见 [web-agent.md](docs/ai/web-agent.md)。
 
 需要 Python 3.13、Node.js 22.12 或以上版本及 PostgreSQL。沿用现有环境和 `.env`；连接信息不要提交到仓库。
 

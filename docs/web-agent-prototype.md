@@ -1,6 +1,6 @@
 # 网页助手本地原型
 
-设计见 [接入设计](superpowers/specs/2026-10-28-web-agent-design.md)，完整分期和实施记录见 [实施计划](superpowers/plans/2026-10-28-web-agent-prototype.md)。原型分支 `feature/web-agent-prototype`，本地工作区 `.worktrees/web-agent-prototype`，不影响线上已发布版本。
+设计见 [接入设计](superpowers/specs/2026-10-28-web-agent-design.md)，完整分期和实施记录见 [实施计划](superpowers/plans/2026-10-28-web-agent-prototype.md)。2026-10-29 已按用户要求将原型快进合并到主目录 `main`，后续在主目录维护；尚未发布线上。
 
 ## 已有能力
 
@@ -14,7 +14,7 @@
 
 ## 启动
 
-以下命令在原型工作区执行。独立虚拟环境避免更新日常开发环境的 Starlette/OpenAI SDK：
+以下命令在项目主目录执行。独立虚拟环境避免更新日常开发环境的 Starlette/OpenAI SDK：
 
 ```bash
 python3.13 -m venv .runtime/web-agent-venv
@@ -37,9 +37,20 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:10632 npm run dev -- --host 127.0.0.1 --p
 
 ## 模型 Key
 
-个人 Key 填入面板“模型设置”，只保存在当前页面内存，通过 Cookie HTTP 请求交给后端调用，不放入 MCP 工具参数。公共 Key 使用环境变量 `FGAS_DEEPSEEK_API_KEY`；启动器可从原型工作区 `.env` 或主工作区 `.env` 读取这一项。填入后重启原型后端生效。其他系统的认证 Key 不用于模型调用。
+个人 Key 填入面板“模型设置”，只保存在当前页面内存，通过 Cookie HTTP 请求交给后端调用，不放入 MCP 工具参数。公共 Key 使用环境变量 `FGAS_DEEPSEEK_API_KEY`；启动器可从当前项目 `.env` 读取这一项。填入后重启原型后端生效。其他系统的认证 Key 不用于模型调用。
 
 没有个人 Key 时可以使用已配置的公共模型。个人模型报错时由用户主动切换来源，程序不自动切换并重播业务工具。不要把真实 Key 提交到 Git。后端默认关闭原型；生产依然只安装原有 `backend/requirements.txt`。
+
+## 助手提示词
+
+每轮模型请求由 `backend/application/web_agent.py` 读取并组合两份文档：
+
+- [web-agent.md](ai/web-agent.md)：网页助手提示词初稿，定义身份、语气、任务推进、工具使用、授权与隐私限制、结果和异常表达，并给出少量示例。
+- [overview.md](ai/overview.md)：与外部 MCP Agent 共用的账本模型、业务生效规则和调用约定。具体参数和完整业务指南仍由 `fgas_help` 按需提供。
+
+前者仅供网页助手，不改变外部 MCP 的说明。当前未注入用户所处页面、选中单据等上下文；提示词要求助手如实说明能力，不假装能看见或操控页面。提示词每轮读取，修改后下次发送即可使用；这不等于真实模型已经验收。
+
+合并验证：主目录使用独立 Python 环境在专用 `fgas_test` 上运行现有后端检查，85 passed；`npm run build` 与差异检查通过。FunctionModel 替身核对两份文档进入实际模型请求，真实 Cookie/MCP low 身份查询和两轮流式事件完成，未调用供应商。预览已迁回主目录，独立工作树已清理。
 
 ## 当前边界
 
@@ -54,7 +65,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:10632 npm run dev -- --host 127.0.0.1 --p
 - 使用 Pydantic AI FunctionModel 作为本地模型替身，经过真实 Cookie 登录、本人 low 连接与真实 MCP `fgas_query(me)`，完成工具开始/结束、文本、用量、done 事件；两轮模型请求。该用量是替身数据，不能作为真实消费。
 - `npm run build` 的 TypeScript 检查和生产构建通过，保留主 chunk 608.80 kB 超过 500 kB 的提示；桌面 1440px、手机 390px 截图无页面错误或横向溢出。没有浏览器自动点击或填表。
 - 当前没有 FGAS 专用 DeepSeek Key，尚未进行真实模型调用、余额查询和真实 token/费用核对。普通用户可以自行填入个人 Key 体验。
-- 未改日常开发库、未新增数据库结构、未合并主线或发布生产。
+- 初次原型验证时未改日常开发库、未新增数据库结构、未合并主线或发布生产；2026-10-29 已合并主线，仍未发布。
 
 ## 2026-10-29 悬浮组件调整验证
 
