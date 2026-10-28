@@ -92,8 +92,10 @@ async def chat_events(identity, message, history):
         else ModelResponse(parts=[TextPart(item['content'])])
         for item in history
     ]
+    # Return business failures to the model and allow limited argument correction.
+    # These are agent-loop steps, not automatic replays of completed MCP calls.
     tools = MCPToolset(os.getenv('FGAS_WEB_AGENT_MCP_URL', 'http://127.0.0.1:10632/mcp'),
-                       auth=identity.mcp_secret, tool_error_behavior='error', max_retries=0)
+                       auth=identity.mcp_secret, tool_error_behavior='failed', max_retries=2)
     agent = Agent(_make_model(identity.model_key, identity.model), instructions=instructions,
                   toolsets=[tools], retries=0,
                   model_settings={'max_tokens': 4096, 'parallel_tool_calls': False, 'max_retries': 0})

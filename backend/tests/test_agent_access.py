@@ -790,3 +790,70 @@ def test_web_agent_uses_only_current_users_active_low_connections(client, monkey
         assert web.get('/api/auth/me').status_code == 200
         web.cookies.clear()
         assert web.get('/api/web-agent/config').status_code == 401
+
+
+@pytest.mark.parametrize('bad_arguments', [
+    {'resource': 'me', 'filters': {'name': '不支持的字段'}},
+    'not-json',  # Malformed tool arguments are rejected before reaching MCP.
+])
+def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch, bad_arguments):
+    import json
+    mcp_tools = pytest.importorskip('pydantic_ai.mcp')
+    from fastmcp import Client as MCPClient
+    from fastmcp.client.transports import StreamableHttpTransport
+    from pydantic_ai.messages import ToolReturnPart
+    from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+    from backend.application import web_agent
+
+    connection = issue(client, owner='trusted')
+    monkeypatch.setenv('FGAS_WEB_AGENT_PROTOTYPE', '1')
+    app = create_app()
+    real_toolset = mcp_tools.MCPToolset
+
+    def local_toolset(url, **options):
+        def http_client(**kwargs):
+            return httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), **kwargs)
+        transport = StreamableHttpTransport(url, auth=options.pop('auth'), httpx_client_factory=http_client)
+        return real_toolset(MCPClient(transport), **options)
+
+    async def model_stream(messages, info):
+        if len(messages) == 1:
+            yield '你好，请告诉我要查询什么。'
+            return
+        results = [part for message in messages for part in message.parts if isinstance(part, ToolReturnPart)]
+        if not results:
+            arguments = bad_arguments
+        elif results[-1].outcome in ('failed', 'retried'):
+            failure = results[-1]
+            if failure.outcome == 'retried':
+                assert any(error['type'] == 'json_invalid' for error in failure.content)
+            else:
+                error = json.loads(failure.content)
+                assert error['code'] == 'validation_error'
+                assert error['fields'][0]['field'] == 'filters.name'
+            arguments = {'resource': 'me'}
+        else:
+            assert results[-1].content['data']['connection']['level'] == 'low'
+            yield '查询成功，当前是 low 连接。'
+            return
+        yield {0: DeltaToolCall(name='fgas_query', json_args=arguments if isinstance(arguments, str) else json.dumps(arguments),
+                               tool_call_id=str(len(results)))}
+
+    monkeypatch.setattr(mcp_tools, 'MCPToolset', local_toolset)
+    monkeypatch.setattr(web_agent, '_make_model', lambda key, name: FunctionModel(stream_function=model_stream))
+    with TestClient(app) as web:
+        web.cookies.update(client.cookies)
+        body = dict(credential_id=connection['credential']['id'], source='personal', api_key='offline-test')
+        first = web.post('/api/web-agent/chat', json={**body, 'message': '你好'})
+        first.raise_for_status()
+        first_events = [json.loads(line[6:]) for line in first.text.splitlines() if line.startswith('data: ')]
+        assert first_events[-1]['type'] == 'done'
+        reply = ''.join(event.get('text', '') for event in first_events)
+        second = web.post('/api/web-agent/chat', json={**body, 'message': '查询我的连接身份', 'history': [
+            {'role': 'user', 'content': '你好'}, {'role': 'assistant', 'content': reply},
+        ]})
+        second.raise_for_status()
+        events = [json.loads(line[6:]) for line in second.text.splitlines() if line.startswith('data: ')]
+        assert not any(event['type'] == 'error' for event in events), events
+        assert events[-1]['type'] == 'done'
+        assert '查询成功，当前是 low 连接。' == ''.join(event.get('text', '') for event in events)
