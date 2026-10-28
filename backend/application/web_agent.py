@@ -73,13 +73,24 @@ def _event(kind, **values):
     return 'data: ' + json.dumps({'type': kind, **values}, ensure_ascii=False) + '\n\n'
 
 
+def load_history(history):
+    from pydantic import ValidationError
+    from pydantic_ai.messages import ModelMessagesTypeAdapter, sanitize_messages
+    try:
+        messages = ModelMessagesTypeAdapter.validate_python(history)
+    except ValidationError:
+        raise DomainError('会话历史格式有误，请清空会话后重试', 422) from None
+    # Keep native tool records; client-held instructions cannot replace server instructions.
+    return sanitize_messages(messages)
+
+
 async def chat_events(identity, message, history):
     # No database session is retained while waiting for model or MCP requests.
-    from pydantic_ai import Agent, AgentRunResultEvent
+    from pydantic_ai import Agent, AgentRunResultEvent, capture_run_messages
     from pydantic_ai.exceptions import ModelAPIError
     from pydantic_ai.messages import (
-        FunctionToolCallEvent, FunctionToolResultEvent, ModelRequest, ModelResponse,
-        PartStartEvent, PartDeltaEvent, TextPart, TextPartDelta, UserPromptPart,
+        FunctionToolCallEvent, FunctionToolResultEvent, ModelMessagesTypeAdapter,
+        PartStartEvent, PartDeltaEvent, TextPart, TextPartDelta,
     )
     from pydantic_ai.mcp import MCPToolset
     from pydantic_ai.usage import UsageLimits
@@ -87,11 +98,6 @@ async def chat_events(identity, message, history):
     docs = Path(__file__).resolve().parents[2] / 'docs/ai'
     instructions = '\n\n'.join((docs / name).read_text(encoding='utf-8')
                                for name in ('web-agent.md', 'overview.md'))
-    messages = [
-        ModelRequest(parts=[UserPromptPart(item['content'])]) if item['role'] == 'user'
-        else ModelResponse(parts=[TextPart(item['content'])])
-        for item in history
-    ]
     # Return business failures to the model and allow limited argument correction.
     # These are agent-loop steps, not automatic replays of completed MCP calls.
     tools = MCPToolset(os.getenv('FGAS_WEB_AGENT_MCP_URL', 'http://127.0.0.1:10632/mcp'),
@@ -100,34 +106,39 @@ async def chat_events(identity, message, history):
                   toolsets=[tools], retries=0,
                   model_settings={'max_tokens': 4096, 'parallel_tool_calls': False, 'max_retries': 0})
     yield _event('start', connection=identity.connection_name, source=identity.source, model=identity.model)
-    try:
-        async with agent.run_stream_events(message, message_history=messages,
-                                           usage_limits=UsageLimits(request_limit=10)) as events:
-            async for event in events:
-                if isinstance(event, PartStartEvent) and isinstance(event.part, TextPart) and event.part.content:
-                    yield _event('text', text=event.part.content)
-                elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
-                    yield _event('text', text=event.delta.content_delta)
-                elif isinstance(event, FunctionToolCallEvent):
-                    yield _event('tool_start', id=event.part.tool_call_id, name=event.part.tool_name)
-                elif isinstance(event, FunctionToolResultEvent):
-                    yield _event('tool_end', id=event.part.tool_call_id, name=event.part.tool_name)
-                elif isinstance(event, AgentRunResultEvent):
-                    usage = event.result.usage
-                    yield _event('usage', input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
-                                 cache_read_tokens=usage.cache_read_tokens, requests=usage.requests)
+    with capture_run_messages() as messages:
+        try:
+            async with agent.run_stream_events(message, message_history=history,
+                                               usage_limits=UsageLimits(request_limit=10)) as events:
+                async for event in events:
+                    if isinstance(event, PartStartEvent) and isinstance(event.part, TextPart) and event.part.content:
+                        yield _event('text', text=event.part.content)
+                    elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+                        yield _event('text', text=event.delta.content_delta)
+                    elif isinstance(event, FunctionToolCallEvent):
+                        yield _event('tool_start', id=event.part.tool_call_id, name=event.part.tool_name)
+                    elif isinstance(event, FunctionToolResultEvent):
+                        yield _event('tool_end', id=event.part.tool_call_id, name=event.part.tool_name)
+                    elif isinstance(event, AgentRunResultEvent):
+                        usage = event.result.usage
+                        yield _event('usage', input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+                                     cache_read_tokens=usage.cache_read_tokens, requests=usage.requests)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Provider exceptions may contain request/response details; never echo them to users or logs.
+            status = getattr(exc, 'status_code', None)
+            error = {401: 'DeepSeek Key 无效，请检查 Key 或主动切换模型来源',
+                     402: 'DeepSeek 余额不足，请充值或主动切换模型来源',
+                     429: '模型请求暂时受限，请稍后再试'}.get(status,
+                     '本轮未能完成，请查看已返回的结果；涉及业务提交时先查询记录再决定下一步')
+            logger.warning('Web agent run failed: %s', type(exc).__name__)
+            if messages:
+                yield _event('history', history=ModelMessagesTypeAdapter.dump_python(messages, mode='json'))
+            yield _event('error', message=error, configuration_error=isinstance(exc, ModelAPIError))
+            return
+        yield _event('history', history=ModelMessagesTypeAdapter.dump_python(messages, mode='json'))
         yield _event('done')
-    except asyncio.CancelledError:
-        raise
-    except Exception as exc:
-        # Provider exceptions may contain request/response details; never echo them to users or logs.
-        status = getattr(exc, 'status_code', None)
-        message = {401: 'DeepSeek Key 无效，请检查 Key 或主动切换模型来源',
-                   402: 'DeepSeek 余额不足，请充值或主动切换模型来源',
-                   429: '模型请求暂时受限，请稍后再试'}.get(status,
-                   '本轮未能完成，请查看已返回的结果；涉及业务提交时先查询记录再决定下一步')
-        logger.warning('Web agent run failed: %s', type(exc).__name__)
-        yield _event('error', message=message, configuration_error=isinstance(exc, ModelAPIError))
 
 
 async def shared_balance(user):

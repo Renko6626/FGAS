@@ -6,8 +6,11 @@ export interface WebAgentConfig {
   connections: { id: string; name: string; level: string; active: boolean }[];
 }
 export interface ChatMessage { role: 'user' | 'assistant'; content: string }
+// Native Pydantic AI messages are kept intact; the UI does not interpret their parts.
+export type AgentHistory = Record<string, unknown>[];
 export interface AgentEvent {
-  type: 'start' | 'text' | 'tool_start' | 'tool_end' | 'usage' | 'done' | 'error';
+  type: 'start' | 'text' | 'tool_start' | 'tool_end' | 'usage' | 'history' | 'done' | 'error';
+  history?: AgentHistory;
   text?: string;
   message?: string;
   configuration_error?: boolean;
@@ -24,7 +27,7 @@ export const webAgentApi = {
 };
 
 export async function streamChat(body: {
-  credential_id: string; message: string; history: ChatMessage[];
+  credential_id: string; message: string; history: AgentHistory;
   model: string; source: 'personal' | 'shared'; api_key?: string;
 }, signal: AbortSignal, onEvent: (event: AgentEvent) => void) {
   const response = await fetch('/api/web-agent/chat', {

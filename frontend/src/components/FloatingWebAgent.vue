@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { NButton, NInput, NModal, NSelect } from 'naive-ui';
 import type { User } from '../api/auth';
 import AgentMarkdown from './AgentMarkdown.vue';
 import { agentConnections } from '../api/agentConnections';
-import { streamChat, webAgentApi, type AgentEvent, type ChatMessage, type WebAgentConfig } from '../api/webAgent';
+import { streamChat, webAgentApi, type AgentEvent, type AgentHistory, type ChatMessage, type WebAgentConfig } from '../api/webAgent';
 
 const props = defineProps<{ user: User }>();
 const emit = defineEmits<{ changed: [] }>();
@@ -21,6 +21,7 @@ const settings = ref(false);
 const configurationFailed = ref(false);
 const transcript = ref<HTMLElement | null>(null);
 const messages = ref<(ChatMessage & { incomplete?: boolean })[]>([]);
+const agentHistory = shallowRef<AgentHistory>([]);
 const tools = ref<{ id: string; name: string; done: boolean }[]>([]);
 const usage = ref({ input: 0, output: 0, requests: 0 });
 const balance = ref('');
@@ -69,7 +70,7 @@ async function send() {
   if (!canSend.value) return;
   if (!modelReady.value || !connection.value || configurationFailed.value) { settings.value = true; return; }
   if (messages.value.length >= 40) { error.value = '这段对话已较长，请清空会话后继续'; return; }
-  const history = messages.value.filter(item => !item.incomplete && item.content.trim()).map(({ role, content }) => ({ role, content }));
+  const previousHistory = agentHistory.value;
   const message = draft.value.trim();
   messages.value.push({ role: 'user', content: message });
   messages.value.push({ role: 'assistant', content: '', incomplete: true });
@@ -85,6 +86,7 @@ async function send() {
     settings.value = true;
     if (!tools.value.length && !messages.value[index]!.content) {
       messages.value.splice(index - 1, 2);
+      agentHistory.value = previousHistory;
       draft.value = message;
     }
   };
@@ -101,7 +103,8 @@ async function send() {
       usage.value.input += event.input_tokens || 0;
       usage.value.output += event.output_tokens || 0;
       usage.value.requests += event.requests || 0;
-    } else if (event.type === 'done') messages.value[index]!.incomplete = false;
+    } else if (event.type === 'history' && event.history) agentHistory.value = event.history;
+    else if (event.type === 'done') messages.value[index]!.incomplete = false;
     else if (event.type === 'error') {
       error.value = event.message || '本轮未能完成';
       if (event.configuration_error) requestConfiguration();
@@ -109,7 +112,7 @@ async function send() {
     void scroll();
   };
   try {
-    await streamChat({ credential_id: connection.value, message, history, model: model.value,
+    await streamChat({ credential_id: connection.value, message, history: agentHistory.value, model: model.value,
       source: source.value, ...(source.value === 'personal' ? { api_key: key.value } : {}) }, controller.signal, onEvent);
   } catch (e) {
     if (!disposed) {
@@ -125,6 +128,7 @@ async function send() {
 function clear() {
   if (busy.value) return;
   messages.value = [];
+  agentHistory.value = [];
   tools.value = [];
   usage.value = { input: 0, output: 0, requests: 0 };
   error.value = '';

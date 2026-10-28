@@ -62,7 +62,7 @@ npm run db:init    # Alembic upgrade + 开发种子
 
 ## 已知待办线索
 
-- 2026-10-29 网页助手原型已按用户确认合并到主目录 main，独立原型工作树已清理。助手提示词为 `docs/ai/web-agent.md`，由 `backend/application/web_agent.py` 每轮与共用 `docs/ai/overview.md` 组合；外部 MCP 仍只用原有业务说明。原型默认关闭，启用、隔离依赖和专用 fgas_test 预览见 `docs/web-agent-prototype.md`；未持久化 Key/聊天，未发布生产。
+- 2026-10-29 网页助手原型已按用户确认合并到主目录 main，独立原型工作树已清理。助手提示词为 `docs/ai/web-agent.md`，由 `backend/application/web_agent.py` 每轮与共用 `docs/ai/overview.md` 组合；外部 MCP 仍只用原有业务说明。跨轮按框架原生消息保留工具调用、参数和结果，独立存于当前网页内存，禁止再从展示文本重建模型历史。原型默认关闭，启用、隔离依赖和专用 fgas_test 预览见 `docs/web-agent-prototype.md`；未持久化 Key/聊天，未发布生产。
 
 - 2026-10-28 用户确认货物中文流程统一为“待审批 → 待完成 → 已完成”，技术值 `in_transit` 保留，对应已获批、尚未确认完成。受信任用户/管理员使用“登记转移 → 确认完成”；普通用户使用“申请转移 → 报告已完成”，报告待确认期间主单仍待完成、库存不变。主列表围绕 ST，SC 收在详情的完成记录和必要 Agent 交接中；这次仅调整文案，不改变模型、接口、权限或库存流程。
 

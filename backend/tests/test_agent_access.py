@@ -801,7 +801,7 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
     mcp_tools = pytest.importorskip('pydantic_ai.mcp')
     from fastmcp import Client as MCPClient
     from fastmcp.client.transports import StreamableHttpTransport
-    from pydantic_ai.messages import ToolReturnPart
+    from pydantic_ai.messages import ModelMessagesTypeAdapter, ToolCallPart, ToolReturnPart, UserPromptPart
     from pydantic_ai.models.function import DeltaToolCall, FunctionModel
     from backend.application import web_agent
 
@@ -817,12 +817,30 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
         return real_toolset(MCPClient(transport), **options)
 
     async def model_stream(messages, info):
-        if len(messages) == 1:
-            yield '你好，请告诉我要查询什么。'
+        current = max(index for index, message in enumerate(messages)
+                      if any(isinstance(part, UserPromptPart) for part in message.parts))
+        results = [part for message in messages[current:] for part in message.parts if isinstance(part, ToolReturnPart)]
+        prompt = next(part.content for part in messages[current].parts if isinstance(part, UserPromptPart))
+        if prompt == '先查身份查询的帮助':
+            if not results:
+                yield {0: DeltaToolCall(name='fgas_help', json_args='{"topic":"query","resource":"me"}',
+                                       tool_call_id='help-me')}
+            else:
+                assert results[-1].content['data']['resource'] == 'me'
+                yield '已查到身份查询的参数。'
             return
-        results = [part for message in messages for part in message.parts if isinstance(part, ToolReturnPart)]
+        # The real first-turn call and help result must reach the next model request.
+        old_call = next(part for message in messages[:current] for part in message.parts
+                        if isinstance(part, ToolCallPart) and part.tool_call_id == 'help-me')
+        assert old_call.args_as_dict() == {'topic': 'query', 'resource': 'me'}
+        old_result = next(part for message in messages[:current] for part in message.parts
+                          if isinstance(part, ToolReturnPart) and part.tool_call_id == 'help-me')
+        assert old_result.content['data']['resource'] == 'me'
+        if prompt == '查询后模拟中断' and results:
+            assert results[-1].content['data']['connection']['level'] == 'low'
+            raise RuntimeError('offline interruption after a completed query')
         if not results:
-            arguments = bad_arguments
+            arguments = {'resource': 'me'} if prompt == '查询后模拟中断' else bad_arguments
         elif results[-1].outcome in ('failed', 'retried'):
             failure = results[-1]
             if failure.outcome == 'retried':
@@ -837,23 +855,34 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
             yield '查询成功，当前是 low 连接。'
             return
         yield {0: DeltaToolCall(name='fgas_query', json_args=arguments if isinstance(arguments, str) else json.dumps(arguments),
-                               tool_call_id=str(len(results)))}
+                               tool_call_id=f'{current}-{len(results)}')}
 
     monkeypatch.setattr(mcp_tools, 'MCPToolset', local_toolset)
     monkeypatch.setattr(web_agent, '_make_model', lambda key, name: FunctionModel(stream_function=model_stream))
     with TestClient(app) as web:
         web.cookies.update(client.cookies)
         body = dict(credential_id=connection['credential']['id'], source='personal', api_key='offline-test')
-        first = web.post('/api/web-agent/chat', json={**body, 'message': '你好'})
+        first = web.post('/api/web-agent/chat', json={**body, 'message': '先查身份查询的帮助'})
         first.raise_for_status()
         first_events = [json.loads(line[6:]) for line in first.text.splitlines() if line.startswith('data: ')]
         assert first_events[-1]['type'] == 'done'
-        reply = ''.join(event.get('text', '') for event in first_events)
-        second = web.post('/api/web-agent/chat', json={**body, 'message': '查询我的连接身份', 'history': [
-            {'role': 'user', 'content': '你好'}, {'role': 'assistant', 'content': reply},
-        ]})
+        history = next(event['history'] for event in first_events if event['type'] == 'history')
+        assert body['api_key'] not in json.dumps(history)
+        assert connection['secret'] not in json.dumps(history)
+        second = web.post('/api/web-agent/chat', json={**body, 'message': '查询我的连接身份', 'history': history})
         second.raise_for_status()
         events = [json.loads(line[6:]) for line in second.text.splitlines() if line.startswith('data: ')]
         assert not any(event['type'] == 'error' for event in events), events
         assert events[-1]['type'] == 'done'
         assert '查询成功，当前是 low 连接。' == ''.join(event.get('text', '') for event in events)
+        # Ordinary failure still returns the tool results already obtained in this turn.
+        history = next(event['history'] for event in events if event['type'] == 'history')
+        failed = web.post('/api/web-agent/chat', json={**body, 'message': '查询后模拟中断', 'history': history})
+        failed.raise_for_status()
+        events = [json.loads(line[6:]) for line in failed.text.splitlines() if line.startswith('data: ')]
+        assert events[-1]['type'] == 'error'
+        history = next(event['history'] for event in events if event['type'] == 'history')
+        completed = [part for message in ModelMessagesTypeAdapter.validate_python(history) for part in message.parts
+                     if isinstance(part, ToolReturnPart) and part.tool_name == 'fgas_query' and part.outcome == 'success']
+        assert len(completed) == 2
+        assert completed[-1].content['data']['connection']['level'] == 'low'

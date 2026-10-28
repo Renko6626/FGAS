@@ -41,7 +41,7 @@
 
 **Files:** `frontend/src/components/FloatingWebAgent.vue`、`frontend/src/components/AgentMarkdown.vue`、`frontend/src/lib/agentMarkdown.ts`、`frontend/src/api/webAgent.ts`、`frontend/src/App.vue`、`frontend/src/api/auth.ts`。
 
-**Interfaces:** 消费 Task 1 的配置与事件；悬浮组件在工作台根部常驻，仅账号变化时重建；切换业务页面不销毁。页面只保留文本历史、临时个人 Key 和本次会话 token 汇总。
+**Interfaces:** 消费 Task 1 的配置与事件；悬浮组件在工作台根部常驻，仅账号变化时重建；切换业务页面不销毁。页面保留原生完整模型历史和独立的聊天展示、临时个人 Key 和本次会话 token 汇总。
 
 - [x] 在工作台右下角提供固定网页助手入口，使用既有样式构建悬浮对话面板。
 - [x] 显示用户 low 连接、个人/公共模型来源、文本、工具进度与 FT/ST 链接；支持停止当前请求和清空会话。
