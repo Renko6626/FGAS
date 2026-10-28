@@ -85,6 +85,7 @@ jobs:
         with:
           name: fgas-release
           path: .releases/*.tar.gz
+          include-hidden-files: true
           if-no-files-found: error
       - name: Deploy with Coolify
         if: (github.event_name == 'workflow_dispatch' && inputs.deploy) || (github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true')
