@@ -46,6 +46,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:10632 npm run dev -- --host 127.0.0.1 --p
 每轮模型请求由 `backend/application/web_agent.py` 读取并组合两份文档：
 
 - [web-agent.md](ai/web-agent.md)：网页助手提示词初稿，定义身份、语气、任务推进、工具使用、授权与隐私限制、结果和异常表达，并给出少量示例。
+- 提示词单独解释 `fgas_help/query/propose/execute` 的职责、low 可用范围及按资源查询帮助的方式；通用 `filters/data` 不能作为自由字段使用。已有完整契约可沿用，缺少实际参数说明时先查具体帮助。
 - [overview.md](ai/overview.md)：与外部 MCP Agent 共用的账本模型、业务生效规则和调用约定。具体参数和完整业务指南仍由 `fgas_help` 按需提供。
 
 前者仅供网页助手，不改变外部 MCP 的说明。当前未注入用户所处页面、选中单据等上下文；提示词要求助手如实说明能力，不假装能看见或操控页面。提示词每轮读取，修改后下次发送即可使用；这不等于真实模型已经验收。
