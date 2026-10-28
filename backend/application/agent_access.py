@@ -31,8 +31,8 @@ def require_issue_level(user: User, level: str) -> None:
         raise DomainError('连接权限等级无效')
     if not user.active or user.role not in ('untrusted', 'trusted', 'admin'):
         raise DomainError('用户已停用或角色无效', 403)
-    if level == 'high' and user.role != 'admin':
-        raise DomainError('高权限连接需要管理员权限', 403)
+    if level == 'high' and user.role not in ('trusted', 'admin'):
+        raise DomainError('高权限连接需要受信任用户或管理员权限', 403)
 
 
 def resolve(db, bearer: str) -> AgentAccess:
@@ -43,15 +43,15 @@ def resolve(db, bearer: str) -> AgentAccess:
     user = store.get_user(db, credential.owner_user_id)
     if (user is None or not user.active or
             user.role not in ('untrusted', 'trusted', 'admin') or
-            (credential.level == 'high' and user.role != 'admin') or
+            (credential.level == 'high' and user.role not in ('trusted', 'admin')) or
             credential.level not in ('low', 'high')):
         raise DomainError('连接所属用户已失去授权', 403)
     return AgentAccess(user, credential.id, credential.name, credential.level)
 
 
 def require_high(access: AgentAccess) -> None:
-    if access.level != 'high' or not access.user.active or access.user.role != 'admin':
-        raise DomainError('当前连接不能直接办理，需要有效管理员身份和 high 连接。后续可由具备相应权限的人工登录网页办理，或由用户已授权的 high Agent 使用合法 high MCP 连接办理。', 403)
+    if access.level != 'high' or not access.user.active or access.user.role not in ('trusted', 'admin'):
+        raise DomainError('当前连接不能直接办理，需要有效受信任用户或管理员身份及 high 连接。后续可由具备相应权限的人工登录网页办理，或由用户已明确确认的 high Agent 使用合法 high MCP 连接办理。', 403)
 
 
 def validate_actor(user: User, access: AgentAccess | None) -> None:

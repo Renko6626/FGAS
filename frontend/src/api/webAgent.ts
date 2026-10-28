@@ -3,7 +3,7 @@ import { request } from './client';
 export interface WebAgentConfig {
   models: string[];
   shared_available: boolean;
-  connections: { id: string; name: string; level: string; active: boolean }[];
+  connections: { id: string; name: string; level: 'low' | 'high'; active: boolean }[];
 }
 export interface ChatMessage { role: 'user' | 'assistant'; content: string }
 // Native Pydantic AI messages are kept intact; the UI does not interpret their parts.
@@ -11,6 +11,7 @@ export type AgentHistory = Record<string, unknown>[];
 export interface AgentEvent {
   type: 'start' | 'text' | 'tool_start' | 'tool_end' | 'usage' | 'history' | 'done' | 'error';
   history?: AgentHistory;
+  level?: 'low' | 'high';
   text?: string;
   message?: string;
   configuration_error?: boolean;

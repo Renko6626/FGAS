@@ -152,7 +152,7 @@ TOOL_DESCRIPTIONS = {
     'fgas_help': '首次使用先无参调用，了解账本模型和当前权限；按 topic/resource/action 查输入参数与示例。已知用法无需重复查。',
     'fgas_query': '读取业务资料。首次使用先 fgas_help()；identifier 查详情，filters 查列表。事件默认近30天，全量传 all_time=true；has_more=true 继续翻页。',
     'fgas_propose': '提交资金、货物申请或整笔完成报告，high 也始终待审、不记正式流水。首次使用先 fgas_help()，参数查 topic=propose。',
-    'fgas_execute': '仅 high 直接办理业务。首次使用先 fgas_help()，具体参数查 topic=execute；资金创建过账，货物创建后待完成，确认整笔完成才记库存。',
+    'fgas_execute': '仅 high 直接办理业务。调用前说明对象、动作、关键参数和生效影响，获得用户对具体操作的明确确认；同一已确认批次无需重复确认。首次使用先 fgas_help()，具体参数查 topic=execute；资金创建过账，货物创建后待完成，确认整笔完成才记库存。',
 }
 
 

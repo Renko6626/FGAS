@@ -29,13 +29,15 @@ const balanceBusy = ref(false);
 let controller: AbortController | null = null;
 let disposed = false;
 const options = computed(() => config.value?.connections.map(item => ({
-  value: item.id, label: item.name + (item.active ? '' : '（已停用）'), disabled: !item.active,
+  value: item.id, label: item.name + `（${item.level}）` + (item.active ? '' : '（已停用）'), disabled: !item.active,
 })) || []);
+const connectionLevel = computed(() => config.value?.connections.find(item => item.id === connection.value)?.level);
 const modelReady = computed(() => Boolean(config.value?.models.includes(model.value) &&
   (source.value === 'shared' ? config.value.shared_available : key.value.trim())));
 const canSend = computed(() => Boolean(draft.value.trim() && !busy.value));
 const labels: Record<string, string> = {
   fgas_help: '查看业务指南', fgas_query: '查询业务资料', fgas_propose: '提交待审批申请',
+  fgas_execute: '直接办理业务',
 };
 
 async function load() {
@@ -46,7 +48,8 @@ async function load() {
     config.value = data;
     const active = data.connections.filter(item => item.active);
     if (!active.some(item => item.id === connection.value)) {
-      connection.value = active.find(item => item.name === '网页助手')?.id || active[0]?.id || null;
+      const low = active.filter(item => item.level === 'low');
+      connection.value = low.find(item => item.name === '网页助手')?.id || low[0]?.id || null;
     }
     if (initial) source.value = data.shared_available ? 'shared' : 'personal';
     if (open.value && (!modelReady.value || configurationFailed.value)) settings.value = true;
@@ -92,10 +95,13 @@ async function send() {
   };
   const onEvent = (event: AgentEvent) => {
     if (disposed) return;
-    if (event.type === 'text') messages.value[index]!.content += event.text || '';
+    if (event.type === 'start' && event.level) {
+      const selected = config.value?.connections.find(item => item.id === connection.value);
+      if (selected) selected.level = event.level;
+    } else if (event.type === 'text') messages.value[index]!.content += event.text || '';
     else if (event.type === 'tool_start') {
       tools.value.push({ id: event.id || '', name: event.name || '', done: false });
-      if (event.name === 'fgas_propose') changed = true;
+      if (event.name === 'fgas_propose' || event.name === 'fgas_execute') changed = true;
     } else if (event.type === 'tool_end') {
       const tool = tools.value.find(item => item.id === event.id);
       if (tool) tool.done = true;
@@ -163,8 +169,8 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); key.value = ''; })
   </button>
   <section v-show="open" id="web-agent-panel" class="web-agent-panel" aria-label="网页助手">
     <header class="agent-header"><strong>网页助手</strong><button type="button" aria-label="收起网页助手" @click="open = false">−</button></header>
-    <div class="agent-toolbar"><template v-if="modelReady"><span>{{ source === 'shared' ? '社团提供模型' : '个人 Key' }}</span><span>{{ model }}</span></template><span v-else>尚未配置模型</span><button :disabled="busy" @click="settings = true">模型设置</button></div>
-    <div v-if="config && !connection" class="agent-connection-hint"><span>当前账号还没有可用的低权限连接。</span><NButton size="small" :loading="busy" @click="createConnection">创建网页助手连接</NButton></div>
+    <div class="agent-toolbar"><NSelect v-model:value="connection" class="agent-connection-select" size="small" :options="options" :disabled="busy" placeholder="选择连接" @update:show="visible => { if (visible) void load(); }" /><template v-if="modelReady"><span>{{ source === 'shared' ? '社团提供模型' : '个人 Key' }}</span><span>{{ model }}</span></template><span v-else>尚未配置模型</span><button :disabled="busy" @click="settings = true">模型设置</button></div>
+    <div v-if="config && !connection" class="agent-connection-hint"><span>请选择本人的连接，或创建默认 low 连接。</span><NButton size="small" :loading="busy" @click="createConnection">创建网页助手连接</NButton></div>
     <div ref="transcript" class="agent-transcript" aria-live="polite">
       <div v-if="!messages.length" class="agent-empty"><h3>从一笔记录开始</h3><p>可以查询库存、核对资金，或帮你整理一份待审批申请。</p><div><span>查询我当前的连接身份</span><span>有哪些待完成的货物转移？</span></div></div>
       <article v-for="(message, index) in messages" :key="index" class="agent-message" :class="message.role">
@@ -175,11 +181,11 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); key.value = ''; })
       <div v-if="tools.length" class="agent-tools"><div v-for="(tool, index) in tools" :key="index"><span>{{ tool.done ? '已返回' : busy ? '进行中' : '待核对' }}</span>{{ labels[tool.name] || tool.name }}</div></div>
     </div>
     <p v-if="error && !settings" class="agent-error" role="alert">{{ error }}</p>
-    <footer class="agent-composer"><div class="agent-usage"><span>本页会话 {{ usage.input.toLocaleString() }} 输入 / {{ usage.output.toLocaleString() }} 输出 token</span><button :disabled="busy || !messages.length" @click="clear">清空</button></div><NInput v-model:value="draft" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" :disabled="busy" placeholder="描述要查询或办理的事…" @keydown.ctrl.enter.prevent="send" /><div class="agent-send"><small>低权限提交的申请等待人工审批</small><NButton v-if="busy" @click="controller?.abort()">停止</NButton><NButton v-else type="primary" :disabled="!canSend" @click="send">发送</NButton></div></footer>
+    <footer class="agent-composer"><div class="agent-usage"><span>本页会话 {{ usage.input.toLocaleString() }} 输入 / {{ usage.output.toLocaleString() }} 输出 token</span><button :disabled="busy || !messages.length" @click="clear">清空</button></div><NInput v-model:value="draft" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" :disabled="busy" placeholder="描述要查询或办理的事…" @keydown.ctrl.enter.prevent="send" /><div class="agent-send"><small>{{ connectionLevel === 'high' ? '直接办理须先获得你的明确确认' : 'low 提交的申请等待人工审批' }}</small><NButton v-if="busy" @click="controller?.abort()">停止</NButton><NButton v-else type="primary" :disabled="!canSend" @click="send">发送</NButton></div></footer>
   </section>
   <NModal v-model:show="settings" preset="card" title="模型设置" class="dialog compact-dialog agent-settings-dialog" :mask-closable="!busy" :closable="!busy" :close-on-esc="!busy">
     <div class="agent-settings">
-      <label>连接<NSelect v-model:value="connection" :options="options" :disabled="busy" placeholder="选择本人的低权限连接" /></label>
+      <label>连接<NSelect v-model:value="connection" :options="options" :disabled="busy" placeholder="选择本人的 low 或 high 连接" @update:show="visible => { if (visible) void load(); }" /></label>
       <NButton v-if="!options.length" size="small" :loading="busy" @click="createConnection">创建网页助手连接</NButton>
       <label>模型来源<NSelect v-model:value="source" :disabled="busy" :options="[{ label: '社团提供的 DeepSeek', value: 'shared', disabled: !config?.shared_available }, { label: '我的 DeepSeek Key', value: 'personal' }]" /></label>
       <label>模型<NSelect v-model:value="model" :disabled="busy" :options="(config?.models || []).map(value => ({ value, label: value }))" /></label>
@@ -205,6 +211,7 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); key.value = ''; })
 .agent-header button { border:0; background:none; font-size:25px; line-height:1; padding:0 3px; color:var(--muted); }
 .agent-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 15px; border-bottom:1px solid var(--line); font-size:11px; color:var(--muted); }
 .agent-toolbar button { margin-left:auto; }
+.agent-connection-select { width:172px; flex:none; }
 .agent-toolbar button,.agent-usage button { padding:0; border:0; background:none; text-decoration:underline; text-underline-offset:3px; font:inherit; color:inherit; }
 .agent-settings { max-height:min(60dvh, 520px); overflow:auto; }
 .agent-settings-actions { display:flex; justify-content:flex-end; }

@@ -126,7 +126,7 @@ npm run build
 
 后端通过官方 `mcp==2.3.0` Streamable HTTP 在 `http://127.0.0.1:10622/mcp` 提供业务工具。先由人工登录“Agent 连接”签发令牌，再由客户端运行时提供 `Authorization: Bearer …`。令牌不能作为 `/api` 人工登录会话；Cookie 也不能代替 MCP Bearer。密钥按内部使用方案保存原文，所属用户可登录后点击“查看密钥”反复查看；认证仍使用 SHA-256 摘要，列表不返回原文。允许用户将密钥粘贴到对话，由 Agent 填写本机 MCP 认证配置，无需先设置环境变量；密钥不提交仓库，不放进业务工具参数。
 
-所有启用中的登录用户均可按需签发自己的 low，默认名称为“某某的 AI”；管理员可额外签发自己的 high。连接归属真实用户，不另建 AI 用户，业务申请沿用统一审批流程。MCP v2 的 low 只暴露 `fgas_help`、`fgas_query`、`fgas_propose`，不继承所属用户的人工自动批准权限；high 增加 `fgas_execute`。通过对象、动作及参数覆盖原有业务能力，具体参数按需查 help。连接及所属用户的启停、角色和过期时间每次调用重新检查，high 始终要求所属用户为管理员；Agent 不能管理登录用户、角色或连接。初始化说明先讲清账户、Transfer、正式流水、结算和盘点的关系，见 [核心模型](docs/ai/overview.md) 与 [完整指南](docs/ai/guide.md)。
+所有启用中的登录用户均可按需签发自己的 low，默认名称为“某某的 AI”；受信任用户和管理员可额外签发自己的 high。连接归属真实用户，不另建 AI 用户，业务申请沿用统一审批流程。MCP v2 的 low 只暴露 `fgas_help`、`fgas_query`、`fgas_propose`，不继承所属用户的人工自动批准权限；high 增加 `fgas_execute`。通过对象、动作及参数覆盖原有业务能力，具体参数按需查 help。连接及所属用户的启停、角色和过期时间每次调用重新检查，high 始终要求所属用户为受信任用户或管理员；Agent 不能管理登录用户、角色或连接。初始化说明先讲清账户、Transfer、正式流水、结算和盘点的关系，见 [核心模型](docs/ai/overview.md) 与 [完整指南](docs/ai/guide.md)。
 
 当前客户端配置见[公开接入指南](frontend/public/agent-setup.md)，包含 Codex CLI、DSH 0.2 和 OpenCode 示例。DSH 首次自助安装推荐创造模式（`cordis`）：本机 `0.2.1-rc.3` 普通 Web 会话已验证，在用户粘贴密钥并允许一次安装后，模型自行配置官方 MCP 插件、热加载工具并提交待审批申请，无需父代理代装或重启。标准模式缺少安装工具时需先由用户配置连接；先前 SDK 试验不能代表普通创造模式的体验，见[客户端实验记录](docs/ai/2026-10-27-mcp-client-trials.md)。
 
@@ -148,7 +148,7 @@ OpenCode 的 `opencode.json` 使用标准远程配置，依据 [官方 MCP 文�
 }
 ```
 
-成功连接后阅读初始化的核心模型说明，用 `fgas_help()` 查看权限与索引，再用 `fgas_query({"resource":"me"})` 核对真实用户角色及当前连接等级，并做一次正常只读查询。按需查某一对象/动作的精确参数；完整输出 Schema 用 `include_output_schema=true`。`fgas_propose` 对两档始终 pending；`fgas_execute` 仅 high 使用，资金直接过账，货物创建后待完成，确认整笔完成才记库存。调用成功保存业务编号；断线后查记录并人工核对，不自动重发。低权限交接可并列给人工网页与用户已授权的 high Agent，附业务编号和现状。详情见 [Agent 指南](docs/ai/guide.md)。
+成功连接后阅读初始化的核心模型说明，用 `fgas_help()` 查看权限与索引，再用 `fgas_query({"resource":"me"})` 核对真实用户角色及当前连接等级，并做一次正常只读查询。按需查某一对象/动作的精确参数；完整输出 Schema 用 `include_output_schema=true`。`fgas_propose` 对两档始终 pending；`fgas_execute` 仅 high 使用，先说明具体操作及生效影响并获得用户明确确认；资金直接过账，货物创建后待完成，确认整笔完成才记库存。调用成功保存业务编号；断线后查记录并人工核对，不自动重发。低权限交接可并列给人工网页与用户已授权的 high Agent，附业务编号和现状。详情见 [Agent 指南](docs/ai/guide.md)。
 
 从 v1 升级：原50个工具名已移除执行能力，只返回迁移提示。MCP 地址和凭据沿用，客户端需重新发现工具，硬编码旧名称的脚本需改为四入口；返回 `api_version=2`。没有数据库变更。当前仍未正式发布，实际验证与未做项见阶段记录。
 

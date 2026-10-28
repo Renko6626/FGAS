@@ -10,13 +10,14 @@ const show=ref(false), editing=ref<AgentConnection|null>(null), name=ref(''), le
 const secret=ref(''), secretShow=ref(false)
 let disposed=false
 const mcpAddress=new URL('/mcp',window.location.origin).href
-const levels=computed(()=>[{label:'低权限（提交待审申请）',value:'low'},...(props.user.role==='admin'?[{label:'高权限（直接办理业务）',value:'high'}]:[])])
+const canHigh=computed(()=>props.user.role==='admin'||props.user.role==='trusted')
+const levels=computed(()=>[{label:'低权限（提交待审申请）',value:'low'},...(canHigh.value?[{label:'高权限（明确确认后直接办理）',value:'high'}]:[])])
 function clearSecret(){secret.value='';secretShow.value=false}
 watch(secretShow,value=>{if(!value)secret.value=''})
 onBeforeUnmount(()=>{disposed=true;clearSecret()})
 async function load(){const actor=props.user.id;busy.value=true;error.value='';try{const result=await agentConnections.list();if(!disposed && actor===props.user.id)items.value=result}catch(e){if(!disposed && actor===props.user.id)error.value=(e as Error).message}finally{busy.value=false}}
 watch(()=>[props.user.id,props.user.role],()=>{clearSecret();show.value=false;items.value=[];load()},{immediate:true})
-function open(item?:AgentConnection){clearSecret();editing.value=item||null;name.value=item?.name||`${props.user.display_name}的 AI`;level.value=props.user.role!=='admin'?'low':item?.level||'low';active.value=item?.active??true;expiry.value=item?.expires_at?localDate(item.expires_at):'';error.value='';show.value=true}
+function open(item?:AgentConnection){clearSecret();editing.value=item||null;name.value=item?.name||`${props.user.display_name}的 AI`;level.value=canHigh.value?item?.level||'low':'low';active.value=item?.active??true;expiry.value=item?.expires_at?localDate(item.expires_at):'';error.value='';show.value=true}
 function localDate(value:string){const date=new Date(value);return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16)}
 async function save(){if(busy.value)return;const actor=props.user.id;busy.value=true;error.value='';try{const body:ConnectionInput={name:name.value.trim(),level:level.value,expires_at:expiry.value?new Date(expiry.value).toISOString():null};if(editing.value)await agentConnections.update(editing.value.id,{...body,active:active.value});else{const result=await agentConnections.create(body);if(!disposed && actor===props.user.id){secret.value=result.secret;secretShow.value=true}}if(disposed || actor!==props.user.id)return;show.value=false;notice.value=editing.value?'连接已保存':'连接已创建';await load()}catch(e){if(!disposed && actor===props.user.id)error.value=(e as Error).message}finally{busy.value=false}}
 async function disable(item:AgentConnection){busy.value=true;error.value='';try{await agentConnections.update(item.id,{active:false});await load()}catch(e){error.value=(e as Error).message}finally{busy.value=false}}
@@ -32,10 +33,10 @@ function date(value:string|null){return value?new Date(value).toLocaleString('zh
     <tr v-if="!items.length"><td colspan="6">暂无连接</td></tr>
   </tbody></table></div>
   <NModal v-model:show="show" preset="card" class="dialog" :title="editing?'编辑连接':'新建连接'" :mask-closable="!busy" :closable="!busy" :close-on-esc="!busy">
-    <div class="connection-form"><label>名称<NInput v-model:value="name" :maxlength="200" :disabled="busy"/></label><label v-if="user.role==='admin'">权限等级<NSelect v-model:value="level" :options="levels" :disabled="busy"/></label>
+    <div class="connection-form"><label>名称<NInput v-model:value="name" :maxlength="200" :disabled="busy"/></label><label v-if="canHigh">权限等级<NSelect v-model:value="level" :options="levels" :disabled="busy"/></label>
     <p v-else>个人连接固定为低权限，提交的申请由受信任用户或管理员审批。</p>
-    <p v-if="level==='high'">高权限连接可直接办理业务、批准申请并创建业务对象。仅为可信的 Agent 配置此等级。</p>
-    <p v-if="editing?.level==='high' && user.role!=='admin'">当前身份只能将此连接降为低权限后保存。</p>
+    <p v-if="level==='high'">高权限连接可直接办理业务、批准申请并维护目录。Agent 应先说明具体操作并获得你的明确确认。</p>
+    <p v-if="editing?.level==='high' && !canHigh">当前身份只能将此连接降为低权限后保存。</p>
     <label>到期时间（留空表示不过期）<input v-model="expiry" type="datetime-local" :disabled="busy"/></label><NCheckbox v-if="editing" v-model:checked="active" :disabled="busy">启用连接</NCheckbox>
     <p v-if="error" class="error">{{error}}</p><NButton type="primary" :loading="busy" :disabled="busy||!name.trim()" @click="save">保存</NButton></div>
   </NModal>

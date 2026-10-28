@@ -76,9 +76,9 @@ item 的 remaining 是原收支未结金额，payment 的 remaining 是已有结
 | fgas_propose | resource + data；仅资金、货物、整笔完成三种申请，high 也固定待审 |
 | fgas_execute | resource + action + data；仅 high 直接办理 |
 
-**默认使用 low。** low/high 读取范围相同，沿用有效网页登录用户可读的业务范围。所有启用用户（含普通用户）均可在网页按需创建自己的 low，默认名称为“某某的 AI”；管理员可额外创建自己的 high。连接属于真实用户，不创建独立 AI 用户、业务联系人或资金账户。low 只可查询和提交三种待审申请，不继承所属用户的人工自动批准权限；没有审批、直接记账或目录维护能力。low 缺少所需账户或 SKU 时，报告具体缺项，请人工准备，不自行升级连接。
+**默认使用 low。** low/high 读取范围相同，沿用有效网页登录用户可读的业务范围。所有启用用户（含普通用户）均可在网页按需创建自己的 low，默认名称为“某某的 AI”；受信任用户和管理员可额外创建自己的 high。连接属于真实用户，不创建独立 AI 用户、业务联系人或资金账户。low 只可查询和提交三种待审申请，不继承所属用户的人工自动批准权限；没有审批、直接记账或目录维护能力。low 缺少所需账户或 SKU 时，报告具体缺项，请人工准备，不自行升级连接。
 
-连接后用 `fgas_query({"resource":"me"})` 的 connection.level 核实当前权限。high 增加直接办理、审批和目录维护能力，但不表示用户已授权任意操作；用户要求送审时，high 也用 propose。不要为绕过审批、解决客户端错误或完成测试而索取 high。申请沿用原有审批流程，用户和连接来源用于追溯。所属用户、凭据和等级每次调用重新校验；停用用户阻断其所有连接，high 始终要求所属用户为管理员。用户、角色、凭据由人工管理。query 的目录和转移资源名用复数，propose/execute 用单数，以各入口的 resource 枚举为准。
+连接后用 `fgas_query({"resource":"me"})` 的 connection.level 核实当前权限。high 增加直接办理、审批和目录维护能力，但不表示用户已授权任意操作；用户要求送审时，high 也用 propose。不要为绕过审批、解决客户端错误或完成测试而索取 high。申请沿用原有审批流程，用户和连接来源用于追溯。所属用户、凭据和等级每次调用重新校验；停用用户阻断其所有连接，high 始终要求所属用户为受信任用户或管理员。用户、角色、凭据由人工管理。query 的目录和转移资源名用复数，propose/execute 用单数，以各入口的 resource 枚举为准。
 
 首次提交资金可先查 `fgas_help({"topic":"propose","resource":"fund_transfer"})`，再按返回示例填写真实端点、金额和业务日期。示例编号与日期不能直接用于登记；熟悉参数后无需反复读帮助。
 
@@ -134,3 +134,7 @@ validation_error 表示参数或业务校验失败；输入 Schema 校验还返�
 库存行的 incoming_planned_quantity / outgoing_planned_quantity 分别为该账户待完成流入、流出；仅含已批准尚未确认完成的货物单。正式 quantity 只来自已完成的 StockMove。totals 逐 SKU 返回 sku_code、sku_name、unit、quantity，以及 incoming_to_org_quantity（external→internal）、outgoing_from_org_quantity（internal→external）、internal_transfer_quantity（internal→internal）。账户或当前负责人筛选先限定账户范围，再选任一端涉及范围的计划明细，每明细只计一次；筛选不改变组织边界。各页 totals 重复同一筛选范围汇总，不可逐页相加。as_of 历史查询的两项行计划和三项汇总计划均为 null，区别于当前没有计划时的 0；不推算历史待完成计划。计划量不代表实时运输、预占或可售数量。
 
 页面以 ST 货物转移为主单，流程显示“待审批 → 待完成 → 已完成”；`in_transit` 表示已获批、尚未确认完成。普通用户可报告已完成，提交后等待有权限的人核实并确认；受信任用户或管理员可直接确认完成。退回完成报告后主单仍待完成。`StockConfirmation`（SC）是完成记录，详情的 `confirmations` 保留其编号和状态。
+
+## execute 的明确确认
+
+调用任何 `fgas_execute` 前，先向用户说明具体动作、对象、关键参数及直接生效影响，取得针对这些内容的明确确认；范围包括目录维护、直接记账、审批、冲销、货物完成和结算匹配。已确认同一具体操作或完整批次后，不逐个工具重复索要确认；关键对象、流向、金额、数量或操作范围变化时重新确认变更部分。拥有或切换 high、笼统“帮我处理”及其他事项的旧确认不构成当前执行确认。查询和帮助无需执行确认；用户要求送审时继续 propose，不擅自改成 execute。

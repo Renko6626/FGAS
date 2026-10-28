@@ -46,10 +46,10 @@ def test_credential_issue_limits_and_invalidation(client):
     client.post('/api/auth/login', json={'user_id': 'untrusted'})
     assert client.post('/api/agent-credentials', json={'name': '禁止high', 'level': 'high'}).status_code == 403
     trusted = issue(client, owner='trusted')
-    assert client.post('/api/agent-credentials', json={'name': '禁止high', 'level': 'high'}).status_code == 403
+    trusted_high = issue(client, owner='trusted', level='high')
     credential, secret = trusted['credential'], trusted['secret']
     listed = client.get('/api/agent-credentials').json()
-    assert len(listed) == 1 and listed[0]['id'] == credential['id']
+    assert {row['id'] for row in listed} == {credential['id'], trusted_high['credential']['id']}
     assert 'secret' not in listed[0] and 'secret_hash' not in listed[0]
     with Session() as db:
         stored = db.get(AgentCredential, credential['id'])
@@ -59,6 +59,13 @@ def test_credential_issue_limits_and_invalidation(client):
         db.get(User, 'trusted').role = 'untrusted'
     with Session() as db:
         assert agent_access.resolve(db, secret).user.role == 'untrusted'
+        with pytest.raises(DomainError) as denied:
+            agent_access.resolve(db, trusted_high['secret'])
+        assert denied.value.status == 403
+    assert client.patch(f"/api/agent-credentials/{credential['id']}", json={'level': 'high'}).status_code == 403
+    with Session.begin() as db:
+        db.get(User, 'trusted').role = 'trusted'
+    assert client.patch(f"/api/agent-credentials/{credential['id']}", json={'level': 'high'}).status_code == 200
     client.post('/api/auth/login', json={'user_id': 'admin'})
     path = f"/api/agent-credentials/{credential['id']}"
     assert client.patch(path, json={'name': '不能改他人'}).status_code == 403
@@ -75,6 +82,10 @@ def test_credential_issue_limits_and_invalidation(client):
     with Session.begin() as db:
         db.get(AgentCredential, high['credential']['id']).expires_at = None
         db.get(User, 'admin').role = 'trusted'
+    with Session() as db:
+        assert agent_access.resolve(db, high['secret']).user.role == 'trusted'
+    with Session.begin() as db:
+        db.get(User, 'admin').role = 'untrusted'
     with Session() as db, pytest.raises(DomainError) as denied:
         agent_access.resolve(db, high['secret'])
     assert denied.value.status == 403
@@ -139,7 +150,7 @@ def test_personal_low_connection_management(client):
     assert denied.value.status == 403
 
 
-@pytest.mark.parametrize('owner,level', [('untrusted', 'low'), ('trusted', 'low'), ('admin', 'low'), ('admin', 'high')])
+@pytest.mark.parametrize('owner,level', [('untrusted', 'low'), ('trusted', 'low'), ('trusted', 'high'), ('admin', 'low'), ('admin', 'high')])
 def test_proposals_always_require_approval(client, owner, level):
     payload = stock_data(client)
     parent = client.post('/api/stock-transfers', json=payload).json()
@@ -492,8 +503,9 @@ def test_compact_query_rejects_ignored_parameters(arguments, field):
     assert field in {item['field'] for item in error.value.fields}
 
 
-def test_mcp_high_execution_uses_real_business_services(client):
-    connection = issue(client, 'high')
+@pytest.mark.parametrize('owner', ['admin', 'trusted'])
+def test_mcp_high_execution_uses_real_business_services(client, owner):
+    connection = issue(client, 'high', owner=owner)
     payload = stock_data(client)
 
     async def exercise():
@@ -766,37 +778,39 @@ def test_help_schemas_for_windows_and_as_of():
     assert 'posted_at_from' in str(move_schema) and 'all_time' in str(move_schema)
 
 
-def test_web_agent_uses_only_current_users_active_low_connections(client, monkeypatch):
-    other = client.post('/api/agent-credentials', json={'name': 'trusted low', 'level': 'low'}).json()['credential']
-    client.post('/api/auth/login', json={'user_id': 'admin'})
-    own = client.post('/api/agent-credentials', json={'name': 'admin low', 'level': 'low'}).json()['credential']
-    high = client.post('/api/agent-credentials', json={'name': 'admin high', 'level': 'high'}).json()['credential']
+@pytest.mark.parametrize('owner', ['admin', 'trusted'])
+def test_web_agent_uses_only_current_users_authorized_connections(client, monkeypatch, owner):
+    other = issue(client, owner='trusted' if owner == 'admin' else 'admin')['credential']
+    client.post('/api/auth/login', json={'user_id': owner})
+    own = client.post('/api/agent-credentials', json={'name': '本人 low', 'level': 'low'}).json()['credential']
+    high = client.post('/api/agent-credentials', json={'name': '本人 high', 'level': 'high'}).json()['credential']
     monkeypatch.setenv('FGAS_WEB_AGENT_PROTOTYPE', '1')
     monkeypatch.delenv('FGAS_DEEPSEEK_API_KEY', raising=False)
     with TestClient(create_app()) as web:
         web.cookies.update(client.cookies)
         config = web.get('/api/web-agent/config')
         assert config.status_code == 200
-        assert [item['id'] for item in config.json()['connections']] == [own['id']]
-        for credential in (other, high):
-            denied = web.post('/api/web-agent/chat', json={'credential_id': credential['id'], 'message': '查询身份'})
-            assert denied.status_code == 403
+        assert {item['id'] for item in config.json()['connections']} == {own['id'], high['id']}
+        denied = web.post('/api/web-agent/chat', json={'credential_id': other['id'], 'message': '查询身份'})
+        assert denied.status_code == 403
         # Owned connection reaches model configuration validation, without any network call.
-        valid = web.post('/api/web-agent/chat', json={'credential_id': own['id'], 'message': '查询身份'})
-        assert valid.status_code == 400 and '公共 DeepSeek Key' in valid.json()['detail']
-        client.patch('/api/agent-credentials/' + own['id'], json={'active': False})
-        inactive = web.post('/api/web-agent/chat', json={'credential_id': own['id'], 'message': '查询身份'})
-        assert inactive.status_code == 403
+        for credential in (own, high):
+            valid = web.post('/api/web-agent/chat', json={'credential_id': credential['id'], 'message': '查询身份'})
+            assert valid.status_code == 400 and '公共 DeepSeek Key' in valid.json()['detail']
+            client.patch('/api/agent-credentials/' + credential['id'], json={'active': False})
+            inactive = web.post('/api/web-agent/chat', json={'credential_id': credential['id'], 'message': '查询身份'})
+            assert inactive.status_code == 403
         assert web.get('/api/auth/me').status_code == 200
         web.cookies.clear()
         assert web.get('/api/web-agent/config').status_code == 401
 
 
-@pytest.mark.parametrize('bad_arguments', [
-    {'resource': 'me', 'filters': {'name': '不支持的字段'}},
-    'not-json',  # Malformed tool arguments are rejected before reaching MCP.
+@pytest.mark.parametrize('bad_arguments,second_level', [
+    ({'resource': 'me', 'filters': {'name': '不支持的字段'}}, 'low'),
+    ('not-json', 'low'),  # Malformed tool arguments are rejected before reaching MCP.
+    ({'resource': 'me', 'filters': {'name': '不支持的字段'}}, 'high'),
 ])
-def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch, bad_arguments):
+def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch, bad_arguments, second_level):
     import json
     mcp_tools = pytest.importorskip('pydantic_ai.mcp')
     from fastmcp import Client as MCPClient
@@ -806,6 +820,7 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
     from backend.application import web_agent
 
     connection = issue(client, owner='trusted')
+    selected = issue(client, owner='trusted', level='high') if second_level == 'high' else connection
     monkeypatch.setenv('FGAS_WEB_AGENT_PROTOTYPE', '1')
     app = create_app()
     real_toolset = mcp_tools.MCPToolset
@@ -821,6 +836,9 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
                       if any(isinstance(part, UserPromptPart) for part in message.parts))
         results = [part for message in messages[current:] for part in message.parts if isinstance(part, ToolReturnPart)]
         prompt = next(part.content for part in messages[current].parts if isinstance(part, UserPromptPart))
+        expected_level = 'low' if prompt == '先查身份查询的帮助' else second_level
+        assert f'当前网页助手连接等级：{expected_level}' in info.instructions
+        assert ('fgas_execute' in {tool.name for tool in info.function_tools}) == (expected_level == 'high')
         if prompt == '先查身份查询的帮助':
             if not results:
                 yield {0: DeltaToolCall(name='fgas_help', json_args='{"topic":"query","resource":"me"}',
@@ -837,7 +855,7 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
                           if isinstance(part, ToolReturnPart) and part.tool_call_id == 'help-me')
         assert old_result.content['data']['resource'] == 'me'
         if prompt == '查询后模拟中断' and results:
-            assert results[-1].content['data']['connection']['level'] == 'low'
+            assert results[-1].content['data']['connection']['level'] == second_level
             raise RuntimeError('offline interruption after a completed query')
         if not results:
             arguments = {'resource': 'me'} if prompt == '查询后模拟中断' else bad_arguments
@@ -851,8 +869,8 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
                 assert error['fields'][0]['field'] == 'filters.name'
             arguments = {'resource': 'me'}
         else:
-            assert results[-1].content['data']['connection']['level'] == 'low'
-            yield '查询成功，当前是 low 连接。'
+            assert results[-1].content['data']['connection']['level'] == second_level
+            yield f'查询成功，当前是 {second_level} 连接。'
             return
         yield {0: DeltaToolCall(name='fgas_query', json_args=arguments if isinstance(arguments, str) else json.dumps(arguments),
                                tool_call_id=f'{current}-{len(results)}')}
@@ -869,12 +887,13 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
         history = next(event['history'] for event in first_events if event['type'] == 'history')
         assert body['api_key'] not in json.dumps(history)
         assert connection['secret'] not in json.dumps(history)
+        body['credential_id'] = selected['credential']['id']
         second = web.post('/api/web-agent/chat', json={**body, 'message': '查询我的连接身份', 'history': history})
         second.raise_for_status()
         events = [json.loads(line[6:]) for line in second.text.splitlines() if line.startswith('data: ')]
         assert not any(event['type'] == 'error' for event in events), events
         assert events[-1]['type'] == 'done'
-        assert '查询成功，当前是 low 连接。' == ''.join(event.get('text', '') for event in events)
+        assert f'查询成功，当前是 {second_level} 连接。' == ''.join(event.get('text', '') for event in events)
         # Ordinary failure still returns the tool results already obtained in this turn.
         history = next(event['history'] for event in events if event['type'] == 'history')
         failed = web.post('/api/web-agent/chat', json={**body, 'message': '查询后模拟中断', 'history': history})
@@ -885,4 +904,4 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
         completed = [part for message in ModelMessagesTypeAdapter.validate_python(history) for part in message.parts
                      if isinstance(part, ToolReturnPart) and part.tool_name == 'fgas_query' and part.outcome == 'success']
         assert len(completed) == 2
-        assert completed[-1].content['data']['connection']['level'] == 'low'
+        assert completed[-1].content['data']['connection']['level'] == second_level
