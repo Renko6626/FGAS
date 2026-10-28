@@ -3,7 +3,6 @@ import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 import { NButton, NSelect, NModal, NConfigProvider, zhCN } from "naive-ui";
 import { workspaceTheme } from "./theme";
 import DashboardView from "./views/DashboardView.vue";
-import { money } from "./presentation/funds";
 import { useSession } from "./composables/useSession";
 import { useWorkspace } from "./composables/useWorkspace";
 import StocktakesView from "./views/StocktakesView.vue";
@@ -53,7 +52,7 @@ const {
   },
 });
 const workspace = useWorkspace(user, identityEpoch, busy, error);
-const { accounts, locations, dashboard, counts, total, skus, members, revision, refresh } = workspace;
+const { accounts, locations, dashboard, counts, skus, members, revision, refresh } = workspace;
 const trusted = computed(
   () => user.value?.role === "trusted" || user.value?.role === "admin",
 );
@@ -85,9 +84,9 @@ const groups = computed(() => [
   {
     label: "资金",
     items: [
-      { value: "accounts", label: "资金账户" },
       { value: "transfers", label: "资金流水" },
       { value: "settlements", label: "私账结算" },
+      { value: "accounts", label: "资金账户" },
     ],
   },
   {
@@ -95,8 +94,8 @@ const groups = computed(() => [
     items: [
       { value: "inventory", label: "当前库存" },
       { value: "stock", label: "货物转移" },
-      { value: "locations", label: "货物账户" },
       { value: "skus", label: "货物目录" },
+      { value: "locations", label: "货物账户" },
     ],
   },
   ...(stocktakesEnabled ? [{
@@ -247,18 +246,10 @@ onMounted(async () => {
         </header>
         <div class="main_background" aria-hidden="true"></div>
         <main class="workspace-main">
-          <div v-if="['home', 'accounts'].includes(tab)" class="page-heading">
-            <div v-if="tab === 'home'" class="page-actions">
-              <NButton @click="createStock">{{ trusted ? "登记转移" : "申请转移" }}</NButton>
-              <NButton type="primary" @click="create()">登记资金</NButton>
-            </div>
-            <div
-              v-else-if="tab === 'accounts'"
-              class="page-actions"
-            >
-              <NButton v-if="tab === 'accounts'" @click="create(true)"
-                >登记期初</NButton
-              ><NButton type="primary" @click="create()">登记资金转移</NButton>
+          <div v-if="tab === 'home'" class="page-toolbar">
+            <div class="page-tools">
+              <NButton size="small" @click="createStock">{{ trusted ? "登记转移" : "申请转移" }}</NButton>
+              <NButton size="small" type="primary" @click="create()">登记资金</NButton>
             </div>
           </div>
           <p v-if="error" class="banner error" role="alert">{{ error }}</p>
@@ -276,26 +267,21 @@ onMounted(async () => {
             @create="create()"
             @create-stock="createStock"
           />
-          <template v-else-if="tab === 'accounts'">
-            <section class="account-summary fantasy_guide_div_1">
-              <div>
-                <span class="metric-label">公账资金余额</span
-                ><strong class="balance-value"
-                  ><span>¥</span> {{ money(total) }}</strong
-                >
-              </div>
-            </section>
-            <section class="fantasy_guide_div_1 page-surface">
-              <CatalogView
-                mode="accounts"
-                :accounts="accounts"
-                :locations="locations"
-                :editable="trusted"
-                :members="members"
-                @changed="refresh"
-              />
-            </section>
-          </template>
+          <section v-else-if="tab === 'accounts'" class="fantasy_guide_div_1 page-surface">
+            <CatalogView
+              mode="accounts"
+              :accounts="accounts"
+              :locations="locations"
+              :editable="trusted"
+              :members="members"
+              @changed="refresh"
+            >
+              <template #actions>
+                <NButton size="small" @click="create(true)">登记期初</NButton>
+                <NButton size="small" type="primary" @click="create()">登记资金</NButton>
+              </template>
+            </CatalogView>
+          </section>
           <section
             v-else-if="tab === 'transfers'"
             class="fantasy_guide_div_1 page-surface"

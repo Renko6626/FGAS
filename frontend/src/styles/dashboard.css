@@ -61,12 +61,7 @@
 .sku-name :deep(.account-avatar) { width: 22px; height: 22px; font-size: 11px; }
 .overview-empty { color: #777; font-size: 12px; padding: 12px 0; margin: 0; }
 .stock-empty { border-bottom: 1px solid #ddd; }
-.dashboard-pending { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; margin: 0 7px; padding: 6px 0; }
-.pending-label { color: #666; font-size: 11px; }
-.dashboard-pending button, .operation-filters button { min-width: 0; border: 0; border-image: none; background: transparent; padding: 3px 0; font-family: inherit; font-size: 12px; }
-.dashboard-pending button:hover { text-decoration: underline; text-underline-offset: 4px; }
-.dashboard-pending button strong { font-size: 15px; margin-left: 5px; font-weight: 500; }
-.dashboard-pending button span { color: #666; font-size: 11px; }
+.operation-filters button { min-width: 0; border: 0; border-image: none; background: transparent; padding: 3px 0; font-family: inherit; font-size: 12px; }
 .records-heading { margin-bottom: 12px; }
 .operation-filters { display: flex; flex-shrink: 0; gap: 4px; background: #f2f2f2; padding: 2px; }
 .operation-filters button { padding: 4px 12px; color: #666; }
@@ -104,8 +99,6 @@
   .week-summary { gap: 8px; }
   .week-summary strong { font-size: 15px; }
   .change-list li { gap: 6px; }
-  .dashboard-pending { gap: 4px 12px; }
-  .pending-label { width: 100%; }
   .records-heading { flex-wrap: wrap; gap: 8px; }
   .operation-filters { margin-left: auto; }
   .stock-summary-table { font-size: 11px; }
@@ -116,12 +109,16 @@
 .dashboard-overview { gap: 16px; }
 .dashboard-overview .overview-caption { order: 0; padding: 0; }
 .dashboard-overview .overview-panel { order: 1; padding: 22px 24px; margin: 0; background: #fff; }
-.dashboard-overview .member-balances { order: 2; padding: 18px 24px; margin: 0; background: #fff; }
-.dashboard-overview .dashboard-pending { order: 3; }
+.dashboard-overview .member-balances { order: 3; padding: 16px 20px; margin: 0; background: #fff; border:1px solid #d8e1db; border-left-width:4px; }
+.dashboard-overview .member-balances.attention { border-color:#cda05b; background:#fff7e7; }
+.dashboard-overview .dashboard-pending { order: 2; }
 .dashboard-overview .home-records { order: 4; padding: 22px 24px; margin: 0; background: #fff; }
 .dashboard-overview .dashboard-placeholder { order: 5; }
 .member-balances .overview-heading h2 { color: inherit; }
+.member-balances.attention .overview-heading h2 { color:#78501a; }
+.member-balances .overview-heading .settlement-cta { min-width:140px; height:34px; padding:0 14px; font-size:14px; font-weight:650; }
 .member-balances-note { color: #66707c; font-size: 13px; }
+.member-balances-note strong { color:#78501a; font-weight:650; }
 .member-balances-summary { border: 0; padding: 0; gap: 18px 40px; }
 .member-balances-summary span { font-size: 13px; color: #66707c; }
 .member-balances-summary strong { font-size: 20px; font-weight: 650; }
@@ -131,12 +128,28 @@
 .week-summary small, .changes-heading small, .stock-heading small { font-size: 12px; }
 .change-list li, .stock-summary-table, .operations-table td { font-size: 13px; }
 .change-list time, .stock-summary-table th, .operations-table th { font-size: 12px; }
-.dashboard-pending { background: #eaf0f5; border: 0; border-radius: 8px; margin: 0; padding: 14px 20px; gap: 10px 24px; }
-.dashboard-pending .pending-label { font-size: 14px; font-weight: 650; color: #35404c; }
-.dashboard-pending button { font-size: 13px; color: #234b69; padding: 5px 8px; border-radius: 4px; }
-.dashboard-pending button:hover { background: #dbe6ee; text-decoration: none; }
-.dashboard-pending button strong { font-size: 16px; font-weight: 700; }
+.dashboard-pending { grid-column:1 / -1; min-width:0; background:#f4f7f9; border:1px solid #d4dee5; border-left-width:4px; border-radius:8px; margin:0; padding:14px 16px; }
+.dashboard-pending.has-pending { border-color:#cda05b; background:#fff7e7; }
+.pending-heading { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; margin-bottom:10px; }
+.pending-heading h2 { margin:0; color:#78501a; font-size:18px; font-weight:650; }
+.pending-heading > span { color:#766347; font-size:12px; }
+.pending-tasks { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+.pending-task { display:flex; flex-direction:column; gap:8px; min-width:0; padding:10px 12px; border:1px solid #ced7d0; border-radius:6px; background:#fff; color:#536258; font:inherit; text-align:left; cursor:pointer; }
+.pending-task.has-items { border-color:#bf934e; color:#6e4a18; background:#fffdf7; }
+.pending-task.completion-task.has-items { border-color:#7c9bb4; color:#355f7f; background:#f5faff; }
+.pending-task:hover { border-color:#8a642d; background:#fff0ce; }
+.pending-task.completion-task:hover { border-color:#557f9f; background:#e7f2fc; }
+.pending-task:focus-visible { outline:2px solid #805b27; outline-offset:3px; }
+.pending-task-summary { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:14px; font-weight:650; }
+.pending-task-summary strong { font-size:26px; line-height:1.1; font-weight:750; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.pending-task-summary strong small { font-size:12px; font-weight:400; }
+.pending-task-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; }
+.pending-task-footer > small { color:#778078; font-size:11px; }
+.pending-task-action { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; }
+.pending-task-action > span { font-size:20px; line-height:1; }
 @media (max-width: 600px) {
   .dashboard-overview .overview-panel, .dashboard-overview .member-balances, .dashboard-overview .home-records { padding: 18px 16px; }
   .dashboard-pending { padding: 14px 16px; }
+  .pending-tasks { grid-template-columns:minmax(0,1fr); gap:8px; }
+  .member-balances .overview-heading .settlement-cta { width:100%; }
 }

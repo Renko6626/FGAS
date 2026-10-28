@@ -47,7 +47,7 @@ defineExpose({ busy: computed(() => detailDialog.value?.busy ?? false) });
             </div>
           </td>
           <td class="record-value"><div v-for="line in item.lines.slice(0, 2)" :key="line.sku_code" class="goods-line"><span :title="`${line.sku_code} ${line.sku_name}`">{{ line.sku_name }}</span><strong>{{ line.quantity }} <small>{{ line.unit }}</small></strong></div><span v-if="item.lines.length > 2" class="more-goods">另有 {{ item.lines.length - 2 }} 种，选中查看</span></td>
-          <td class="record-action stock-action"><div class="record-state-entry"><span :class="['ledger-state', `state-${item.status}`]">{{ stockStatuses[item.status] || item.status }}</span><span class="record-chevron" aria-hidden="true">›</span></div><small v-if="hasReport(item)" class="completion-report-note">有人报告完成，待确认</small><button v-if="item.status === 'in_transit'" class="record-action-button" :disabled="detailDialog?.busy" :class="{ attention: trusted && hasReport(item) }" @click.stop="open(item.code)">{{ actionLabel(item) }}</button></td>
+          <td class="record-action" :class="{ 'stock-action': !approvals }"><div class="record-state-entry"><span :class="['ledger-state', `state-${item.status}`]">{{ stockStatuses[item.status] || item.status }}</span><span class="record-chevron" aria-hidden="true">›</span></div><small v-if="hasReport(item)" class="completion-report-note">有人报告完成，待确认</small><button v-if="!approvals && item.status === 'in_transit'" class="record-action-button" :disabled="detailDialog?.busy" :class="{ attention: trusted && hasReport(item) }" @click.stop="open(item.code)">{{ actionLabel(item) }}</button></td>
         </tr>
       </tbody>
     </table>

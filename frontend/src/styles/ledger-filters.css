@@ -1,4 +1,4 @@
-.ledger-controls { display:flex; align-items:center; flex-wrap:wrap; gap:10px 16px; margin-bottom:14px; }
+.ledger-controls { display:flex; align-items:center; flex-wrap:wrap; gap:10px 16px; margin-bottom:10px; }
 .status-tabs { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-right:auto; }
 .status-option { display:flex; align-items:center; gap:5px; padding:6px 9px; border:1px solid transparent; border-radius:6px; color:#75847d; }
 .status-option.active { color:#2d6650; background:#e8f1eb; border-color:#d8e7dc; }

@@ -117,16 +117,8 @@ async function history(a: AccountBase) {
 function dateText(value: string) { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }
 </script>
 <template>
-  <div class="toolbar">
-    <div>
-      <h2>{{ mode === "accounts" ? "账户一览" : "货物账户" }}</h2>
-    </div>
-    <NButton v-if="editable" @click="edit()">新建账户</NButton>
-  </div>
-  <div
-    class="catalog-categories"
-    aria-label="账户类型"
-  >
+  <div class="page-toolbar catalog-toolbar">
+    <div class="catalog-categories" aria-label="账户类型">
     <button :class="{ active: filterKind === null }" :aria-pressed="filterKind === null" @click="filterKind = null">
       全部 <span>{{ all.length }}</span>
     </button>
@@ -139,8 +131,13 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
     >
       {{ label }} <span>{{ all.filter((a) => a.kind === value).length }}</span>
     </button>
+    </div>
+    <div class="page-tools">
+      <slot name="actions" />
+      <NButton v-if="editable" size="small" @click="edit()">新建账户</NButton>
+    </div>
   </div>
-  <div class="catalog-filters">
+  <div class="page-toolbar catalog-filters">
     <NInput
       v-model:value="search"
       clearable
@@ -180,20 +177,20 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
     ><NButton v-else-if="editable" @click="edit()">新建账户</NButton>
   </div>
   <div v-else class="account-grid">
-    <article v-for="a in rows" :key="a.code" class="account-card" :class="{ inactive: !a.active }">
+    <article v-for="a in rows" :key="a.code" class="account-card" :class="{ inactive: !a.active, 'public-account': mode === 'accounts' && a.kind === 'public' }">
       <div class="card-heading">
         <AccountAvatar :name="a.name" :url="a.avatar_url" />
         <div class="card-name"><strong>{{ a.name }}</strong><small>{{ a.code }}</small></div>
         <span v-if="!a.active" class="status-pill status-inactive">已停用</span>
       </div>
-      <div v-if="mode === 'accounts'" class="card-balance"><span>账户余额</span><strong>¥ {{ money((a as Account).balance_minor) }}</strong></div>
+      <div v-if="mode === 'accounts'" class="card-balance"><span>{{ a.kind === 'public' ? '公账余额' : '账户余额' }}</span><strong>¥ {{ money((a as Account).balance_minor) }}</strong></div>
       <div v-else class="card-custodian" :class="{ unassigned: a.kind === 'internal' && !a.member_name }">
         <span>{{ a.kind === 'internal' ? '负责人' : '账户类型' }}</span>
         <strong>{{ a.kind === 'internal' ? a.member_name || '未指定负责人' : '外部账户' }}</strong>
       </div>
       <div class="card-meta"><span>{{ kindLabels[a.kind] }}</span><span v-if="mode === 'accounts' && a.member_name">联系人：{{ a.member_name }}</span><span v-else-if="a.kind === 'external' && a.member_name">负责人：{{ a.member_name }}</span></div>
       <div v-if="a.tags.length" class="card-tags"><span v-for="tag in a.tags" :key="tag" class="tag">{{ tag }}</span></div>
-      <div v-if="editable || mode === 'stock-accounts'" class="card-actions"><NButton v-if="editable" text @click="edit(a)">编辑账户</NButton><NButton v-if="mode === 'stock-accounts'" text :disabled="historyBusy" @click="history(a)">负责人历史</NButton></div>
+      <div v-if="editable || mode === 'stock-accounts'" class="card-actions"><NButton v-if="editable" size="small" @click="edit(a)">编辑账户</NButton><NButton v-if="mode === 'stock-accounts'" size="small" :disabled="historyBusy" @click="history(a)">负责人历史</NButton></div>
     </article>
   </div>
   <NModal
@@ -268,14 +265,17 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
 </template>
 
 <style scoped>
-.catalog-categories { display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid #e3e8ec; margin-bottom:16px; }
-.catalog-categories button { border:0 !important; border-bottom:2px solid transparent !important; border-image:none !important; background:none; padding:9px 14px; color:#66707c; font-size:14px; min-width:0 !important; }
+.catalog-toolbar { border-bottom:1px solid #e3e8ec; padding-bottom:4px; }
+.catalog-categories { display:flex; flex-wrap:wrap; gap:4px; }
+.catalog-categories button { border:0 !important; border-bottom:2px solid transparent !important; border-image:none !important; background:none; padding:6px 10px; color:#66707c; font-size:13px; min-width:0 !important; }
 .catalog-categories button.active { color:#244a66; border-bottom-color:#345d78 !important; font-weight:650; }
 .catalog-categories span { font-size:12px; margin-left:5px; color:#66707c !important; }
 .account-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px 14px; }
 .account-card { min-width:0; display:flex; flex-direction:column; padding:12px 14px; border:1px solid #e3e8ec; border-radius:8px; background:#fff; }
 .account-card.inactive { background:#f5f6f5; border-color:#d8ddd8; }
 .account-card.inactive .card-name,.account-card.inactive .card-balance,.account-card.inactive .card-custodian { opacity:.65; }
+.account-card.public-account:not(.inactive) { border-color:#4d7e63; box-shadow:inset 0 0 0 1px #4d7e63; background:#eaf4ed; }
+.account-card.public-account:not(.inactive) .card-name strong,.account-card.public-account:not(.inactive) .card-balance strong { color:#245437; font-weight:750; }
 .card-heading { display:flex; align-items:center; gap:8px; min-width:0; }
 .card-heading :deep(.account-avatar) { width:36px; height:36px; margin:0; border-radius:50%; font-size:16px; }
 .card-name { flex:1; min-width:0; }
@@ -289,13 +289,9 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
 .card-custodian.unassigned strong { color:#976a26; font-size:18px; }
 .card-meta { display:flex; flex-wrap:wrap; gap:3px 14px; margin-top:6px; }
 .card-tags { margin-top:4px; }
-.card-actions { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:auto; padding-top:6px; }
-.catalog-filters {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 22px;
-  flex-wrap: wrap;
-}
+.card-actions { display:flex; flex-wrap:nowrap; gap:8px; margin-top:auto; padding-top:8px; }
+.card-actions :deep(.n-button) { min-width:0; padding-left:8px; padding-right:8px; font-size:12px; white-space:nowrap; }
+.catalog-filters { margin-bottom:12px; }
 .catalog-filters > .n-input {
   flex: 2 1 200px;
 }

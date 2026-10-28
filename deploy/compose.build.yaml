@@ -4,10 +4,16 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        FGAS_VERSION: ${FGAS_VERSION:-dev}
+        FGAS_GIT_SHA: ${FGAS_GIT_SHA:-}
   migrate:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        FGAS_VERSION: ${FGAS_VERSION:-dev}
+        FGAS_GIT_SHA: ${FGAS_GIT_SHA:-}
   web:
     build:
       context: ..

@@ -37,7 +37,7 @@ jobs:
           PREFIX: ${{ steps.images.outputs.prefix }}
           VERSION: ${{ steps.images.outputs.version }}
         run: |
-          docker build --platform linux/amd64 --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -f deploy/Dockerfile -t "$PREFIX-api:$VERSION" .
+          docker build --platform linux/amd64 --build-arg "FGAS_VERSION=$VERSION" --build-arg "FGAS_GIT_SHA=$GITHUB_SHA" --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -f deploy/Dockerfile -t "$PREFIX-api:$VERSION" .
           docker build --platform linux/amd64 --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -f deploy/Dockerfile.web -t "$PREFIX-web:$VERSION" .
           bash scripts/package-release.sh "$VERSION" --registry "$PREFIX"
       - name: Check containers and Nginx

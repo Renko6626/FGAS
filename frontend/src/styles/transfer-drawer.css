@@ -1,0 +1,78 @@
+.transfer-drawer :deep(.n-drawer-header) { padding:14px 20px; }
+.transfer-drawer :deep(.n-drawer-header__main) { font-size:18px; font-weight:650; }
+.transfer-drawer :deep(.n-drawer-body-content-wrapper) { padding:16px 20px; }
+.transfer-drawer :deep(.n-drawer-footer) { padding:12px 20px; background:#f7faf8; border-top:1px solid #d9e3dc; }
+.drawer-record-heading { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.drawer-record-tools { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-left:auto; font-size:12px; color:#758077; }
+.drawer-record-tools :deep(.n-button) { font-size:11px; }
+.drawer-amount { display:block; font-size:30px; font-weight:700; line-height:1.3; font-variant-numeric:tabular-nums; color:#294d37; margin-bottom:8px; overflow-wrap:anywhere; }
+.drawer-subject { margin:0 0 12px; font-size:15px; font-weight:650; line-height:1.6; overflow-wrap:anywhere; }
+.drawer-route { display:grid; grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr); gap:8px; align-items:center; }
+.drawer-account { min-width:0; padding:8px 10px; border:1px solid #d3ded6; border-radius:6px; background:#f5f8f6; }
+.drawer-account span,.drawer-account small { display:block; overflow-wrap:anywhere; }
+.drawer-account span { font-size:14px; font-weight:600; }
+.drawer-account small { color:#7b877f; font-size:11px; margin-top:2px; }
+.drawer-account.destination { background:#edf6ef; border-color:#b9d0c0; }
+.drawer-route-arrow { color:#5e806c; font-size:20px; font-weight:650; text-align:center; }
+.drawer-brief { display:flex; flex-wrap:wrap; gap:4px 16px; color:#738078; font-size:12px; margin-top:10px; overflow-wrap:anywhere; }
+.drawer-caption { color:#738078; font-size:12px; margin:6px 0; line-height:1.6; overflow-wrap:anywhere; }
+.drawer-meta { display:grid; grid-template-columns:76px minmax(0,1fr); gap:7px 12px; margin:12px 0; font-size:13px; }
+.drawer-meta dt { color:#758078; }
+.drawer-meta dd { margin:0; overflow-wrap:anywhere; }
+.drawer-goods { margin:14px 0 12px; }
+.drawer-table-wrap { overflow-x:auto; }
+.drawer-table { width:100%; min-width:0; table-layout:fixed; font-size:13px; }
+.drawer-table th { padding:8px 10px; background:#f3f7f4; color:#738477; font-size:11px; border-bottom:1px solid #dce5de !important; }
+.drawer-table td { padding:10px; border-bottom:1px solid #e6ece8; vertical-align:top; overflow-wrap:anywhere; }
+.drawer-table tbody tr:last-child td { border-bottom:0; }
+.drawer-sku { display:flex; align-items:center; gap:8px; min-width:0; }
+.drawer-sku :deep(.account-avatar) { width:30px; height:30px; font-size:13px; margin:0; }
+.drawer-sku > div { min-width:0; }
+.drawer-sku strong { display:block; font-weight:550; }
+.drawer-sku small { display:block; color:#7e8a82; font-size:11px; margin-top:2px; }
+.drawer-quantity { font-size:12px; white-space:nowrap; }
+.drawer-quantity strong { font-size:18px; font-weight:700; color:#315c3c; font-variant-numeric:tabular-nums; }
+.drawer-stock-impact { display:flex; flex-wrap:wrap; gap:2px 10px; margin-top:6px; color:#718074; font-size:11px; line-height:1.6; }
+.drawer-callout { margin:12px 0; padding:10px 12px; border:1px solid #dfbd7d; border-left-width:3px; border-radius:6px; background:#fff7e7; }
+.drawer-callout > strong { color:#855d23; font-size:13px; }
+.drawer-callout .drawer-brief { margin-top:5px; }
+.drawer-completion-date { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:12px 0; font-size:13px; }
+.drawer-completion-date input { height:32px; padding:4px 8px; border:1px solid #cbd8ce; border-radius:4px; color:#344f3d; background:#fff; font:inherit; }
+.drawer-disclosure { margin-top:12px; border-top:1px solid #e0e7e2; padding-top:12px; }
+.drawer-disclosure > summary,.drawer-secondary > summary { cursor:pointer; color:#66796c; font-size:13px; }
+.drawer-disclosure > summary { margin-bottom:0; }
+.drawer-disclosure[open] > summary { margin-bottom:10px; }
+.drawer-secondary { margin-top:10px; }
+.drawer-secondary[open] > summary { margin-bottom:8px; }
+.drawer-related { margin:12px 0; padding-bottom:10px; border-bottom:1px solid #e7ece8; }
+.drawer-related-heading { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px; font-size:13px; }
+.drawer-related :deep(.account-route),.drawer-related :deep(.account-label) { max-width:100%; }
+.drawer-audit { list-style:none; padding:0; margin:10px 0; }
+.drawer-audit li { display:flex; flex-wrap:wrap; align-items:baseline; gap:3px 10px; padding:8px 0; border-bottom:1px solid #e5ebe7; font-size:12px; overflow-wrap:anywhere; }
+.drawer-audit strong { font-weight:550; }
+.drawer-audit small { color:#7a867e; font-size:11px; margin-left:auto; }
+.drawer-audit p { width:100%; margin:3px 0 0; color:#758077; }
+.drawer-footer { width:100%; min-width:0; }
+.drawer-effect { margin:0 0 10px; color:#64766a; font-size:12px; line-height:1.6; }
+.drawer-feedback { margin:0 0 10px; padding:8px 10px; border-radius:4px; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.drawer-feedback.error { color:#a13f35; background:#fff0ed; }
+.drawer-feedback.success { color:#2d7143; background:#eaf6ed; }
+.drawer-reason { display:block; margin:0 0 10px; font-size:13px; }
+.drawer-reason :deep(.n-input) { margin-top:5px; }
+.drawer-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+.drawer-actions :deep(.n-button) { font-size:13px; min-width:64px; }
+.drawer-actions :deep(.n-button--primary-type) { font-weight:650; }
+.drawer-actions .drawer-close { margin-right:auto; }
+@media(max-width:600px) {
+  .transfer-drawer :deep(.n-drawer-header) { padding:12px 16px; }
+  .transfer-drawer :deep(.n-drawer-body-content-wrapper) { padding:14px 16px; }
+  .transfer-drawer :deep(.n-drawer-footer) { padding:10px 16px max(10px,env(safe-area-inset-bottom)); }
+  .drawer-record-tools { gap:4px; }
+  .drawer-route { gap:5px; grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr); }
+  .drawer-account { padding:6px 8px; }
+  .drawer-account span { font-size:13px; }
+  .drawer-sku :deep(.account-avatar) { display:none; }
+  .drawer-table td,.drawer-table th { padding-left:6px; padding-right:6px; }
+  .drawer-actions { gap:6px; }
+  .drawer-actions :deep(.n-button) { min-width:48px; padding-left:10px; padding-right:10px; font-size:12px; }
+}

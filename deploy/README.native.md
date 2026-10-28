@@ -8,7 +8,7 @@
 
 ## 第一次部署
 
-服务器准备好 Python 3.13、Node.js 22 或更新版本、PostgreSQL，以及带 systemd 的 Linux 发行版。下面以 `/srv/fgas` 和专用系统账号 `fgas` 为例；路径或账号不同时，同步修改 [fgas.service](fgas.service)、[fgas-migrate.service](fgas-migrate.service) 和 Nginx 配置。
+服务器准备好 Python 3.13（含 venv 模块）、Node.js 22.12 或以上版本（含 npm）、Git、PostgreSQL，以及带 systemd 的 Linux 发行版。本文使用 Nginx 提供网页和反向代理；自动备份还需要 PostgreSQL 客户端提供的 `pg_dump` 和 `pg_restore`。Node.js 只在安装依赖、构建前端和首次初始化时使用，正式运行不需要常驻 Node.js 进程。下面以 `/srv/fgas` 和专用系统账号 `fgas` 为例；路径或账号不同时，同步修改 [fgas.service](fgas.service)、[fgas-migrate.service](fgas-migrate.service) 和 Nginx 配置。
 
 创建运行账号和目录，用它克隆代码并安装依赖：
 

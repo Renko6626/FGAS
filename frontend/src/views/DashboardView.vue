@@ -22,6 +22,7 @@ const featuredSkus = computed(() => props.data?.stock.skus.slice(0, 4) ?? []);
 const unsettledAccounts = computed(() => props.accounts.filter(account => account.kind === "private" && account.balance_minor !== 0));
 const memberReceivable = computed(() => unsettledAccounts.value.reduce((total, account) => total + Math.max(account.balance_minor, 0), 0));
 const memberPayable = computed(() => unsettledAccounts.value.reduce((total, account) => total + Math.max(-account.balance_minor, 0), 0));
+const hasPending = computed(() => !!props.data && (props.data.counts.pendingFunds > 0 || props.data.counts.inTransit > 0 || (props.trusted && props.data.counts.pendingStock > 0)));
 function signedMoney(value: number) { return `${value > 0 ? "+" : ""}${money(value)}`; }
 function signedQuantity(value: string) { return `${BigInt(value) > 0n ? "+" : ""}${value}`; }
 function tone(value: string | number) { return BigInt(value) > 0n ? "increase" : BigInt(value) < 0n ? "decrease" : "unchanged"; }
@@ -39,15 +40,15 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
 
 <template>
   <div class="dashboard dashboard-overview" :aria-busy="loading">
-    <section class="member-balances fantasy_guide_div_1" aria-labelledby="member-balances-heading">
+    <section class="member-balances fantasy_guide_div_1" :class="{ attention: unsettledAccounts.length > 0 }" aria-labelledby="member-balances-heading">
       <div class="overview-heading">
-        <h2 id="member-balances-heading">成员往来待结清</h2>
-        <NButton class="overview-link" type="primary" size="small" @click="emit('navigate', 'settlements')">查看私账结算</NButton>
+        <h2 id="member-balances-heading">私账往来{{ unsettledAccounts.length ? '待核对' : '' }}</h2>
+        <NButton class="settlement-cta" :type="unsettledAccounts.length ? 'primary' : 'default'" :color="unsettledAccounts.length ? '#8b5819' : undefined" @click="emit('navigate', 'settlements')">{{ trusted ? '核对并办理结算' : '核对私账记录' }}</NButton>
       </div>
-      <p class="member-balances-note">{{ unsettledAccounts.length ? `${unsettledAccounts.length} 个私账余额未结清` : "目前没有未结清的私账余额" }}</p>
+      <p class="member-balances-note"><template v-if="unsettledAccounts.length"><strong>{{ unsettledAccounts.length }} 个私账净余额非零</strong>，请进入结算核对逐笔记录。</template><template v-else>当前私账净余额均为零，仍可核对逐笔结算记录。</template></p>
       <div class="member-balances-summary">
-        <div><span>成员应交回</span><strong>¥ {{ money(memberReceivable) }}</strong></div>
-        <div><span>社团应偿还</span><strong>¥ {{ money(memberPayable) }}</strong></div>
+        <div><span>成员应交回（净额）</span><strong>¥ {{ money(memberReceivable) }}</strong></div>
+        <div><span>社团应偿还（净额）</span><strong>¥ {{ money(memberPayable) }}</strong></div>
       </div>
 
     </section>
@@ -112,11 +113,22 @@ function stockChangeText(item: Dashboard['stock']['recent'][number]) {
         <p v-else class="overview-empty">暂无已入账的社团库存变化</p>
       </section>
 
-      <section class="dashboard-pending" aria-label="待办事项">
-        <span class="pending-label">{{ trusted ? '待办事项' : '记录状态' }}</span>
-        <button @click="emit('navigate', trusted ? 'approvals' : 'transfers', 'funds', trusted ? undefined : 'pending')">资金待审批 <strong>{{ data.counts.pendingFunds }}</strong><span> 笔</span></button>
-        <button v-if="trusted" @click="emit('navigate', 'approvals', 'stock')">货物待审批 <strong>{{ data.counts.pendingStock }}</strong><span> 笔</span></button>
-        <button @click="emit('navigate', 'stock', undefined, 'in_transit')">货物待完成 <strong>{{ data.counts.inTransit }}</strong><span> 笔</span></button>
+      <section class="dashboard-pending" :class="{ 'has-pending': hasPending }" aria-labelledby="pending-heading">
+        <div class="pending-heading"><h2 id="pending-heading">{{ trusted ? '待办处理' : '记录进度' }}</h2><span>{{ hasPending ? (trusted ? '选择下方入口核对并办理' : '查看申请进度，货物到位后报告完成') : '当前没有待处理记录' }}</span></div>
+        <div class="pending-tasks">
+          <button class="pending-task" :class="{ 'has-items': data.counts.pendingFunds > 0 }" @click="emit('navigate', trusted ? 'approvals' : 'transfers', 'funds', trusted ? undefined : 'pending')">
+            <span class="pending-task-summary"><span>资金待审批</span><strong>{{ data.counts.pendingFunds }}<small> 笔</small></strong></span>
+            <span class="pending-task-footer"><small>{{ trusted ? '批准后正式入账' : '等待审批后入账' }}</small><span class="pending-task-action">{{ trusted && data.counts.pendingFunds ? '去审批资金' : '查看资金申请' }}<span aria-hidden="true">›</span></span></span>
+          </button>
+          <button v-if="trusted" class="pending-task" :class="{ 'has-items': data.counts.pendingStock > 0 }" @click="emit('navigate', 'approvals', 'stock')">
+            <span class="pending-task-summary"><span>货物待审核</span><strong>{{ data.counts.pendingStock }}<small> 笔</small></strong></span>
+            <span class="pending-task-footer"><small>转移申请与完成报告</small><span class="pending-task-action">{{ data.counts.pendingStock ? '去审核货物' : '查看货物申请' }}<span aria-hidden="true">›</span></span></span>
+          </button>
+          <button class="pending-task completion-task" :class="{ 'has-items': data.counts.inTransit > 0 }" @click="emit('navigate', 'stock', undefined, 'in_transit')">
+            <span class="pending-task-summary"><span>货物待完成</span><strong>{{ data.counts.inTransit }}<small> 笔</small></strong></span>
+            <span class="pending-task-footer"><small>{{ trusted ? '整笔确认后更新库存' : '货物全部到位后报告完成' }}</small><span class="pending-task-action">查看待完成转移<span aria-hidden="true">›</span></span></span>
+          </button>
+        </div>
       </section>
 
       <section class="home-records fantasy_guide_div_1" aria-labelledby="operations-heading">

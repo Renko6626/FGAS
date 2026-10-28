@@ -167,6 +167,8 @@ docker compose --env-file /opt/fgas/.env --env-file release.env -f compose.yaml 
 
 健康接口只检查数据库可连接，不能证明 schema 已升级。`apply-release.sh` 在每次更新前把数据库备份到 `/opt/fgas/backups`（`pg_dump -Fc`，保留 30 天），再执行一次性 `migrate` 服务（`alembic upgrade head`）；迁移失败会中止发布，不自动降级。手工 `docker compose up` 可能复用已退出的 one-shot 容器，更新前应显式执行 `docker compose run --rm migrate`，数据重要时先备份。
 
+健康接口还会返回 `version` 和 `git_sha`。手动发布包会将指定版本号和当前 Git 提交写入后端镜像，GitHub Actions 则写入镜像版本号和构建提交；`git_sha` 显示前 12 位。从源码构建时，可在构建前导出 `FGAS_VERSION` 和 `FGAS_GIT_SHA`（例如 `export FGAS_VERSION=local FGAS_GIT_SHA="$(git rev-parse HEAD)"`）。没有 Git 元数据的源码包需显式提供 `FGAS_GIT_SHA` 才能记录提交号。
+
 基线前旧库的收养路径：备份 → 执行 [upgrade-agent-access.sql](../scripts/upgrade-agent-access.sql)、[upgrade-user-auth.sql](../scripts/upgrade-user-auth.sql)、[upgrade-posted-at.sql](../scripts/upgrade-posted-at.sql) → 校验 schema → `alembic stamp 0001`。可丢弃的旧库直接重建即可。发布目录和镜像不会自动清理；确认不用后手动清理旧文件，数据库备份与恢复仍由维护者负责。
 
 ## 可选：在服务器从源码构建

@@ -111,28 +111,17 @@ function edit(value: "expense" | "receipt") {
 </script>
 
 <template>
-  <div class="toolbar">
-    <h2>私账结算</h2>
-    <NButton :disabled="!selected" :loading="busy" @click="load">刷新</NButton>
-    <NButton :disabled="!selected" @click="copyLink">复制定位链接</NButton>
+  <div class="page-toolbar">
+    <NSelect class="account-picker" v-model:value="selected" size="small" :options="options" :render-label="renderAccountLabel" placeholder="选择私账账户" aria-label="私账账户" />
+    <div class="page-tools">
+      <NButton size="small" :disabled="!selected" :loading="busy" @click="load">刷新</NButton>
+      <NButton size="small" :disabled="!selected" @click="copyLink">复制定位链接</NButton>
+    </div>
   </div>
-  <label class="account-picker"
-    >私账账户<NSelect
-      v-model:value="selected"
-      :options="options"
-      :render-label="renderAccountLabel"
-      placeholder="选择私账账户"
-  /></label>
   <p v-if="error" class="error">{{ error }}</p>
   <template v-if="detail">
     <div class="settlement-summary">
       <div class="account-balance">
-        <h3>
-          <AccountLabel
-            :name="detail.account.name"
-            :url="detail.account.avatar_url"
-          />
-        </h3>
         <span>净余额</span
         ><strong class="balance-value"
           >¥{{ money(detail.account.balance_minor) }}</strong
@@ -156,7 +145,8 @@ function edit(value: "expense" | "receipt") {
         </div>
       </div>
     </div>
-    <div class="segmented-tabs" aria-label="结算类别">
+    <div class="page-toolbar settlement-tabs">
+      <div class="segmented-tabs" aria-label="结算类别">
       <button
         :class="{ active: activeTab === 'expense' }"
         @click="activeTab = 'expense'"
@@ -173,18 +163,16 @@ function edit(value: "expense" | "receipt") {
       >
         结算历史
       </button>
+      </div>
+      <div v-if="trusted && activeTab !== 'history'" class="page-tools">
+        <NButton size="small" @click="edit(activeTab === 'receipt' ? 'receipt' : 'expense')">{{ activeTab === 'receipt' ? '交回代收款' : '报销支出' }}</NButton>
+      </div>
     </div>
     <section
       v-for="group in groups.filter((group) => group.key === activeTab)"
       :key="group.key"
     >
-      <div class="toolbar">
-        <h3>{{ group.title }}</h3>
-        <NButton v-if="trusted" @click="edit(group.key)">{{
-          group.key === "expense" ? "报销支出" : "交回代收款"
-        }}</NButton>
-      </div>
-      <div v-if="group.items.length" class="table-wrap">
+      <div v-if="group.items.length" class="table-wrap compact-table">
         <table>
           <thead>
             <tr>
@@ -243,7 +231,7 @@ function edit(value: "expense" | "receipt") {
       <p v-else class="empty-state">暂无{{ group.title }}记录</p>
     </section>
     <section v-if="activeTab === 'history'">
-      <div v-if="detail.settlements.length" class="table-wrap">
+      <div v-if="detail.settlements.length" class="table-wrap compact-table">
         <table>
           <thead>
             <tr>
@@ -372,39 +360,48 @@ function edit(value: "expense" | "receipt") {
 </template>
 
 <style scoped>
-.account-picker {
-  max-width: 440px;
-  margin-bottom: 24px;
+.page-toolbar > .account-picker {
+  flex:1 1 240px;
+  max-width:440px;
 }
 .settlement-summary {
   display: flex;
   align-items: center;
-  gap: 40px;
+  gap: 12px 24px;
   flex-wrap: wrap;
-  margin: 24px 0 28px;
+  margin:0 0 12px;
+  padding:10px 12px;
+  border:1px solid #e1e7e3;
+  border-radius:6px;
+  background:#f6f9f7;
 }
 .account-balance {
+  display:flex;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:4px 10px;
   flex: 1;
   min-width: 180px;
 }
-.account-balance h3 {
-  margin-bottom: 12px;
-}
+.account-balance .balance-value { display:inline; margin:0; font:inherit; font-size:22px; font-weight:650; }
 .balance-direction {
-  margin: 4px 0 0;
+  margin:0;
+  color:#66766b;
+  font-size:12px;
 }
 .outstanding-summary {
   display: flex;
-  gap: 36px;
+  gap: 12px 24px;
   flex-wrap: wrap;
 }
 .outstanding-summary strong {
-  display: block;
-  font-size: 24px;
-  font-weight: normal;
+  display:inline-block;
+  font-size:18px;
+  font-weight:600;
   font-variant-numeric: tabular-nums;
-  margin-top: 4px;
+  margin-left:8px;
 }
+.settlement-tabs .segmented-tabs { margin-bottom:0; }
 .record-detail {
   margin-top: 8px;
   max-width: 420px;
@@ -431,7 +428,7 @@ function edit(value: "expense" | "receipt") {
 }
 @media (max-width: 760px) {
   .settlement-summary {
-    gap: 20px;
+    gap:10px;
   }
   .outstanding-summary {
     gap: 24px;

@@ -4,8 +4,8 @@ import { NButton, NInput, NSelect } from "naive-ui";
 import type { Transfer } from "../api/funds";
 import StatusHint from "./StatusHint.vue";
 import { emptyFundFilters, hasFundFilters, transferDateError, type FundFilters } from "../composables/transferFilters";
-const props = defineProps<{ items: Transfer[]; approvals: boolean; count: number; hideCreate?: boolean }>();
-const emit = defineEmits<{ create: [] }>();
+const props = defineProps<{ items: Transfer[]; approvals: boolean; count: number; hideCreate?: boolean; loading?: boolean }>();
+const emit = defineEmits<{ create: []; refresh: [] }>();
 const filters = defineModel<FundFilters>({ required: true });
 const showFilters = ref(false);
 const hasFilters = computed(() => hasFundFilters(filters.value));
@@ -19,8 +19,8 @@ const otherStatuses = [{ value: "rejected", label: "已拒绝" }, { value: "reve
 const sortOptions = [{ value: "created_at", label: "登记时间：新到旧" }, { value: "effective_date", label: "业务日期：新到旧" }];
 </script>
 <template>
-  <div class="ledger-controls">
-    <div v-if="!approvals" class="status-tabs" role="group" aria-label="资金状态筛选">
+  <div v-if="!approvals" class="ledger-controls">
+    <div class="status-tabs" role="group" aria-label="资金状态筛选">
       <div v-for="item in primaryStatuses" :key="item.value || 'all'" class="status-option" :class="{ active: filters.status === item.value, attention: item.value === 'pending' }">
         <button class="status-choice" :aria-pressed="filters.status === item.value" @click="filters.status = item.value">{{ item.label }}</button>
         <StatusHint v-if="item.help" :label="item.label" :text="item.help" />
@@ -29,11 +29,14 @@ const sortOptions = [{ value: "created_at", label: "登记时间：新到旧" },
   </div>
   <div class="ledger-toolbar">
     <NInput v-model:value="filters.search" clearable placeholder="搜索说明、账户、编号或发起人" :input-props="{ 'aria-label': '搜索资金流水' }" />
-    <NSelect v-model:value="filters.sort" size="small" :options="sortOptions" class="ledger-sort" aria-label="资金流水排序" />
+    <NSelect v-if="!approvals" v-model:value="filters.sort" size="small" :options="sortOptions" class="ledger-sort" aria-label="资金流水排序" />
+    <span v-else class="ledger-order">{{ filters.sort === 'effective_date' ? '按业务日期倒序' : '按登记时间倒序' }}</span>
     <NButton size="small" :aria-expanded="showFilters" @click="showFilters = !showFilters">{{ showFilters ? '收起筛选' : '筛选' }}</NButton>
+    <NButton v-if="approvals" size="small" :loading="loading" @click="emit('refresh')">刷新</NButton>
     <NButton v-if="!approvals && !hideCreate" class="ledger-create" size="small" type="primary" @click="emit('create')">登记资金</NButton>
   </div>
   <div v-if="showFilters" class="ledger-filters">
+    <label v-if="approvals">排序<NSelect v-model:value="filters.sort" :options="sortOptions" aria-label="资金待办排序" /></label>
     <label v-if="!approvals">其他状态<NSelect :value="otherStatuses.some(item => item.value === filters.status) ? filters.status : null" :options="otherStatuses" clearable placeholder="拒绝或冲销记录" @update:value="filters.status = $event" /></label>
     <label>标签<NInput v-model:value="filters.tag" clearable placeholder="输入完整标签" /></label>
     <label>业务日期起<input v-model="filters.dateFrom" type="date" /></label>

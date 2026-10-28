@@ -2,6 +2,7 @@
 import {onMounted,ref} from 'vue'
 import {NButton,NSelect,NCheckbox,NPopconfirm} from 'naive-ui'
 import {usersApi,type AdminUser} from '../api/users'
+import StatusHint from '../components/StatusHint.vue'
 const props=defineProps<{currentUserId:string}>()
 const emit=defineEmits<{changed:[]}>()
 const users=ref<AdminUser[]>([]),error=ref(''),notice=ref(''),busy=ref('')
@@ -24,11 +25,10 @@ async function force(user:AdminUser){
 }
 </script>
 <template>
-  <h2>用户权限</h2>
-  <p class="muted">用户在 Casdoor 首次登录后自动创建，默认普通用户；角色由本地管理员维护。停用账号会撤销其全部网页会话并阻止 Agent 继续访问；强制退出只撤销网页会话，不影响 Agent 连接。</p>
+  <div class="page-toolbar"><span class="page-count">{{ users.length }} 个用户</span><StatusHint label="权限管理" text="用户在 Casdoor 首次登录后自动创建，默认普通用户；角色由本地管理员维护。停用账号会撤销其全部网页会话并阻止 Agent 继续访问；强制退出只撤销网页会话，不影响 Agent 连接。" /></div>
   <p v-if="error" class="error" role="alert">{{error}}</p>
   <p v-if="notice" role="status">{{notice}}</p>
-  <div class="table-wrap"><table>
+  <div class="table-wrap compact-table"><table>
     <thead><tr><th>用户</th><th>Casdoor 账号</th><th>邮箱</th><th>最后登录</th><th>角色</th><th>启用</th><th></th></tr></thead>
     <tbody>
       <tr v-for="user in users" :key="user.id">
@@ -36,12 +36,11 @@ async function force(user:AdminUser){
         <td>{{user.sso_username||'—'}}<small v-if="user.sso_subject">sub: {{short(user.sso_subject)}}</small></td>
         <td>{{user.email||'—'}}</td>
         <td>{{date(user.last_login_at)}}</td>
-        <td><NSelect v-model:value="user.role" :options="roles"/></td>
+        <td><NSelect v-model:value="user.role" size="small" :options="roles"/></td>
         <td><NCheckbox v-model:checked="user.active"/></td>
-        <td><div class="user-actions"><NButton :loading="busy===user.id" @click="save(user)">保存</NButton><NPopconfirm @positive-click="force(user)"><template #trigger><NButton :loading="busy==='force:'+user.id" :disabled="!user.active">强制退出</NButton></template>撤销该用户的全部网页登录？</NPopconfirm></div></td>
+        <td><div class="table-actions"><NButton size="small" :loading="busy===user.id" @click="save(user)">保存</NButton><NPopconfirm @positive-click="force(user)"><template #trigger><NButton size="small" :loading="busy==='force:'+user.id" :disabled="!user.active">强制退出</NButton></template>撤销该用户的全部网页登录？</NPopconfirm></div></td>
       </tr>
       <tr v-if="!users.length"><td colspan="7">暂无用户</td></tr>
     </tbody>
   </table></div>
 </template>
-<style scoped>.user-actions{display:flex;gap:8px}</style>

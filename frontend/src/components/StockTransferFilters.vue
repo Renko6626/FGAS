@@ -3,8 +3,8 @@ import { computed, ref } from "vue";
 import { NButton, NInput, NSelect } from "naive-ui";
 import StatusHint from "./StatusHint.vue";
 import { emptyStockFilters, transferDateError, type StockFilters } from "../composables/transferFilters";
-const props = defineProps<{ approvals?: boolean; count: number; trusted: boolean; hideCreate?: boolean }>();
-const emit = defineEmits<{ create: [] }>();
+const props = defineProps<{ approvals?: boolean; count: number; trusted: boolean; hideCreate?: boolean; loading?: boolean }>();
+const emit = defineEmits<{ create: []; refresh: [] }>();
 const filters = defineModel<StockFilters>({ required: true });
 const showFilters = ref(false);
 const hasFilters = computed(() => !!(filters.value.search || filters.value.status || filters.value.tag || filters.value.skuCode || filters.value.dateFrom || filters.value.dateTo));
@@ -18,8 +18,8 @@ const primaryStatuses = [
 const otherStatuses = [{ value: "rejected", label: "已拒绝" }, { value: "cancelled", label: "已取消" }];
 </script>
 <template>
-  <div class="ledger-controls">
-    <div v-if="!approvals" class="status-tabs" role="group" aria-label="货物状态筛选">
+  <div v-if="!approvals" class="ledger-controls">
+    <div class="status-tabs" role="group" aria-label="货物状态筛选">
       <div v-for="item in primaryStatuses" :key="item.value || 'all'" class="status-option" :class="{ active: filters.status === item.value, attention: item.value === 'pending' }">
         <button class="status-choice" :aria-pressed="filters.status === item.value" @click="filters.status = item.value">{{ item.label }}</button>
         <StatusHint v-if="item.help" :label="item.label" :text="item.help" />
@@ -30,6 +30,7 @@ const otherStatuses = [{ value: "rejected", label: "已拒绝" }, { value: "canc
     <NInput v-model:value="filters.search" clearable placeholder="搜索说明、货物、编号或来源去向" :input-props="{ 'aria-label': '搜索货物转移' }" />
     <span class="ledger-order">按登记时间倒序</span>
     <NButton size="small" :aria-expanded="showFilters" @click="showFilters = !showFilters">{{ showFilters ? '收起筛选' : '筛选' }}</NButton>
+    <NButton v-if="approvals" size="small" :loading="loading" @click="emit('refresh')">刷新</NButton>
     <NButton v-if="!approvals && !hideCreate" class="ledger-create" size="small" type="primary" @click="emit('create')">{{ trusted ? '登记转移' : '申请转移' }}</NButton>
   </div>
   <div v-if="showFilters" class="ledger-filters">

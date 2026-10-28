@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { NButton } from "naive-ui";
 import type { StockAccount, Account } from "../api/accounts";
 import type { Sku } from "../api/warehouse";
 import { warehouse, type StockTransfer } from "../api/warehouse";
@@ -22,7 +21,6 @@ const emit = defineEmits<{
   changed: [];
   create: [];
 }>();
-const records = ref<InstanceType<typeof StockTransferRecords> | null>(null);
 const items = ref<StockTransfer[]>([]);
 const filters = ref({ ...emptyStockFilters(), status: props.initialStatus || (props.approvals ? null : "in_transit") });
 const page = ref(1);
@@ -77,12 +75,8 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
 </script>
 
 <template>
-  <div v-if="approvals" class="toolbar">
-    <h2>货物待处理</h2>
-    <NButton :disabled="records?.busy" @click="emit('changed')">刷新</NButton>
-  </div>
-  <StockTransferFilters v-model="filters" :approvals="approvals" :count="total" :trusted="trusted" @create="emit('create')" />
-  <StockTransferRecords :target-code="targetCode" ref="records" :items="items" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
+  <StockTransferFilters v-model="filters" :approvals="approvals" :count="total" :trusted="trusted" :loading="loading" @create="emit('create')" @refresh="emit('changed')" />
+  <StockTransferRecords :target-code="targetCode" :items="items" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
     :approvals="approvals" :loading="loading" :error="error" @changed="emit('changed')" />
   <PaginationBar :page="page" :limit="limit" :total="total" @update:page="page = $event" @update:limit="limit = $event" />
 </template>

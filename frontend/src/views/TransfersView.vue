@@ -76,7 +76,7 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
 </script>
 
 <template>
-  <TransferFilters v-model="filters" :items="items" :approvals="approvals" :count="total" :hide-create="hideCreate" @create="emit('create')" />
+  <TransferFilters v-model="filters" :items="items" :approvals="approvals" :count="total" :hide-create="hideCreate" :loading="loading" @create="emit('create')" @refresh="emit('changed')" />
   <TransferRecords :target-code="targetCode" :items="items" :accounts="accounts" :approvals="approvals" :trusted="trusted"
     :hide-create="hideCreate" :has-filters="hasFilters" :loading="loading" :error="error"
     @changed="emit('changed')" @notice="emit('notice', $event)" @create="emit('create')" @reset="filters = emptyFundFilters()" />

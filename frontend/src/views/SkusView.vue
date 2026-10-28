@@ -5,6 +5,7 @@ import { warehouse } from "../api/warehouse";
 import type { Sku } from "../api/warehouse";
 import AccountLabel from "../components/AccountLabel.vue";
 import TagInput from "../components/TagInput.vue";
+import StatusHint from "../components/StatusHint.vue";
 const props = defineProps<{ items: Sku[]; editable: boolean }>(),
   emit = defineEmits<{ changed: [] }>();
 const show = ref(false),
@@ -62,17 +63,13 @@ async function save() {
 }
 </script>
 <template>
-  <div class="toolbar">
-    <h2>SKU 目录</h2>
-    <NButton v-if="editable" @click="edit()">新建 SKU</NButton>
-  </div>
-  <p>名称包含款式与规格；数量按整数记录，单位用于说明计数方式。</p>
-  <div class="filters">
+  <div class="page-toolbar">
     <NInput v-model:value="search" clearable placeholder="搜索代号或完整名称" />
-    <NSelect v-model:value="tag" clearable filterable :options="tagOptions" placeholder="所有类别与角色标签" />
-    <NSelect v-model:value="status" clearable :options="[{ label: '启用', value: 'active' }, { label: '停用', value: 'inactive' }]" placeholder="所有状态" />
+    <NSelect v-model:value="tag" size="small" clearable filterable :options="tagOptions" placeholder="所有类别与角色标签" />
+    <NSelect v-model:value="status" size="small" clearable :options="[{ label: '启用', value: 'active' }, { label: '停用', value: 'inactive' }]" placeholder="所有状态" />
+    <div class="page-tools"><StatusHint label="货物字段" text="名称包含款式与规格；数量按整数记录，单位用于说明计数方式。" /><NButton v-if="editable" size="small" @click="edit()">新建 SKU</NButton></div>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap compact-table">
     <table>
       <thead>
         <tr>
@@ -99,7 +96,7 @@ async function save() {
               >{{ s.active ? "启用" : "停用" }}</span
             >
           </td>
-          <td><NButton v-if="editable" @click="edit(s)">编辑</NButton></td>
+          <td><NButton v-if="editable" size="small" @click="edit(s)">编辑</NButton></td>
         </tr>
         <tr v-if="!filteredItems.length"><td colspan="6">暂无符合条件的商品</td></tr>
       </tbody>

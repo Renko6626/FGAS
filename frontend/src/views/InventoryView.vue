@@ -155,7 +155,7 @@ onBeforeUnmount(() => { ++requestSequence; });
 .inventory-workspace { min-width:0; }
 .inventory-layout { display:grid; grid-template-columns:200px minmax(0,1fr); gap:22px; min-width:0; }
 .inventory-content { min-width:0; }
-.inventory-controls { display:flex; align-items:center; gap:8px; padding:0 0 14px; }
+.inventory-controls { display:flex; align-items:center; gap:8px; padding:0 0 10px; }
 .inventory-views { display:flex; padding:4px; background:#edf1f4; border-radius:7px; margin-right:auto; }
 .inventory-views button { padding:7px 15px; border:0; background:transparent; color:#52616c; border-radius:4px; min-width:0; font-size:14px; }
 .inventory-views button.active { background:#fff; color:#1f4b51; box-shadow:0 1px 4px #1d394214; font-weight:650; }

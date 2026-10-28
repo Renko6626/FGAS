@@ -8,6 +8,6 @@
     "db:init": "node scripts/init-db.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   }
 }

@@ -25,7 +25,8 @@ printf 'FGAS_API_IMAGE=%s\nFGAS_WEB_IMAGE=%s\nFGAS_DB_IMAGE=postgres:14\n' \
     "$api_image" "$web_image" > "$staging/$release/release.env"
 
 if [[ $# == 1 ]]; then
-    docker build --platform linux/amd64 -f deploy/Dockerfile -t "$api_image" .
+    git_sha=${FGAS_GIT_SHA:-$(git rev-parse HEAD)}
+    docker build --platform linux/amd64 --build-arg "FGAS_VERSION=$version" --build-arg "FGAS_GIT_SHA=$git_sha" -f deploy/Dockerfile -t "$api_image" .
     docker build --platform linux/amd64 -f deploy/Dockerfile.web -t "$web_image" .
     docker pull --platform linux/amd64 postgres:14
     docker image save -o "$staging/$release/images.tar" "$api_image" "$web_image" postgres:14
