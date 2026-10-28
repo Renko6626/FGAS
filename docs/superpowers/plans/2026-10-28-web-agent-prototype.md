@@ -39,11 +39,11 @@
 
 ### Task 2: 页面内对话
 
-**Files:** `frontend/src/components/WebAgentPanel.vue`、`frontend/src/api/webAgent.ts`、`frontend/src/App.vue`、`frontend/src/api/auth.ts`。
+**Files:** `frontend/src/components/FloatingWebAgent.vue`、`frontend/src/components/AgentMarkdown.vue`、`frontend/src/lib/agentMarkdown.ts`、`frontend/src/api/webAgent.ts`、`frontend/src/App.vue`、`frontend/src/api/auth.ts`。
 
-**Interfaces:** 消费 Task 1 的配置与事件；组件按当前 user.id 与 identityEpoch 重建。页面只保留文本历史、临时个人 Key 和本次会话 token 汇总。
+**Interfaces:** 消费 Task 1 的配置与事件；悬浮组件在工作台根部常驻，仅账号变化时重建；切换业务页面不销毁。页面只保留文本历史、临时个人 Key 和本次会话 token 汇总。
 
-- [x] 在工作台顶栏增加网页助手入口，使用既有黑白样式构建浮动对话面板。
+- [x] 在工作台右下角提供固定网页助手入口，使用既有样式构建悬浮对话面板。
 - [x] 显示用户 low 连接、个人/公共模型来源、文本、工具进度与 FT/ST 链接；支持停止当前请求和清空会话。
 - [x] 管理员显示公共余额查询，明确本次会话用量与全站历史统计的区别。
 - [x] 运行前端类型检查与生产构建；桌面/手机只截图。
@@ -77,3 +77,5 @@
 
 - 2026-10-29 UI 调整：配置表单移至独立弹窗，已配置时主面板仅保留模型摘要、聊天和输入；未配置/已知失败时尝试发送会打开设置。模型 API 错误带 configuration_error 标记并打开设置，普通工具错误继续在聊天中提示。修改/确认后由用户手动发送，无自动重放。未执行工具且无回复的输入会恢复，已有工具结果不丢弃。
 - 本次只运行前端类型/构建、差异检查和定向模型错误检查；定向检查使用本地 FunctionModel、真实 Cookie/MCP 和 fgas_test，401 标记为配置错误，普通异常不标记，不访问模型供应商。截图使用只读配置 fixture 展示有配置/无配置的桌面及手机状态，没有点击或填表。
+
+- 2026-10-29 悬浮化：独立 FloatingWebAgent 常驻工作台根部，收起使用 v-show；切换页面保留内存会话及流，退出/切换账号仍清理。桌面宽 560px、压缩非聊天区域，回复经 markdown-it 15.0.3 渲染基本 Markdown（关闭 HTML 和图片），FT/ST 使用 hash 链接避免整页跳转。类型/构建、实际渲染器定向检查、桌面/手机静态截图和差异检查通过；未运行浏览器自动交互或真实模型调用。

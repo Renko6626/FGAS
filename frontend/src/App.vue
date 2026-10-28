@@ -12,7 +12,7 @@ import SettlementsView from "./views/SettlementsView.vue";
 import MembersView from "./views/MembersView.vue";
 import UsersView from "./views/UsersView.vue";
 import AgentConnectionsView from "./views/AgentConnectionsView.vue";
-const WebAgentPanel = defineAsyncComponent(() => import("./components/WebAgentPanel.vue"));
+const FloatingWebAgent = defineAsyncComponent(() => import("./components/FloatingWebAgent.vue"));
 import SkusView from "./views/SkusView.vue";
 import InventoryView from "./views/InventoryView.vue";
 import StockTransfersView from "./views/StockTransfersView.vue";
@@ -229,7 +229,6 @@ onMounted(async () => {
             ><span>{{ currentPage.title }}</span>
           </div>
           <div class="header-right">
-            <WebAgentPanel v-if="webAgentEnabled" :key="`${user.id}:${identityEpoch}:web-agent`" :user="user" @changed="refresh" />
             <NButton quaternary :loading="busy" @click="refresh">刷新</NButton
             ><button class="identity-button" @click="showIdentity = true">
               <AccountAvatar
@@ -525,5 +524,6 @@ onMounted(async () => {
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
     </main>
+    <FloatingWebAgent v-if="user && !switching && webAgentEnabled" :key="user.id" :user="user" @changed="refresh" />
   </NConfigProvider>
 </template>
