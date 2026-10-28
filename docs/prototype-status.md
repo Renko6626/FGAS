@@ -12,6 +12,16 @@
 
 当前开发默认端口：前端 `5173`、后端 `10622`。下文的 `8000` 等端口为当时配置，当前启动方式以 [README](../README.md) 为准。
 
+## 2026-10-28：网页助手本地原型
+
+在隔离分支 `feature/web-agent-prototype` 实现默认关闭的页面 Agent 原型，工作区 `.worktrees/web-agent-prototype`。用户已选择后端 Pydantic AI、DeepSeek、OpenAI 兼容协议，用户创建时同步建立启用的 low 网页助手。当前原型在开关开启的 Casdoor 新用户创建路径落实该行为；已有用户选择/创建本人 low 连接。原型通过现有 MCP 执行业务，不改变 low/high 和审批规则。
+
+本轮只保存当前页面内存中的个人 Key、文本历史和本页用量；管理员可以按需查询公共 DeepSeek 余额。稳定默认连接关联、Key 加密保存、会话/消息和历史消费统计的结构方案列入完整计划，尚未新增数据库字段或迁移。生产开关保持关闭，主工作区与线上版本不变。
+
+隔离依赖环境 pip check 通过；现有全部后端检查在 fgas_test 上 85 passed，前端类型检查与构建通过，保留主 chunk 608.80 kB 提示。用本地 FunctionModel 替身驱动真实本人 low MCP，完成 me 查询及两轮模型、工具和用量事件；不代表 DeepSeek 真实模型验收，替身 token 不代表费用。桌面/手机截图无页面错误和横向溢出，没有浏览器点击/填表。一次独立只读审阅无阻塞项，已修正两处状态提示。
+
+本地前端 `http://127.0.0.1:5186/?assistant=1`、后端 10632 使用专用 fgas_test。当前无 FGAS 专用 DeepSeek Key，真实调用和余额查询未验收。启动和原型边界见 [原型说明](web-agent-prototype.md)，分期见 [实施计划](superpowers/plans/2026-10-28-web-agent-prototype.md)。未改日常开发库、合并主线或发布生产。
+
 ## 2026-10-28：Coolify 首次发布
 
 正式入口为 [fgas.secret-sealing.club](https://fgas.secret-sealing.club)。用户确认 Actions 构建、阿里云 ACR 存镜像、Coolify 发布；仓库 `renko/fgas-api`、`renko/fgas` 沿用已有私有仓库。部署代码提交 `c6debc6`，修正隐藏发布包上传的提交为 `9e4210a`；运行版本为 `9e4210a21831`。成功的 [Actions 40662036112](https://github.com/Renko6626/FGAS/actions/runs/40662036112) 包含前端类型检查与构建、容器与反向代理检查、ACR 推送、发布包上传及 Coolify 发布。早轮 40661620339 在上传 `.releases` 隐藏目录时失败，未触发部署；现已明确启用该目录中发布包的上传。

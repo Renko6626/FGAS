@@ -1,0 +1,8 @@
+-r requirements.txt
+# Optional local prototype dependencies; production continues to use requirements.txt.
+pydantic-ai-slim[openai,mcp]==2.63.0
+fastmcp-slim[client]==4.1.4
+# Version combination validated in the isolated prototype environment.
+fastapi==0.162.0
+starlette==1.10.0
+openai==3.40.0

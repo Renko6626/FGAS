@@ -3,6 +3,7 @@ import { request } from "./client";
 export type AuthMode = "development" | "casdoor";
 export interface AuthConfig {
   mode: AuthMode;
+  web_agent_prototype?: boolean;
 }
 export interface User {
   id: string;

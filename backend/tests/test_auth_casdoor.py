@@ -103,7 +103,8 @@ def test_login_redirect_contains_pkce_and_signed_state(casdoor_client, idp):
     assert pending['state'] == query['state'][0]
 
 
-def test_first_login_provisions_an_untrusted_user(casdoor_client, idp):
+def test_first_login_provisions_an_untrusted_user(casdoor_client, idp, monkeypatch):
+    monkeypatch.setenv('FGAS_WEB_AGENT_PROTOTYPE', '1')
     response = login(casdoor_client)
     assert response.status_code == 303 and response.headers['location'] == '/'
     assert any('fgas_session=' in value and 'Max-Age=604800' in value
@@ -113,6 +114,11 @@ def test_first_login_provisions_an_untrusted_user(casdoor_client, idp):
     user = user_by_subject('uid-alice')
     assert user.sso_username == 'alice' and user.email == 'alice@example.com'
     assert user.last_login_at is not None and user.created_at is not None
+    connections = casdoor_client.get('/api/agent-credentials').json()
+    assert len(connections) == 1
+    assert (connections[0]['owner_user_id'], connections[0]['level'], connections[0]['active']) == (user.id, 'low', True)
+    login(casdoor_client)
+    assert len(casdoor_client.get('/api/agent-credentials').json()) == 1
 
 
 def test_initial_admin_matches_subject_once(casdoor_client, idp, monkeypatch):
@@ -166,13 +172,13 @@ def test_provider_denial_is_reported(casdoor_client, idp):
 
 
 def test_casdoor_mode_rejects_development_login(casdoor_client):
-    assert casdoor_client.get('/api/auth/config').json() == {'mode': 'casdoor'}
+    assert casdoor_client.get('/api/auth/config').json() == {'mode': 'casdoor', 'web_agent_prototype': False}
     assert casdoor_client.get('/api/auth/users').status_code == 404
     assert casdoor_client.post('/api/auth/login', json={'user_id': 'admin'}).status_code == 404
 
 
 def test_development_mode_rejects_casdoor_routes(client):
-    assert client.get('/api/auth/config').json() == {'mode': 'development'}
+    assert client.get('/api/auth/config').json() == {'mode': 'development', 'web_agent_prototype': False}
     assert client.get('/api/auth/casdoor/login', follow_redirects=False).status_code == 404
     assert client.get('/api/auth/casdoor/callback', follow_redirects=False).status_code == 404
 

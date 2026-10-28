@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 import asyncio
 
 import httpx2
+from fastapi.testclient import TestClient
 import pytest
 from jsonschema import Draft202012Validator
 from mcp import ClientSession
@@ -763,3 +764,29 @@ def test_help_schemas_for_windows_and_as_of():
     assert 'as_of' in str(schema) and 'basis' in str(schema)
     move_schema = catalog.help_data('low', topic='query', resource='stock_moves')['list']['input_schema']
     assert 'posted_at_from' in str(move_schema) and 'all_time' in str(move_schema)
+
+
+def test_web_agent_uses_only_current_users_active_low_connections(client, monkeypatch):
+    other = client.post('/api/agent-credentials', json={'name': 'trusted low', 'level': 'low'}).json()['credential']
+    client.post('/api/auth/login', json={'user_id': 'admin'})
+    own = client.post('/api/agent-credentials', json={'name': 'admin low', 'level': 'low'}).json()['credential']
+    high = client.post('/api/agent-credentials', json={'name': 'admin high', 'level': 'high'}).json()['credential']
+    monkeypatch.setenv('FGAS_WEB_AGENT_PROTOTYPE', '1')
+    monkeypatch.delenv('FGAS_DEEPSEEK_API_KEY', raising=False)
+    with TestClient(create_app()) as web:
+        web.cookies.update(client.cookies)
+        config = web.get('/api/web-agent/config')
+        assert config.status_code == 200
+        assert [item['id'] for item in config.json()['connections']] == [own['id']]
+        for credential in (other, high):
+            denied = web.post('/api/web-agent/chat', json={'credential_id': credential['id'], 'message': '查询身份'})
+            assert denied.status_code == 403
+        # Owned connection reaches model configuration validation, without any network call.
+        valid = web.post('/api/web-agent/chat', json={'credential_id': own['id'], 'message': '查询身份'})
+        assert valid.status_code == 400 and '公共 DeepSeek Key' in valid.json()['detail']
+        client.patch('/api/agent-credentials/' + own['id'], json={'active': False})
+        inactive = web.post('/api/web-agent/chat', json={'credential_id': own['id'], 'message': '查询身份'})
+        assert inactive.status_code == 403
+        assert web.get('/api/auth/me').status_code == 200
+        web.cookies.clear()
+        assert web.get('/api/web-agent/config').status_code == 401

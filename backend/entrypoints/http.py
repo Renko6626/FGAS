@@ -8,7 +8,7 @@ from backend.infrastructure.store import transaction as database
 from backend.kernel.accounting import DomainError
 from backend.application import funds, catalogs, warehouse_catalogs, members as member_service, settlements, identity as identities, sso
 from backend.entrypoints.schemas import *
-from backend.application import agent_access
+from backend.application import agent_access, web_agent
 from backend.application import dashboard
 from backend.entrypoints.mcp import create_mcp_app
 
@@ -30,7 +30,7 @@ def health(db=database_dependency):
     return identities.health(db, auth_config.auth_mode())
 @router.get('/api/auth/config')
 def auth_config_view():
-    return {'mode': auth_config.auth_mode()}
+    return {'mode': auth_config.auth_mode(), 'web_agent_prototype': web_agent.enabled()}
 @router.get('/api/auth/users')
 def login_users(db=database_dependency):
     require_mode('development')
@@ -306,6 +306,9 @@ def create_app():
     app = FastAPI(title='FGAS 资金与库存工作台', lifespan=lifespan)
     app.add_exception_handler(DomainError, domain_error)
     app.include_router(router)
+    if web_agent.enabled():
+        from backend.entrypoints.web_agent import create_router
+        app.include_router(create_router(identity, database_dependency))
     # The SDK owns the exact /mcp path without a mount redirect.
     app.mount('/', mcp_app)
     return app

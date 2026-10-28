@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref } from "vue";
 import { NButton, NSelect, NModal, NConfigProvider, zhCN } from "naive-ui";
 import { workspaceTheme } from "./theme";
 import DashboardView from "./views/DashboardView.vue";
@@ -12,6 +12,7 @@ import SettlementsView from "./views/SettlementsView.vue";
 import MembersView from "./views/MembersView.vue";
 import UsersView from "./views/UsersView.vue";
 import AgentConnectionsView from "./views/AgentConnectionsView.vue";
+const WebAgentPanel = defineAsyncComponent(() => import("./components/WebAgentPanel.vue"));
 import SkusView from "./views/SkusView.vue";
 import InventoryView from "./views/InventoryView.vue";
 import StockTransfersView from "./views/StockTransfersView.vue";
@@ -32,7 +33,7 @@ const mobileNav = ref(false);
 const showIdentity = ref(false);
 const approvalType = ref("funds");
 const {
-  user, mode, users, selected, switching, identityEpoch,
+  user, mode, webAgentEnabled, users, selected, switching, identityEpoch,
   initialize, login, logout, permissionChanged,
 } = useSession({
   busy,
@@ -228,6 +229,7 @@ onMounted(async () => {
             ><span>{{ currentPage.title }}</span>
           </div>
           <div class="header-right">
+            <WebAgentPanel v-if="webAgentEnabled" :key="`${user.id}:${identityEpoch}:web-agent`" :user="user" @changed="refresh" />
             <NButton quaternary :loading="busy" @click="refresh">刷新</NButton
             ><button class="identity-button" @click="showIdentity = true">
               <AccountAvatar

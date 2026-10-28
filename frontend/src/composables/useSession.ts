@@ -25,6 +25,7 @@ export function useSession(options: SessionOptions) {
   const { busy, error, notice } = options;
   const user = ref<User | null>(null);
   const mode = ref<AuthMode | null>(null);
+  const webAgentEnabled = ref(false);
   const users = ref<User[]>([]);
   const selected = ref<string | null>(null);
   const switching = ref(false);
@@ -60,7 +61,9 @@ export function useSession(options: SessionOptions) {
 
   async function initialize() {
     readSsoError();
-    mode.value = (await authApi.authConfig()).mode;
+    const config = await authApi.authConfig();
+    mode.value = config.mode;
+    webAgentEnabled.value = Boolean(config.web_agent_prototype);
     if (mode.value === "development") await identities();
     try {
       user.value = await authApi.me();
@@ -129,5 +132,5 @@ export function useSession(options: SessionOptions) {
   onMounted(() => window.addEventListener("fgas-session-expired", sessionExpired));
   onBeforeUnmount(() => window.removeEventListener("fgas-session-expired", sessionExpired));
 
-  return { user, mode, users, selected, switching, identityEpoch, initialize, login, logout, permissionChanged };
+  return { user, mode, webAgentEnabled, users, selected, switching, identityEpoch, initialize, login, logout, permissionChanged };
 }

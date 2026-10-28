@@ -12,6 +12,7 @@ from urllib.parse import urlencode, urlparse
 import httpx
 
 from backend.infrastructure import auth_config, store
+from backend.application import agent_access, web_agent
 from backend.infrastructure.models import User
 from backend.kernel.accounting import DomainError
 
@@ -200,4 +201,6 @@ def provision(db, profile):
     )
     db.add(user)
     db.flush()
+    if web_agent.enabled():
+        agent_access.create_credential(db, user, {'name': '网页助手', 'level': 'low'})
     return user
