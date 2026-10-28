@@ -10,6 +10,7 @@ export interface AgentEvent {
   type: 'start' | 'text' | 'tool_start' | 'tool_end' | 'usage' | 'done' | 'error';
   text?: string;
   message?: string;
+  configuration_error?: boolean;
   id?: string;
   name?: string;
   input_tokens?: number;
@@ -33,7 +34,8 @@ export async function streamChat(body: {
   if (!response.ok) {
     if (response.status === 401) window.dispatchEvent(new Event('fgas-session-expired'));
     const data = await response.json().catch(() => null);
-    throw new Error(typeof data?.detail === 'string' ? data.detail : `请求未完成（${response.status}）`);
+    throw Object.assign(new Error(typeof data?.detail === 'string' ? data.detail : `请求未完成（${response.status}）`),
+      { configurationError: response.status === 400 || response.status === 403 });
   }
   if (!response.body) throw new Error('当前浏览器无法接收流式回复');
   const reader = response.body.getReader();

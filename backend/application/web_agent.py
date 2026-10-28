@@ -76,6 +76,7 @@ def _event(kind, **values):
 async def chat_events(identity, message, history):
     # No database session is retained while waiting for model or MCP requests.
     from pydantic_ai import Agent, AgentRunResultEvent
+    from pydantic_ai.exceptions import ModelAPIError
     from pydantic_ai.messages import (
         FunctionToolCallEvent, FunctionToolResultEvent, ModelRequest, ModelResponse,
         PartStartEvent, PartDeltaEvent, TextPart, TextPartDelta, UserPromptPart,
@@ -124,7 +125,7 @@ async def chat_events(identity, message, history):
                    429: '模型请求暂时受限，请稍后再试'}.get(status,
                    '本轮未能完成，请查看已返回的结果；涉及业务提交时先查询记录再决定下一步')
         logger.warning('Web agent run failed: %s', type(exc).__name__)
-        yield _event('error', message=message)
+        yield _event('error', message=message, configuration_error=isinstance(exc, ModelAPIError))
 
 
 async def shared_balance(user):
