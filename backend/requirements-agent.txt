@@ -1,5 +1,5 @@
 -r requirements.txt
-# Optional local prototype dependencies; production continues to use requirements.txt.
+# Web assistant dependencies, used by the container and isolated local preview.
 pydantic-ai-slim[openai,mcp]==2.63.0
 fastmcp-slim[client]==4.1.4
 # Version combination validated in the isolated prototype environment.

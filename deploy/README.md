@@ -20,7 +20,7 @@
 | 手动发布 | 本机 | SSH 传完整镜像包，服务器加载后启动 |
 | GitHub 自动发布 | GitHub Actions | 镜像放 ACR，Coolify 拉取后部署 |
 
-目前仅支持 Linux amd64。Python 依赖在构建镜像时用现有 requirements.txt 安装，服务器不会现场执行 pip 或 uv。手动镜像包还包含 PostgreSQL，目标机无需访问镜像仓库；第一次在本机构建仍需联网下载基础镜像和依赖。
+目前仅支持 Linux amd64。Python 依赖在构建镜像时使用 `backend/requirements-agent.txt` 安装，包含基础服务和已验证的网页助手依赖；服务器不会现场执行 pip 或 uv。手动镜像包还包含 PostgreSQL，目标机无需访问镜像仓库；第一次在本机构建仍需联网下载基础镜像和依赖。
 
 登录支持两种模式：本地试用可把 `AUTH_MODE` 设为 `development` 使用账号选择；正式部署默认 `casdoor`，通过既有 Casdoor OIDC 登录。先在 Casdoor 为本系统建立应用，回调地址与 `CASDOOR_REDIRECT_URI` 完全一致，scope 默认 `openid profile email`；再在 `.env` 填写 client id/secret 和 `INITIAL_ADMIN_SUBJECT`。首次登录自动建立本地用户，默认普通用户；初始管理员只按首次登录的 Casdoor `sub` 或用户名绑定一次，之后角色由本系统管理员维护。独立手动路线的默认入口是服务器的 `127.0.0.1:8080`；当前 Coolify 站点已完成 HTTPS 与登录跳转检查，真实用户登录仍需验收。原生 systemd 部署步骤见 [README.native.md](README.native.md)，PM2 作为备选保留。
 
@@ -107,6 +107,8 @@ bash deploy/apply-coolify.sh
 当前应用为 `j6grshmlx7t0lxyrwhe7mlmk`，可从 [Coolify 应用配置](https://coolify.secret-sealing.club/project/fsj7tn8gqtnhlmlqrnws4u0i/environment/wr3ynnxmxkkcxibfk7xuu9ft/application/j6grshmlx7t0lxyrwhe7mlmk) 维护。web 绑定上述 HTTPS 域名，内部端口 80；API 和数据库不映射宿主机端口。全局 ACR 登录负责拉取镜像。平台保留的仓库用于运行部署脚本，脚本使用 Coolify 生成的 Compose、`.env` 和项目名，不另建一套容器。
 
 运行时变量在 Coolify 配置：`POSTGRES_PASSWORD`、`CASDOOR_ISSUER`、`CASDOOR_CLIENT_ID`、`CASDOOR_CLIENT_SECRET`、`CASDOOR_REDIRECT_URI`、`INITIAL_ADMIN_SUBJECT`，以及 CI 管理的两个镜像变量。会话 Cookie 固定为 Secure，登录模式固定为 Casdoor。
+
+网页助手在 Coolify Compose 默认启用；设 `FGAS_WEB_AGENT_PROTOTYPE=0` 可关闭。容器内 MCP 固定连接本机 `http://127.0.0.1:10622/mcp`，不沿用开发预览端口。管理员登录后从“基础资料 → 公共模型设置”配置社团 DeepSeek Key；Key 不进入镜像或 GitHub Secrets。数据库配置优先，`FGAS_DEEPSEEK_API_KEY` 可作后备；没有公共 Key 时成员仍可填写个人 Key。公共设置表由 Alembic `0002` 在迁移前备份后建立。Nginx 对聊天 SSE 关闭缓冲并允许 300 秒上游静默时间；其他 API 沿用原配置。独立手动 Compose 默认关闭助手，可在 `.env` 设置 `FGAS_WEB_AGENT_PROTOTYPE=1` 开启。
 
 本次凭据来源是本机 `.env` 的 `FGAS_CASDOOR_KEY` → `CASDOOR_CLIENT_ID`、`FGAS_CASDOOR_SECRET` → `CASDOOR_CLIENT_SECRET`。不要使用认证系统管理 API 的 `CASDOOR_KEY` / `CASDOOR_SECRET`。issuer 为 `https://auth.fantasyguide.cn`，回调为 `https://fgas.secret-sealing.club/api/auth/casdoor/callback`，首位管理员用户名为 `Renko_1055`。Casdoor 应用必须登记该回调。
 

@@ -1,8 +1,8 @@
 FROM python:3.13-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
-COPY backend/requirements.txt backend/requirements.txt
-RUN pip install --no-cache-dir -r backend/requirements.txt
+COPY backend/requirements.txt backend/requirements-agent.txt backend/
+RUN pip install --no-cache-dir -r backend/requirements-agent.txt && pip check
 COPY backend backend
 COPY docs/ai docs/ai
 COPY alembic.ini alembic.ini

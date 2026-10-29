@@ -45,7 +45,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:10632 npm run dev -- --host 127.0.0.1 --p
 
 新增表使用 Alembic `0002`，保留 `0001` 基线；启用新版前先备份，再执行 `alembic upgrade head`。本轮只升级专用 `fgas_test`，不改日常数据库。公共设置仅在网页助手原型启用时提供，MCP 不提供模型 Key 管理。
 
-没有个人 Key 时可以使用已配置的公共模型。个人模型报错时由用户主动切换来源，程序不自动切换并重播业务工具。不要把真实 Key 提交到 Git。后端默认关闭原型；生产依然只安装原有 `backend/requirements.txt`。
+没有个人 Key 时可以使用已配置的公共模型。个人模型报错时由用户主动切换来源，程序不自动切换并重播业务工具。不要把真实 Key 提交到 Git。直接运行后端时仍默认关闭；发布镜像安装 `backend/requirements-agent.txt`，Coolify Compose 默认开启助手，并将 MCP 地址设为容器内的 `http://127.0.0.1:10622/mcp`。独立手动 Compose 保持可选开启。
 
 ## 助手提示词
 

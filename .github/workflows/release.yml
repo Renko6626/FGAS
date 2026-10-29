@@ -52,6 +52,7 @@ jobs:
           tar -xzf ".releases/fgas-$VERSION.tar.gz" -C "$RUNNER_TEMP/fgas/releases"
           cp deploy/env.example "$RUNNER_TEMP/fgas/.env"
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" "$RUNNER_TEMP/fgas/.env"
+          sed -i 's/^FGAS_WEB_AGENT_PROTOTYPE=.*/FGAS_WEB_AGENT_PROTOTYPE=1/' "$RUNNER_TEMP/fgas/.env"
           # The smoke test runs offline; give Casdoor config placeholders so startup validation passes.
           sed -i \
             -e 's|^CASDOOR_ISSUER=.*|CASDOOR_ISSUER=https://idp.example.test|' \
@@ -67,6 +68,9 @@ jobs:
           docker compose --project-name fgas --env-file "$RUNNER_TEMP/fgas/.env" --env-file "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/release.env" -f "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/compose.yaml" run --rm --no-deps migrate alembic -c alembic.ini check
           curl --fail http://127.0.0.1:8080/api/health
           curl --fail http://127.0.0.1:8080/api/auth/config | grep -q '"mode":"casdoor"'
+          curl --fail http://127.0.0.1:8080/api/auth/config | grep -q '"web_agent_prototype":true'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/web-agent/config)" = 401
+          docker compose --project-name fgas --env-file "$RUNNER_TEMP/fgas/.env" --env-file "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/release.env" -f "$RUNNER_TEMP/fgas/releases/fgas-$VERSION/compose.yaml" exec -T api python -c 'import pydantic_ai.mcp; from backend.application.web_agent import _make_model; _make_model("offline-import-check", "deepseek-flash")'
           curl --fail http://127.0.0.1:8080/ > /dev/null
           curl --fail http://127.0.0.1:8080/agent-setup.md > /dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/mcp)" = 401

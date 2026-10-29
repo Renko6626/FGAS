@@ -40,6 +40,9 @@ services:
       INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-管理员}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
       COOKIE_SECURE: "true"
+      FGAS_WEB_AGENT_PROTOTYPE: ${FGAS_WEB_AGENT_PROTOTYPE:-1}
+      FGAS_WEB_AGENT_MCP_URL: http://127.0.0.1:10622/mcp
+      FGAS_DEEPSEEK_API_KEY: ${FGAS_DEEPSEEK_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
