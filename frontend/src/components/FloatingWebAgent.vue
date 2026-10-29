@@ -167,6 +167,11 @@ async function queryBalance() {
   } catch (e) { if (!disposed) error.value = (e as Error).message; }
   finally { if (!disposed) balanceBusy.value = false; }
 }
+function openWithDraft(message: string) {
+  if (!draft.value.trim() && !busy.value) draft.value = message;
+  open.value = true;
+}
+defineExpose({ openWithDraft });
 watch([source, model, key, connection], () => { configurationFailed.value = false; });
 watch(open, visible => {
   if (!visible) settings.value = false;

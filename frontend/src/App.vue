@@ -12,6 +12,7 @@ import SettlementsView from "./views/SettlementsView.vue";
 import MembersView from "./views/MembersView.vue";
 import UsersView from "./views/UsersView.vue";
 import AgentConnectionsView from "./views/AgentConnectionsView.vue";
+const QuickStartView = defineAsyncComponent(() => import("./views/QuickStartView.vue"));
 const SharedModelSettingsView = defineAsyncComponent(() => import("./views/SharedModelSettingsView.vue"));
 const FloatingWebAgent = defineAsyncComponent(() => import("./components/FloatingWebAgent.vue"));
 import SkusView from "./views/SkusView.vue";
@@ -60,8 +61,10 @@ const trusted = computed(
 );
 const roles = { admin: "管理员", trusted: "受信任用户", untrusted: "普通用户" };
 const stockEditor = ref<InstanceType<typeof StockTransferEditor> | null>(null);
+const webAgent = ref<{ openWithDraft: (message: string) => void } | null>(null);
 const pages: Record<string, { title: string }> = {
   home: { title: "工作首页" },
+  quickStart: { title: "快速了解" },
   accounts: { title: "资金账户" },
   transfers: { title: "资金流水" },
   settlements: { title: "私账结算" },
@@ -81,6 +84,7 @@ const groups = computed(() => [
     label: "日常工作",
     items: [
       { value: "home", label: "工作首页" },
+      { value: "quickStart", label: "快速了解" },
       ...(trusted.value ? [{ value: "approvals", label: "待办审批" }] : []),
     ],
   },
@@ -251,6 +255,7 @@ onMounted(async () => {
         <div class="main_background" aria-hidden="true"></div>
         <main class="workspace-main">
           <div v-if="tab === 'home'" class="page-toolbar">
+            <NButton text size="small" @click="navigate('quickStart')">第一次使用？快速了解</NButton>
             <div class="page-tools">
               <NButton size="small" @click="createStock">{{ trusted ? "登记转移" : "申请转移" }}</NButton>
               <NButton size="small" type="primary" @click="create()">登记资金</NButton>
@@ -270,6 +275,12 @@ onMounted(async () => {
             @navigate="navigate"
             @create="create()"
             @create-stock="createStock"
+          />
+          <QuickStartView
+            v-else-if="tab === 'quickStart'"
+            :assistant-available="webAgentEnabled && !!webAgent"
+            @assistant="webAgent?.openWithDraft($event)"
+            @connections="navigate('agentConnections')"
           />
           <section v-else-if="tab === 'accounts'" class="fantasy_guide_div_1 page-surface">
             <CatalogView
@@ -531,6 +542,6 @@ onMounted(async () => {
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
     </main>
-    <FloatingWebAgent v-if="user && !switching && webAgentEnabled" :key="user.id" :user="user" @changed="refresh" />
+    <FloatingWebAgent v-if="user && !switching && webAgentEnabled" ref="webAgent" :key="user.id" :user="user" @changed="refresh" />
   </NConfigProvider>
 </template>

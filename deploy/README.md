@@ -24,6 +24,8 @@
 
 登录支持两种模式：本地试用可把 `AUTH_MODE` 设为 `development` 使用账号选择；正式部署默认 `casdoor`，通过既有 Casdoor OIDC 登录。先在 Casdoor 为本系统建立应用，回调地址与 `CASDOOR_REDIRECT_URI` 完全一致，scope 默认 `openid profile email`；再在 `.env` 填写 client id/secret 和 `INITIAL_ADMIN_SUBJECT`。首次登录自动建立本地用户，默认普通用户；初始管理员只按首次登录的 Casdoor `sub` 或用户名绑定一次，之后角色由本系统管理员维护。独立手动路线的默认入口是服务器的 `127.0.0.1:8080`；当前 Coolify 站点已完成 HTTPS 与登录跳转检查，真实用户登录仍需验收。原生 systemd 部署步骤见 [README.native.md](README.native.md)，PM2 作为备选保留。
 
+当前线上 Casdoor 的 FGAS 应用已通过 `fgas-member` 标签限制普通账号登录，并关闭该应用注册及游客登录。成员开通、停用及现有会话的处理见 [Casdoor 成员准入](../docs/casdoor-membership.md)。FGAS 角色仍由本系统维护，未增加网站侧标签校验。
+
 不要复用仓库或本机其他工具里的 `CASDOOR_KEY` / `CASDOOR_SECRET`；FGAS 只读取下文的 `CASDOOR_CLIENT_ID` / `CASDOOR_CLIENT_SECRET`。`CASDOOR_REDIRECT_URI` 必须与 Casdoor 应用登记值完全一致，否则登录回调会被拒绝。
 
 ## 第一次准备服务器
