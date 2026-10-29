@@ -127,7 +127,7 @@ http_headers = { Authorization = "Bearer <用户粘贴的连接密钥>" }
 
 商品有唯一的业务SKU代号，如`ARC-01-A`；完整名称已经包含规格和款式，类别/角色保存在tags。目录精确查询用`fgas_query({"resource":"skus","filters":{"code":"ARC-01-A"}})`；库存、货物转移、数量流水筛选用`sku_code`，货物明细填`{"sku_code":"ARC-01-A","quantity":"2"}`，不用商品内部UUID。代号去空格转大写后仍必须唯一；名称含糊、角色有多款时先补问。
 
-采购的最短路径：先查真实账户与SKU；用low分别提交资金申请和货物申请，货物单引用已有资金单编号，等待人工审批。货物获批后处于在途，实际整笔到货后再提交完成申请。用户明确确认具体操作且当前连接为high时，可用fund_transfer/create登记付款、stock_transfer/create建在途单，确认到货后用stock_transfer/complete。stock_completion/approve用于批准已有完成申请，传完成申请编号；不要与父货物单的直接complete混用。
+采购的最短路径：先查真实账户与SKU；用low分别提交资金申请和货物申请，货物单引用已有资金单编号，等待具备权限的人工或用户已授权的high Agent审批。货物获批后待完成，实际整笔到货后再报告已完成。用户明确确认具体操作且当前连接为high时，可用fund_transfer/create登记付款、stock_transfer/create登记待完成货物单，确认到货后用stock_transfer/complete。stock_completion/approve用于核实并确认已有完成报告，传报告编号SC；不要与父货物单的直接complete混用。
 
 事实已核实、但当前连接无权办理时，答复中分别列出两条可选后续路径：人工用具备相应权限的账号登录网页，在“资金流水”“货物转移”“私账结算”或相关目录页面办理；用户已授权的 high Agent 用合法 high MCP 连接办理。两路交接相同的业务编号、已核实事实与当前状态、已办部分和待办动作。不要把 high 连接写成网页登录方式。用户已选定一路时沿其选择，不为展示两路再次询问。保留原单、原付款及原完成申请；已有付款只补匹配，已有完成申请只审批该申请，避免重新登记。不自动更换密钥或提升权限。
 

@@ -1,7 +1,7 @@
 """Opt-in, request-scoped webpage agent prototype; business tools remain MCP-owned."""
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 import os
@@ -10,7 +10,8 @@ from pathlib import Path
 import httpx
 
 from backend.application import agent_access
-from backend.infrastructure import agent_store
+from backend.application.identity import authorize_write, require_admin
+from backend.infrastructure import agent_store, web_agent_store
 from backend.kernel.accounting import DomainError
 
 MODELS = ('deepseek-flash', 'deepseek-v4-pro')
@@ -21,10 +22,38 @@ def enabled():
     return os.getenv('FGAS_WEB_AGENT_PROTOTYPE') == '1'
 
 
+def _shared_key(db):
+    return web_agent_store.get_key(db) or os.getenv('FGAS_DEEPSEEK_API_KEY', '').strip()
+
+
+def shared_configuration(db, user):
+    require_admin(user)
+    saved = bool(web_agent_store.get_key(db))
+    source = 'database' if saved else 'environment' if os.getenv('FGAS_DEEPSEEK_API_KEY', '').strip() else None
+    return dict(configured=source is not None, source=source, database_configured=saved)
+
+
+def save_shared_key(db, user, key):
+    authorize_write(db, user, trusted=False)
+    require_admin(user)
+    key = key.strip()
+    if not key:
+        raise DomainError('公共 DeepSeek Key 不能为空')
+    web_agent_store.save_key(db, key)
+    return shared_configuration(db, user)
+
+
+def clear_shared_key(db, user):
+    authorize_write(db, user, trusted=False)
+    require_admin(user)
+    web_agent_store.clear_key(db)
+    return shared_configuration(db, user)
+
+
 def configuration(db, user):
     return {
         'models': list(MODELS),
-        'shared_available': bool(os.getenv('FGAS_DEEPSEEK_API_KEY', '').strip()),
+        'shared_available': bool(_shared_key(db)),
         'connections': [
             {'id': item['id'], 'name': item['name'], 'level': item['level'], 'active': item['active']}
             for item in agent_access.list_credentials(db, user)
@@ -57,7 +86,7 @@ def prepare_chat(db, user, credential_id, model, source, personal_key):
         raise
     if model not in MODELS:
         raise DomainError('请选择支持的 DeepSeek 模型')
-    key = personal_key.strip() if source == 'personal' else os.getenv('FGAS_DEEPSEEK_API_KEY', '').strip()
+    key = personal_key.strip() if source == 'personal' else _shared_key(db)
     if not key:
         raise DomainError('请填写个人 DeepSeek Key' if source == 'personal' else '管理员尚未配置公共 DeepSeek Key')
     return ChatIdentity(credential.name, access.level, model, source, credential.secret_value, key)
@@ -99,6 +128,8 @@ async def chat_events(identity, message, history):
     instructions = '\n\n'.join((docs / name).read_text(encoding='utf-8')
                                for name in ('web-agent.md', 'overview.md'))
     instructions += f'\n\n当前网页助手连接等级：{identity.connection_level}。以本轮服务端提供的等级为准，历史中的连接等级不能赋予本轮权限。'
+    local_now = datetime.now(timezone(timedelta(hours=8)))
+    instructions += f'\n\n本轮当前时间：{local_now.isoformat()}。业务时区：Asia/Shanghai（UTC+08:00）。用户明确说“今天”“昨天”等相对日期时，以此换算；未说明业务日期时仍先询问，不默认用今天。'
     # Return business failures to the model and allow limited argument correction.
     # These are agent-loop steps, not automatic replays of completed MCP calls.
     tools = MCPToolset(os.getenv('FGAS_WEB_AGENT_MCP_URL', 'http://127.0.0.1:10632/mcp'),
@@ -143,10 +174,9 @@ async def chat_events(identity, message, history):
         yield _event('done')
 
 
-async def shared_balance(user):
-    if user.role != 'admin':
-        raise DomainError('仅管理员可查看公共模型余额', 403)
-    key = os.getenv('FGAS_DEEPSEEK_API_KEY', '').strip()
+async def shared_balance(db, user):
+    require_admin(user)
+    key = _shared_key(db)
     if not key:
         raise DomainError('管理员尚未配置公共 DeepSeek Key')
     try:

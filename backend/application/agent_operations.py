@@ -169,7 +169,7 @@ def reject_stock_completion(db, access: AgentAccess, identifier: str, data: dict
 def add_stock_fund_reference(db, access: AgentAccess, identifier: str, data: dict) -> dict:
     require_high(access)
     value = warehouse.add_fund_reference(db, access.user, identifier, data, access=access)
-    return _result(_resource('stock_transfer', 'stock_transfer_code', value))
+    return _stock(value)
 
 
 def create_settlement(db, access: AgentAccess, data: dict) -> dict:

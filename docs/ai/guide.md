@@ -1,6 +1,6 @@
 # FGAS Agent 业务与操作指南
 
-guide_version：2026-10-27-v12，api_version：2。入门见 [核心模型](overview.md)。接口处于开发阶段，客户端验证范围见项目阶段记录。
+api_version：2，guide_version 以 fgas_help 返回的同名字段为准。入门见 [核心模型](overview.md)。接口处于开发阶段，客户端验证范围见项目阶段记录。
 
 ## 1. 先把用户的话还原成账本事实
 
@@ -105,6 +105,8 @@ stock_transfer/complete 和 stock_completion 提议的 data.identifier 是父货
 查全部待审资金单、货物单分别使用 `fgas_query({"resource":"fund_transfers","filters":{"status":"pending","all_time":true}})` 和 `fgas_query({"resource":"stock_transfers","filters":{"status":"pending","all_time":true}})`，均须按 has_more 翻页。查全部待审不能只用默认近30天窗口，也不要限定 submitted_by_current_connection，除非用户只问当前连接的申请。
 
 待确认完成报告另在父货物单详情的 confirmations 中；父单通常是 in_transit，单查 pending 货物单会漏掉它。当前可查全部 in_transit 货物单，再逐笔读详情筛选 confirmations.status=pending。现有 MCP 没有统一待审清单或处理结果预览；待审资金单详情的 journal_lines 是已发生的正式分录，不能当作批准后的预览。
+
+逐笔查询或多页结果可能需要分批处理。受客户端本轮调用预算限制时，报告已查范围、尚未查看的页码或业务编号，保留下一批查询位置，不把部分结果称为全部。继续时接着查询；已成功的写入不重发，结果未知的写入先核对记录。
 
 ## 8. 返回结果、错误与迁移
 

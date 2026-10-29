@@ -8,6 +8,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
 
 from backend.infrastructure.models import Base
 
@@ -35,18 +36,23 @@ def test_migrations_match_models():
 
         config = Config(str(ROOT / 'alembic.ini'))
         config.attributes['db_url'] = test_url.render_as_string(hide_password=False)
+        command.upgrade(config, '0001')
+        engine = create_engine(test_url)
+        from backend.infrastructure.models import FundAccount
+        with Session(engine) as db, db.begin():
+            db.add(FundAccount(id='pre-settings-account', name='升级前账户', kind='public', tags=[]))
         command.upgrade(config, 'head')
         command.upgrade(config, 'head')
         command.check(config)
 
-        engine = create_engine(test_url)
         inspector = inspect(engine)
         assert set(inspector.get_table_names()) - {'alembic_version'} == set(Base.metadata.tables)
         transfer_columns = {column['name']: column for column in inspector.get_columns('transfers')}
         assert transfer_columns['posted_at']['type'].timezone is True
 
         with engine.connect() as db:
-            assert db.scalar(text('SELECT version_num FROM alembic_version')) == '0001'
+            assert db.scalar(text('SELECT version_num FROM alembic_version')) == '0002'
+            assert db.scalar(text("SELECT name FROM fund_accounts WHERE id='pre-settings-account'")) == '升级前账户'
             checks = dict(db.execute(text(
                 "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
                 "WHERE contype='c' AND connamespace='public'::regnamespace"
@@ -73,8 +79,6 @@ def test_migrations_match_models():
                 "WHERE table_schema='public' AND table_name='fund_accounts' AND column_name='tags'"
             )) == 'json'
         # Server defaults number direct ORM inserts too; crossing padding width keeps every digit.
-        from sqlalchemy.orm import Session
-        from backend.infrastructure.models import FundAccount
         with Session(engine) as db, db.begin():
             db.execute(text("SELECT setval('fund_accounts_code_seq', 9999)"))
             first = FundAccount(name='编号边界',kind='public',tags=[])

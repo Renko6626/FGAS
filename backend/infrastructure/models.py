@@ -45,6 +45,10 @@ class LoginSession(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+class WebAgentSettings(Base):
+    __tablename__ = 'web_agent_settings'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    deepseek_api_key: Mapped[str] = mapped_column(String)
 class FundAccount(Base):
     __tablename__ = 'fund_accounts'
     __table_args__ = (CheckConstraint("kind IN ('public','private','external')", name='kind_valid'),)

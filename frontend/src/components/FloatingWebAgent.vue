@@ -157,6 +157,7 @@ watch(open, visible => {
     void scroll();
   }
 });
+watch(settings, visible => { if (visible) void load(); });
 onMounted(load);
 onBeforeUnmount(() => { disposed = true; controller?.abort(); key.value = ''; });
 </script>

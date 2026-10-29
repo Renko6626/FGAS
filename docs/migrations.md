@@ -2,6 +2,8 @@
 
 FGAS 的 schema 只通过 Alembic 演进。`backend/migrations/versions/0001_baseline_schema.py` 是当前基线，包含全部 20 张表、索引和约束；新库和已收养的旧库都应处于该 revision 或后续 revision。
 
+当前最新 revision 为 `0002`：新增 `web_agent_settings`，保存管理员配置的公共 DeepSeek Key，不修改原业务表。升级前备份，再执行 `upgrade head`；该 Key 按用户选择明文保存，因此数据库备份也应按密钥资料保管。
+
 ## 本地命令
 
 ```bash

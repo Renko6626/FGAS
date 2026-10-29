@@ -5,6 +5,11 @@ export interface WebAgentConfig {
   shared_available: boolean;
   connections: { id: string; name: string; level: 'low' | 'high'; active: boolean }[];
 }
+export interface SharedModelConfig {
+  configured: boolean;
+  source: 'database' | 'environment' | null;
+  database_configured: boolean;
+}
 export interface ChatMessage { role: 'user' | 'assistant'; content: string }
 // Native Pydantic AI messages are kept intact; the UI does not interpret their parts.
 export type AgentHistory = Record<string, unknown>[];
@@ -24,6 +29,9 @@ export interface AgentEvent {
 }
 export const webAgentApi = {
   config: () => request<WebAgentConfig>('/web-agent/config'),
+  sharedConfig: () => request<SharedModelConfig>('/web-agent/shared-config'),
+  saveSharedKey: (api_key: string) => request<SharedModelConfig>('/web-agent/shared-config', 'PUT', { api_key }),
+  clearSharedKey: () => request<SharedModelConfig>('/web-agent/shared-config', 'DELETE'),
   balance: () => request<{ available: boolean; balances: { currency: string; total_balance: string }[] }>('/web-agent/balance'),
 };
 

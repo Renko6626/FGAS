@@ -209,6 +209,11 @@ def test_high_direct_business_and_source(client):
         linked = ops.create_stock_operation(db, access, {'stock': payload, 'money': fund_data()})['data']
         stock_id = linked['stock_transfer']['stock_transfer_code']
         assert linked['fund_transfer']['ledger_effect_applied'] and linked['stock_transfer']['status'] == 'in_transit'
+        pending = ops.propose_stock_transfer(db, access, payload)['data']
+        reference = ops.add_stock_fund_reference(db, access, pending['stock_transfer_code'],
+            {'fund_transfer_code': linked['fund_transfer']['transfer_code']})['data']
+        assert reference['status'] == 'pending' and reference['approval_required']
+        assert not reference['ledger_effect_applied']
         assert db.scalar(select(func.count()).select_from(StockMove)) == 0
         done = ops.complete_stock_transfer(db, access, stock_id, {'effective_date': '2026-10-15'})['data']
         db.commit()
@@ -803,6 +808,73 @@ def test_web_agent_uses_only_current_users_authorized_connections(client, monkey
         assert web.get('/api/auth/me').status_code == 200
         web.cookies.clear()
         assert web.get('/api/web-agent/config').status_code == 401
+
+
+def test_shared_model_settings_are_admin_only(client, monkeypatch):
+    monkeypatch.setenv('FGAS_WEB_AGENT_PROTOTYPE', '1')
+    monkeypatch.setenv('FGAS_DEEPSEEK_API_KEY', 'offline-env-key')
+    connection = issue(client, owner='untrusted')
+    with TestClient(create_app()) as web:
+        for owner in ('untrusted', 'trusted'):
+            web.post('/api/auth/login', json={'user_id': owner})
+            assert web.get('/api/web-agent/shared-config').status_code == 403
+            assert web.put('/api/web-agent/shared-config', json={'api_key': 'offline-new-key'}).status_code == 403
+            assert web.delete('/api/web-agent/shared-config').status_code == 403
+            assert web.get('/api/web-agent/balance').status_code == 403
+        web.cookies.clear()
+        assert web.get('/api/web-agent/shared-config', headers={'Authorization': 'Bearer ' + connection['secret']}).status_code == 401
+        assert web.put('/api/web-agent/shared-config', json={'api_key': 'offline-new-key'}).status_code == 401
+        assert web.delete('/api/web-agent/shared-config').status_code == 401
+        assert web.get('/api/web-agent/balance').status_code == 401
+
+
+def test_shared_model_settings_apply_to_chat_and_balance(client, monkeypatch):
+    from backend.application import web_agent
+    monkeypatch.setenv('FGAS_WEB_AGENT_PROTOTYPE', '1')
+    monkeypatch.setenv('FGAS_DEEPSEEK_API_KEY', 'offline-env-key')
+    connection = issue(client, owner='trusted')
+
+    def chat_key(source='shared'):
+        with Session() as db:
+            return web_agent.prepare_chat(db, db.get(User, 'trusted'), connection['credential']['id'],
+                'deepseek-flash', source, 'offline-personal-key').model_key
+
+    def balance_response(request):
+        assert request.headers['Authorization'] == 'Bearer offline-db-key-2'
+        return httpx2.Response(200, json={'is_available': True,
+            'balance_infos': [{'currency': 'CNY', 'total_balance': '12.34'}]})
+
+    with TestClient(create_app()) as web:
+        web.post('/api/auth/login', json={'user_id': 'admin'})
+        assert web.get('/api/web-agent/shared-config').json() == {
+            'configured': True, 'source': 'environment', 'database_configured': False}
+        assert chat_key() == 'offline-env-key'
+        for key in ('offline-db-key-1', 'offline-db-key-2'):
+            response = web.put('/api/web-agent/shared-config', json={'api_key': ' ' + key + ' '})
+            assert response.status_code == 200
+            assert response.json() == {'configured': True, 'source': 'database', 'database_configured': True}
+            assert response.headers['cache-control'] == 'no-store'
+            assert chat_key() == key
+            assert chat_key('personal') == 'offline-personal-key'
+        assert web.put('/api/web-agent/shared-config', json={'api_key': '   '}).status_code == 400
+        assert chat_key() == 'offline-db-key-2'
+        monkeypatch.setattr(web_agent.httpx, 'AsyncClient', lambda **kwargs:
+            httpx2.AsyncClient(transport=httpx2.MockTransport(balance_response), **kwargs))
+        assert web.get('/api/web-agent/balance').json() == {
+            'available': True, 'balances': [{'currency': 'CNY', 'total_balance': '12.34'}]}
+        web.post('/api/auth/login', json={'user_id': 'untrusted'})
+        public = web.get('/api/web-agent/config')
+        assert public.json()['shared_available'] is True
+        assert 'offline-db-key' not in public.text
+        web.post('/api/auth/login', json={'user_id': 'admin'})
+        assert web.delete('/api/web-agent/shared-config').json() == {
+            'configured': True, 'source': 'environment', 'database_configured': False}
+        assert chat_key() == 'offline-env-key'
+        monkeypatch.delenv('FGAS_DEEPSEEK_API_KEY')
+        assert web.get('/api/web-agent/shared-config').json() == {
+            'configured': False, 'source': None, 'database_configured': False}
+        with pytest.raises(DomainError, match='管理员尚未配置公共 DeepSeek Key'):
+            chat_key()
 
 
 @pytest.mark.parametrize('bad_arguments,second_level', [

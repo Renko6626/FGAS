@@ -20,7 +20,7 @@ _bearer: ContextVar[str | None] = ContextVar('fgas_mcp_bearer', default=None)
 _DOCS = Path(__file__).resolve().parents[2] / 'docs/ai'
 GUIDE = (_DOCS / 'guide.md').read_text()
 OVERVIEW = (_DOCS / 'overview.md').read_text()
-GUIDE_VERSION = '2026-10-29-v14'
+GUIDE_VERSION = '2026-10-29-v15'
 # Clients may validate structured error results as well as successful results.
 RESULT_SCHEMA = {
     'type': 'object',
