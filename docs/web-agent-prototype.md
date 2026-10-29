@@ -1,6 +1,6 @@
-# 网页助手本地原型
+# 网页助手
 
-设计见 [接入设计](superpowers/specs/2026-10-28-web-agent-design.md)，完整分期和实施记录见 [实施计划](superpowers/plans/2026-10-28-web-agent-prototype.md)。2026-10-29 已按用户要求将原型快进合并到主目录 `main`，后续在主目录维护；尚未发布线上。
+设计见 [接入设计](superpowers/specs/2026-10-28-web-agent-design.md)，完整分期和实施记录见 [实施计划](superpowers/plans/2026-10-28-web-agent-prototype.md)。2026-10-29 已合并到主目录 `main` 并经既有 Actions → ACR → Coolify 发布至 [FGAS](https://fgas.secret-sealing.club)；发布代码为 `f1bc6aa`，数据库已备份后升级到 `0002`。保留当前页面内存会话等原型边界，未做真实模型验收。交付见 [云端发布记录](superpowers/plans/2026-10-29-web-agent-cloud-release.md)。
 
 ## 已有能力
 
@@ -43,7 +43,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:10632 npm run dev -- --host 127.0.0.1 --p
 
 2026-10-29 用户确认采用简单的数据库明文方案：Key 保存在 `web_agent_settings` 单行配置中，数据库备份也包含明文；页面和 HTTP 响应不回传 Key，只有管理员的 Cookie 会话可管理。保存后新的聊天和余额请求立即使用，不改变已开始的请求。数据库配置优先；没有数据库配置时，仍使用环境变量 `FGAS_DEEPSEEK_API_KEY`。清除网页配置后若环境变量存在，页面明确标注继续使用服务器配置。环境变量变更仍须重启后端；启动器可从当前项目 `.env` 读取这一项。其他系统的认证 Key 不用于模型调用。
 
-新增表使用 Alembic `0002`，保留 `0001` 基线；启用新版前先备份，再执行 `alembic upgrade head`。本轮只升级专用 `fgas_test`，不改日常数据库。公共设置仅在网页助手原型启用时提供，MCP 不提供模型 Key 管理。
+新增表使用 Alembic `0002`，保留 `0001` 基线；启用新版前先备份，再执行 `alembic upgrade head`。开发时先升级专用 `fgas_test`，2026-10-29 云端发布再经迁移前备份升级生产库，日常本地库未改。公共设置仅在网页助手启用时提供，MCP 不提供模型 Key 管理。
 
 没有个人 Key 时可以使用已配置的公共模型。个人模型报错时由用户主动切换来源，程序不自动切换并重播业务工具。不要把真实 Key 提交到 Git。直接运行后端时仍默认关闭；发布镜像安装 `backend/requirements-agent.txt`，Coolify Compose 默认开启助手，并将 MCP 地址设为容器内的 `http://127.0.0.1:10622/mcp`。独立手动 Compose 保持可选开启。
 

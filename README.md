@@ -8,7 +8,7 @@
 
 ## 本地开发
 
-网页助手原型已合并到主目录，默认关闭；独立依赖、启用方式与当前限制见 [网页助手说明](docs/web-agent-prototype.md)，助手提示词见 [web-agent.md](docs/ai/web-agent.md)。启用后，管理员可在“公共模型设置”配置社团 DeepSeek Key；按用户确认明文存入数据库，响应不回传，环境变量作后备。该设置由 Alembic `0002` 新增表，升级前先备份。
+网页助手已于 2026-10-29 发布到 [FGAS](https://fgas.secret-sealing.club)，Coolify 默认启用；直接运行后端仍需显式开启。独立依赖、启用方式与当前限制见 [网页助手说明](docs/web-agent-prototype.md)，助手提示词见 [web-agent.md](docs/ai/web-agent.md)。管理员可在“公共模型设置”配置社团 DeepSeek Key；按用户确认明文存入数据库，响应不回传，环境变量作后备。该设置由 Alembic `0002` 新增表，生产库已备份后升级。
 
 需要 Python 3.13、Node.js 22.12 或以上版本及 PostgreSQL。沿用现有环境和 `.env`；连接信息不要提交到仓库。
 

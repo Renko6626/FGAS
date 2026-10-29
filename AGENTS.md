@@ -64,7 +64,9 @@ npm run db:init    # Alembic upgrade + 开发种子
 
 - 2026-10-29 用户确认 trusted/admin 可签发和使用本人的 high，普通用户仍仅 low，降为普通用户后 high 失效。网页助手默认 low，聊天工具栏或设置可手动选择本人 low/high，切换保留原生历史。网页与外部 MCP 提示词都要求 execute 先说明具体操作及影响并取得明确确认，已确认批次不反复询问；本阶段按用户要求仅作提示词约束，不新增确认状态机。用户/角色管理仍仅管理员，Agent 无相应管理工具。
 
-- 2026-10-29 网页助手原型已按用户确认合并到主目录 main，独立原型工作树已清理。助手提示词为 `docs/ai/web-agent.md`，由 `backend/application/web_agent.py` 每轮与共用 `docs/ai/overview.md` 组合；外部 MCP 仍只用原有业务说明。跨轮按框架原生消息保留工具调用、参数和结果，独立存于当前网页内存，禁止再从展示文本重建模型历史。原型默认关闭，启用、隔离依赖和专用 fgas_test 预览见 `docs/web-agent-prototype.md`；未持久化 Key/聊天，未发布生产。
+- 2026-10-29 网页助手已合并到主目录 main 并发布生产，独立原型工作树已清理。助手提示词为 `docs/ai/web-agent.md`，由 `backend/application/web_agent.py` 每轮与共用 `docs/ai/overview.md` 组合；外部 MCP 仍只用原有业务说明。跨轮按框架原生消息保留工具调用、参数和结果，独立存于当前网页内存，禁止再从展示文本重建模型历史。直接启动后端默认关闭，Coolify Compose 默认开启，镜像安装 `requirements-agent.txt`，容器内 MCP 为 10622；隔离本地预览仍用专用 fgas_test，见 `docs/web-agent-prototype.md`。个人 Key/聊天未持久化；公共 Key 按用户选定 A 方案明文保存在 `web_agent_settings`，仅管理员 Cookie 管理，响应不回传，数据库优先于环境变量。
+
+- 2026-10-29 发布代码 `f1bc6aa`，Actions `40836820537` success，Coolify `gd8arxhtrvezg79nt4msychr` finished。生产库先备份再 upgrade 0002，原有 2 个用户、0 笔资金/货物单保持；web/API/db healthy。新聊天窗口和公共模型设置资源、HTTPS、助手开启及匿名门禁已核对；没有进行浏览器自动交互、真实模型调用或全量备份恢复验收。发布记录见 `docs/superpowers/plans/2026-10-29-web-agent-cloud-release.md`。
 
 - 2026-10-28 用户确认货物中文流程统一为“待审批 → 待完成 → 已完成”，技术值 `in_transit` 保留，对应已获批、尚未确认完成。受信任用户/管理员使用“登记转移 → 确认完成”；普通用户使用“申请转移 → 报告已完成”，报告待确认期间主单仍待完成、库存不变。主列表围绕 ST，SC 收在详情的完成记录和必要 Agent 交接中；这次仅调整文案，不改变模型、接口、权限或库存流程。
 
