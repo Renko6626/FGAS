@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
 import { NButton, NInput, NModal, NSelect, NCheckbox } from "naive-ui";
 import { accountsApi } from "../api/accounts";
 import { type Account, type StockAccount, type AccountBase, type AccountKind, type StockAccountKind, type ResponsibilityHistory } from "../api/accounts";
@@ -8,6 +8,7 @@ import { money } from "../presentation/funds";
 import type { Member } from "../api/members";
 import AccountAvatar from "../components/AccountAvatar.vue";
 import TagInput from "../components/TagInput.vue";
+const AttachmentList = defineAsyncComponent(() => import("../components/AttachmentList.vue"));
 const props = defineProps<{
   mode: "accounts" | "stock-accounts";
   accounts: Account[];
@@ -34,6 +35,7 @@ const all = computed<AccountBase[]>(() =>
   props.mode === "accounts" ? props.accounts : props.locations,
 );
 const kindLabels = computed(() => props.mode === "accounts" ? kinds : stockKinds);
+const attachmentKind = computed(() => props.mode === "accounts" ? "fund_account" as const : "stock_account" as const);
 const rows = computed(() =>
   all.value.filter(
     (a) =>
@@ -227,6 +229,17 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
       >{{ mode === "stock-accounts" ? "缩略图 URL" : "头像 URL"
       }}<NInput v-model:value="avatar" placeholder="留空显示名称首字"
     /></label>
+    <div v-if="id">
+      <AttachmentList
+        :target-kind="attachmentKind"
+        :target-code="id"
+        :aspect="1"
+        :upload-label="mode === 'accounts' ? '上传并设为头像' : '上传并设为缩略图'"
+        @uploaded="avatar = $event.file_url"
+        @error="error = $event"
+      />
+    </div>
+    <p v-else class="muted">保存后可上传图片。</p>
     <details class="disclosure">
       <summary>账户状态</summary>
       <NCheckbox v-model:checked="active">启用账户</NCheckbox>

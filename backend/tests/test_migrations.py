@@ -51,13 +51,13 @@ def test_migrations_match_models():
         assert transfer_columns['posted_at']['type'].timezone is True
 
         with engine.connect() as db:
-            assert db.scalar(text('SELECT version_num FROM alembic_version')) == '0002'
+            assert db.scalar(text('SELECT version_num FROM alembic_version')) == '0003'
             assert db.scalar(text("SELECT name FROM fund_accounts WHERE id='pre-settings-account'")) == '升级前账户'
             checks = dict(db.execute(text(
                 "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
                 "WHERE contype='c' AND connamespace='public'::regnamespace"
             )).all())
-            assert len(checks) == 18
+            assert len(checks) == 20
             assert checks['ck_transfers_amount_positive']
             assert checks['ck_journal_lines_debit_credit_exclusive']
             uniques = dict(db.execute(text(

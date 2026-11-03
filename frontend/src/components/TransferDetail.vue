@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
 import { NButton, NInput, NDrawer, NDrawerContent } from "naive-ui";
 import { fundsApi, type Transfer } from "../api/funds";
 import { money, statuses } from "../presentation/funds";
 import { approvalLabel, actionNames } from "../presentation/audit";
 import { type Account } from "../api/accounts";
+const AttachmentList = defineAsyncComponent(() => import("./AttachmentList.vue"));
 const props = defineProps<{
   accounts: Account[];
   approvals: boolean;
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 }>();
 const detail = ref<Transfer | null>(null), error = ref(""), reason = ref(""), busy = ref(false);
 const notice = ref("");
+const attachmentCount = ref(0);
 const processing = ref<"reject" | "reverse" | null>(null);
 const taskTitle = computed(() => processing.value === "reject" ? "拒绝资金申请" : processing.value === "reverse" ? "冲销资金流水" : detail.value?.status === "pending" ? (props.trusted ? "审批资金申请" : "查看资金申请") : "资金流水详情");
 const effect = computed(() => detail.value?.status === "pending" ? (props.trusted ? "批准后正式入账，更新相关账户余额。" : "这笔申请等待审批，尚未影响账户余额。") : detail.value?.status === "posted" ? "这笔流水已正式入账。需要更正时可提交冲销，保留原记录。" : detail.value?.status === "reversed" ? "原流水已冲销，历史记录保留。" : "这笔申请已拒绝，未产生资金分录。");
@@ -34,6 +36,7 @@ async function copyReference(link = false) {
 async function open(item: Pick<Transfer, "code">) {
   error.value = "";
   notice.value = "";
+  attachmentCount.value = 0;
   emit("error", "");
   reason.value = "";
   processing.value = null;
@@ -116,6 +119,11 @@ defineExpose({ open });
           <template v-if="detail.reason"><dt>处理原因</dt><dd>{{ detail.reason }}</dd></template>
         </dl>
 
+        <details class="drawer-disclosure">
+          <summary>图片附件（{{ attachmentCount }}）</summary>
+          <AttachmentList target-kind="transfer" :target-code="detail.code"
+            @updated="attachmentCount = $event.length" @error="error = $event" />
+        </details>
         <details class="drawer-disclosure">
           <summary>记账分录（{{ detail.journal_lines?.length || 0 }}）</summary>
           <p v-if="!detail.journal_lines?.length" class="drawer-caption">尚未产生资金分录。</p>

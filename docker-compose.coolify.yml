@@ -43,6 +43,9 @@ services:
       FGAS_WEB_AGENT_PROTOTYPE: ${FGAS_WEB_AGENT_PROTOTYPE:-1}
       FGAS_WEB_AGENT_MCP_URL: http://127.0.0.1:10622/mcp
       FGAS_DEEPSEEK_API_KEY: ${FGAS_DEEPSEEK_API_KEY:-}
+      FGAS_ATTACHMENT_DIR: /data/attachments
+    volumes:
+      - attachments-data:/data/attachments
     depends_on:
       db:
         condition: service_healthy
@@ -70,3 +73,4 @@ services:
 
 volumes:
   postgres-data:
+  attachments-data:

@@ -31,3 +31,16 @@ export async function request<T>(path: string, method = "GET", body?: unknown): 
   }
   return data as T;
 }
+
+export async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch("/api" + path, { method: "POST", credentials: "same-origin", body: form });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event("fgas-session-expired"));
+    const detail = typeof data?.detail === "string"
+      ? data.detail
+      : JSON.stringify(data?.detail || `HTTP ${response.status}`);
+    throw Object.assign(new Error(detail), { status: response.status });
+  }
+  return data as T;
+}

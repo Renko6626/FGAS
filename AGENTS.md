@@ -58,9 +58,13 @@ npm run db:init    # Alembic upgrade + 开发种子
 - 不引入微服务、队列、缓存、多主同步、通用规则引擎、幂等键/自动重试/Outbox。
 - 数据库 schema 只通过 Alembic 演进：部署由 Compose `migrate` 一次性服务在 API 启动前执行 `alembic upgrade head`；迁移前必须备份，失败即停止发布。禁止用 `create_all` 或手写 SQL 作为新装/升级路径，禁止自动 downgrade。
 - 历史 `scripts/upgrade-*.sql` 仅用于收养基线前旧库：不可丢弃的库必须备份、执行遗留脚本、校验 schema，再 `alembic stamp 0001`；可丢弃的旧库直接重建。
-- 当前发布以 `deploy/README.md` 的 Actions → ACR → Coolify 路线为准。2026-10-28 已发布 `https://fgas.secret-sealing.club`，空库 Alembic 0001、容器健康、HTTPS、SSO 跳转与匿名 MCP 拒绝访问检查通过；真实 Casdoor 登录与首位管理员绑定、带凭据的远程 MCP、备份恢复仍待验收，附件尚未实现。首位管理员配置为 `Renko_1055`，仅使用 FGAS 专用 Casdoor 凭据；平台 push/预览自动部署关闭，发版由 `v*` 标签或手动 Actions 触发。VPS 的 `fgas-acme.yaml` 保留证书验证路径，不要删除。MCP v2 已有本机 DSH 真实模型验证；DSH 0.2.1-rc.3 普通 Web 创造模式已跑通自助安装、热加载和 low 待审提交，SDK／标准模式受限不能代表该路径。
+- 当前发布以 `deploy/README.md` 的 Actions → ACR → Coolify 路线为准。2026-10-28 已发布 `https://fgas.secret-sealing.club`，空库 Alembic 0001、容器健康、HTTPS、SSO 跳转与匿名 MCP 拒绝访问检查通过；2026-11-04 用户确认真实 Casdoor 登录与首位管理员绑定、带凭据的远程 MCP 链条、备份恢复、网页助手真实聊天体验及真实 DeepSeek 公共 Key 配置均已验收；图片附件已于同日实现。首位管理员配置为 `Renko_1055`，仅使用 FGAS 专用 Casdoor 凭据；平台 push/预览自动部署关闭，发版由 `v*` 标签或手动 Actions 触发。VPS 的 `fgas-acme.yaml` 保留证书验证路径，不要删除。MCP v2 已有本机 DSH 真实模型验证；DSH 0.2.1-rc.3 普通 Web 创造模式已跑通自助安装、热加载和 low 待审提交，SDK／标准模式受限不能代表该路径。
 
 ## 已知待办线索
+
+- 2026-11-04 实现图片附件：`attachments` 表（Alembic `0003`，多态 target：transfer/stock_transfer/sku/fund_account/stock_account）、`backend/infrastructure/attachment_store.py`（`FGAS_ATTACHMENT_DIR`，按魔数识别 PNG/JPEG/WebP，单张默认 10 MiB）、`backend/application/attachments.py` 与四个 `/api/attachments` 端点；任何启用用户可上传，删除仅上传者本人或管理员；MCP 不暴露附件。前端新增动态加载的 canvas 预处理组件（裁剪比例/输出宽高/质量）与附件列表，接入资金／货物详情抽屉、SKU 与账户弹窗。Compose 新增 `attachments-data` 卷、Nginx `client_max_body_size 12m`，发布与每日备份把附件打成同一时间戳 tar。验证：后端 95 passed、前端构建通过（附件组件独立 chunk，主包 610→613 KB）、fgas_test 真实 HTTP 冒烟；未做浏览器自动交互或发布。
+
+- 2026-11-04 用户确认生产验收完成：真实 Casdoor 登录与首位管理员绑定、网页助手真实聊天体验、真实 DeepSeek 公共 Key 配置、带凭据的远程 MCP 链条、备份恢复。剩余功能待办：按活动标签汇总收支、网页助手个人 Key/聊天持久化、首次记账身份确认；详见 `docs/prototype-status.md`。
 
 - 2026-10-29 用户确认 trusted/admin 可签发和使用本人的 high，普通用户仍仅 low，降为普通用户后 high 失效。网页助手默认 low，聊天工具栏或设置可手动选择本人 low/high，切换保留原生历史。网页与外部 MCP 提示词都要求 execute 先说明具体操作及影响并取得明确确认，已确认批次不反复询问；本阶段按用户要求仅作提示词约束，不新增确认状态机。用户/角色管理仍仅管理员，Agent 无相应管理工具。
 

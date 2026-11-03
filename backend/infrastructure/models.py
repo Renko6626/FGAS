@@ -260,3 +260,23 @@ class StockStocktake(Base):
     loss_account_id: Mapped[str] = mapped_column(ForeignKey('stock_accounts.id'), unique=True)
     created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Attachment(Base):
+    __tablename__ = 'attachments'
+    __table_args__ = (
+        CheckConstraint("target_kind IN ('transfer','stock_transfer','sku','fund_account','stock_account')", name='target_kind_valid'),
+        CheckConstraint('byte_size > 0', name='byte_size_positive'),
+        Index('attachments_target_key', 'target_kind', 'target_id'),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    target_kind: Mapped[str] = mapped_column(String)
+    target_id: Mapped[str] = mapped_column(String)
+    uploaded_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    caption: Mapped[str] = mapped_column(String, default='')
+    original_filename: Mapped[str] = mapped_column(String, default='')
+    content_type: Mapped[str] = mapped_column(String)
+    byte_size: Mapped[int] = mapped_column(Integer)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

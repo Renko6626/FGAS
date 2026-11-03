@@ -38,7 +38,7 @@ npm run dev
 
 首次配置、发布命令和 GitHub Secrets 见 [部署说明](deploy/README.md)。不依赖 Docker 时，可用 [systemd 原生方式](deploy/README.native.md)（含 PM2 备选）。Compose 发布脚本在首次部署和普通更新时先备份数据库、再通过一次性 `migrate` 服务执行 Alembic；迁移失败时 API 不启动。原生部署按其文档执行备份与迁移。部署路线定位见[部署说明中的对照表](deploy/README.md)。
 
-Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应用并填写回调地址、client id/secret 和初始管理员。默认只监听服务器本机的 8080 端口；HTTPS 站点必须设置 `COOKIE_SECURE=true`。真实 Casdoor 联调、域名和 HTTPS 验收尚未完成，部署脚本不代表正式上线已验收。
+Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应用并填写回调地址、client id/secret 和初始管理员。默认只监听服务器本机的 8080 端口；HTTPS 站点必须设置 `COOKIE_SECURE=true`。真实 Casdoor 登录、域名与 HTTPS、生产发布和备份恢复已于 2026-11-04 经用户确认验收。
 
 也可以在腾讯云等支持 systemd 的 Linux 主机上从 GitHub 拉取源码部署：systemd 管理 Uvicorn 后端，Nginx 提供 `frontend/dist` 并转发 `/api`、`/mcp`，数据保存在 PostgreSQL。主机需准备 Python 3.13、Node.js 22.12 或以上版本、PostgreSQL 和 Nginx；公网使用需配置域名、HTTPS 和 Casdoor 回调地址。日常更新按“拉代码 → 按需安装依赖 → 构建前端 → 备份并执行 Alembic 迁移 → 重启服务”处理。
 
@@ -46,13 +46,21 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 
 ## 账户与标签
 
-资金表 `fund_accounts`、货物表 `stock_accounts` 公开目录共用 `code/name/kind/avatar_url/tags/active`。资金类型为 `public/private/external`；货物仅为 `internal`（实际保管）或 `external`（外部），均在创建后固定。资金联系人可空；货物公开的 `member_code/member_name` 来自当前负责人历史。图片为空或加载失败时显示名称首字，按名称生成稳定的浅背景、深文字配色。SKU 也保存可空 `avatar_url`，可在货物目录中维护缩略图 URL；货物账户复用同名字段。
+资金表 `fund_accounts`、货物表 `stock_accounts` 公开目录共用 `code/name/kind/avatar_url/tags/active`。资金类型为 `public/private/external`；货物仅为 `internal`（实际保管）或 `external`（外部），均在创建后固定。资金联系人可空；货物公开的 `member_code/member_name` 来自当前负责人历史。图片为空或加载失败时显示名称首字，按名称生成稳定的浅背景、深文字配色。SKU 也保存可空 `avatar_url`，可在货物目录中维护缩略图 URL 或直接上传本地图片；货物账户复用同名字段。
 
 资金公账合计只计 `public`；私账正数应交回、负数社团应偿还。货物 `internal` 计组织库存，成员长期代管同样属于实际保管；外部账户不计入。资金账户可关联联系人；货物账户只维护一名负责人，变更自动保留历史。
 
 货物不保存批准／执行的完整内容快照，审计仅保留操作人、时间、原因及必要的申请、资金引用编号和批准方式。2026-10-27 用户确认本轮直接同步 `0001` 并备份后重建开发 FGAS 表，不新增迁移或旧结构兼容；负责人历史的模型保留，重建后的开发数据从种子开始。
 
 标签由常用下拉选项加自定义输入组成，保存为 JSON 字符串数组，用于账户和流水筛选，不决定业务准入。停用阻止新建，不阻止已有转移处理。
+
+## 图片附件
+
+资金流水、货物转移、SKU 和资金／货物账户都可以关联私有图片（票据、付款截图、货物凭据、示意图），每个对象最多 20 张。任何启用用户可上传；删除仅限上传者本人或管理员。附件只做留档，不改变金额、数量或过账状态。
+
+上传前浏览器会打开图片预处理：拖动裁剪框并选择 1:1、4:3、3:4、16:9 等比例，独立设置输出宽高（拉伸缩放），调整 JPEG/WebP 清晰度或改存 PNG，并实时显示预计体积；多数票据和示意图可压到几十 KB。服务端按文件头识别 PNG/JPEG/WebP，单张上限默认 10 MiB（`FGAS_ATTACHMENT_MAX_BYTES`），其他格式拒绝。
+
+文件保存在 `FGAS_ATTACHMENT_DIR` 指向的统一目录，开发环境默认 `.runtime/attachments`，Compose 部署挂载持久卷到 `/data/attachments`。人工接口：`POST /api/attachments`（multipart）、`GET /api/attachments?target_kind=&target_code=`、`GET /api/attachments/{id}/file`、`DELETE /api/attachments/{id}`，均使用 Cookie 会话；MCP 暂不提供附件。SKU 与账户的“上传并设为示意图/头像”会把 `avatar_url` 填成附件地址，手填外链仍然可用。
 
 ## HTTP 契约
 
@@ -118,7 +126,7 @@ npm run build
 
 测试脚本仅允许 `fgas_test`，每次集中运行先重建该测试库的 FGAS 表；不要把日常开发库传给测试。迁移测试会在同一 PostgreSQL 实例上创建并删除独立临时库，验证 upgrade、drift check 和 downgrade，不触碰 `fgas_test` 的共享表。测试使用真实数据库及 HTTP 生产路径，Casdoor 流程通过 mock IdP 覆盖，不访问外部服务。前端验证为 TypeScript 检查和生产构建，未经要求不做浏览器自动点击/填表。
 
-真实 Casdoor、域名与 HTTPS、生产发布和备份恢复尚未验收；附件尚未实现。估值、成本、利润、订单、清点明细和请求恢复不在第一阶段范围。
+真实 Casdoor、域名与 HTTPS、生产发布和备份恢复已于 2026-11-04 验收；图片附件已实现，见“图片附件”一节。估值、成本、利润、订单、清点明细和请求恢复不在第一阶段范围。
 
 ## Agent 接入（MCP v2，开发阶段）
 

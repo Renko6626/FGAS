@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { NButton, NSelect, NModal, NConfigProvider, zhCN } from "naive-ui";
 import { workspaceTheme } from "./theme";
 import DashboardView from "./views/DashboardView.vue";
@@ -21,6 +21,7 @@ import StockTransfersView from "./views/StockTransfersView.vue";
 import StockTransferEditor from "./components/StockTransferEditor.vue";
 import TransferEditor from "./components/TransferEditor.vue";
 import AccountAvatar from "./components/AccountAvatar.vue";
+import { currentUser } from "./composables/currentUser";
 import { stocktakesEnabled } from "./features";
 const tab = ref("home");
 const targetCode = ref("");
@@ -55,6 +56,7 @@ const {
   },
 });
 const workspace = useWorkspace(user, identityEpoch, busy, error);
+watch(user, (value) => { currentUser.value = value; }, { immediate: true });
 const { accounts, locations, dashboard, counts, skus, members, revision, refresh } = workspace;
 const trusted = computed(
   () => user.value?.role === "trusted" || user.value?.role === "admin",

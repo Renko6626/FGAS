@@ -1,14 +1,15 @@
 from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
-from fastapi import APIRouter, FastAPI, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import APIRouter, FastAPI, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from backend.infrastructure import auth_config
+from backend.infrastructure import attachment_store
 from backend.infrastructure.store import transaction as database
 from backend.kernel.accounting import DomainError
 from backend.application import funds, catalogs, warehouse_catalogs, members as member_service, settlements, identity as identities, sso
 from backend.entrypoints.schemas import *
-from backend.application import agent_access, web_agent
+from backend.application import agent_access, attachments, web_agent
 from backend.application import dashboard
 from backend.entrypoints.mcp import create_mcp_app
 
@@ -191,6 +192,25 @@ def create_sku(data: SkuCreate, user=Depends(identity), db=database_dependency):
 @router.patch('/api/skus/{identifier}')
 def patch_sku(identifier: str, data: SkuPatch, user=Depends(identity), db=database_dependency):
     return warehouse_catalogs.update_sku(db, user, identifier, data.model_dump(exclude_unset=True))
+
+@router.post('/api/attachments', status_code=201)
+def upload_attachment(file: UploadFile = File(...), target_kind: str = Form(...), target_code: str = Form(...),
+                      caption: str = Form(''), width: int | None = Form(None), height: int | None = Form(None),
+                      user=Depends(identity), db=database_dependency):
+    data = file.file.read(attachment_store.max_bytes() + 1)
+    return attachments.upload(db, user, target_kind=target_kind, target_code=target_code, data=data,
+                              original_filename=file.filename or '', caption=caption, width=width, height=height)
+@router.get('/api/attachments')
+def attachment_list(target_kind: str, target_code: str, user=Depends(identity), db=database_dependency):
+    return attachments.list_for_target(db, target_kind, target_code)
+@router.get('/api/attachments/{identifier}/file')
+def attachment_file(identifier: str, user=Depends(identity), db=database_dependency):
+    item, path = attachments.get_file(db, identifier)
+    return FileResponse(path, media_type=item.content_type,
+                        headers={'Cache-Control': 'private, max-age=3600'})
+@router.delete('/api/attachments/{identifier}')
+def delete_attachment(identifier: str, user=Depends(identity), db=database_dependency):
+    return attachments.remove(db, user, identifier)
 from backend.application import warehouse
 
 @router.post('/api/stock-transfers', status_code=201)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted } from "vue";
+import { ref, shallowRef, computed, defineAsyncComponent, onMounted } from "vue";
 import { NButton, NInput, NDrawer, NDrawerContent, NSelect } from "naive-ui";
 import { money, statuses as fundStatuses } from "../presentation/funds";
 import { approvalLabel, actionNames } from "../presentation/audit";
@@ -12,6 +12,7 @@ import AccountRoute from "./AccountRoute.vue";
 import AccountLabel from "./AccountLabel.vue";
 import AccountAvatar from "./AccountAvatar.vue";
 import StockTransferEditor from "./StockTransferEditor.vue";
+const AttachmentList = defineAsyncComponent(() => import("./AttachmentList.vue"));
 const props = defineProps<{ locations: StockAccount[]; trusted: boolean; skus: Sku[]; accounts: Account[] }>();
 const emit = defineEmits<{ changed: []; error: [string] }>();
 const editor = ref<InstanceType<typeof StockTransferEditor> | null>(null);
@@ -19,6 +20,7 @@ const fund = ref("");
 const { options: fundOptions, loading: fundLoading, search: searchFunds } = useFundTransferOptions(() => fund.value ? [fund.value] : [], true);
 onMounted(() => searchFunds(""));
 const detailShow = ref(false), detail = shallowRef<StockTransfer | null>(null), busy = ref(false), error = ref(""), notice = ref("");
+const attachmentCount = ref(0);
 type Processing = "reject" | "cancel" | "return_report";
 const processing = ref<Processing | null>(null), reason = ref(""), completionDate = ref(today());
 const processingTitles = { reject: "拒绝货物转移", cancel: "取消货物转移", return_report: "退回完成报告" };
@@ -56,6 +58,7 @@ async function open(code: string) {
   busy.value = true;
   error.value = "";
   notice.value = "";
+  attachmentCount.value = 0;
   emit("error", "");
   try {
     detail.value = await warehouse.detail(code);
@@ -145,6 +148,11 @@ defineExpose({ open, busy });
           <NButton v-if="detail.related_transfer_code" size="small" :disabled="busy" @click="open(detail.related_transfer_code)">查看原货物单 {{ detail.related_transfer_code }}</NButton>
           <div v-for="item in detail.related_transfers" :key="item.code" class="drawer-related"><div class="drawer-related-heading"><AccountRoute :accounts="locations" :source-id="item.source_account_code" :destination-id="item.destination_account_code" /><span class="status-pill" :class="`status-${item.status}`">{{ stockStatuses[item.status] || item.status }}</span><NButton size="small" :disabled="busy" @click="open(item.code)">查看详情</NButton></div><div v-for="line in item.lines" :key="line.sku_code"><AccountLabel :name="`${line.sku_code} ${skus.find(s => s.code === line.sku_code)?.name || ''}`.trim()" :url="skus.find(s => s.code === line.sku_code)?.avatar_url" /><strong>{{ line.quantity }} {{ skus.find(s => s.code === line.sku_code)?.unit }}</strong></div></div>
           <p v-if="!detail.related_transfer_code && !detail.related_transfers.length" class="drawer-caption">暂无相关货物单。</p>
+        </details>
+        <details class="drawer-disclosure">
+          <summary>图片附件（{{ attachmentCount }}）</summary>
+          <AttachmentList target-kind="stock_transfer" :target-code="detail.code"
+            @updated="attachmentCount = $event.length" @error="error = $event" />
         </details>
         <details class="drawer-disclosure">
           <summary>审批与操作记录</summary>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
 import { NButton, NInput, NModal, NCheckbox, NSelect } from "naive-ui";
 import { warehouse } from "../api/warehouse";
 import type { Sku } from "../api/warehouse";
 import AccountLabel from "../components/AccountLabel.vue";
 import TagInput from "../components/TagInput.vue";
 import StatusHint from "../components/StatusHint.vue";
+const AttachmentList = defineAsyncComponent(() => import("../components/AttachmentList.vue"));
 const props = defineProps<{ items: Sku[]; editable: boolean }>(),
   emit = defineEmits<{ changed: [] }>();
 const show = ref(false),
@@ -113,6 +114,10 @@ async function save() {
       >缩略图 URL<NInput
         v-model:value="avatar"
         placeholder="留空显示名称首字" /></label
+    ><div v-if="originalCode" class="sku-media">
+      <AttachmentList target-kind="sku" :target-code="originalCode" :aspect="1" upload-label="上传并设为示意图"
+        @uploaded="avatar = $event.file_url" @error="error = $event" /></div
+    ><p v-else>保存后可上传图片作为示意图。</p
     ><NCheckbox v-model:checked="active">启用</NCheckbox>
     <p class="error">{{ error }}</p>
     <NButton :loading="busy" :disabled="!code.trim() || !name.trim() || !unit.trim()" @click="save">保存</NButton></NModal

@@ -116,6 +116,8 @@ bash deploy/apply-coolify.sh
 
 首发使用新空库，Alembic 建表，不导入开发记录或创建开发用户；首次真实登录时绑定管理员。后续发布在迁移前备份到宿主机 `/data/fgas-backups`（目录 0700，文件 0600，保留 30 天），检查备份归档可读后执行迁移，失败停止发布，不自动恢复或降级。不要在面板中移除自定义启动命令，否则会绕过备份步骤。
 
+图片附件保存在独立的 `attachments-data` 持久卷（当前实际名 `j6grshmlx7t0lxyrwhe7mlmk_attachments-data`），由 api 服务挂载到 `/data/attachments`；不要单独删除该卷。每次发布的迁移前备份会用同一时间戳额外打包 `fgas-<时间戳>-<pid>-attachments.tar`，恢复时须与对应数据库备份配对解回。Nginx 允许单次上传 12 MB，服务端硬限默认 10 MiB（`FGAS_ATTACHMENT_MAX_BYTES`）。
+
 现有 Traefik 为兼容旧站开启了 ACME bypass，FGAS 的证书验证需保留专用 HTTP 路由：[fgas-acme.yaml](fgas-acme.yaml) 对应 VPS `/data/coolify/proxy/dynamic/fgas-acme.yaml`。它仅将当前域名的 `/.well-known/acme-challenge/` 转给 `acme-http@internal`，避免验证请求被 HTTPS 跳转截获；无需修改主代理或重启。
 
 数据库使用应用自己的 `postgres-data` 持久卷（当前实际名 `j6grshmlx7t0lxyrwhe7mlmk_postgres-data`）；从 Coolify 删除资源时不要删除该卷。日志和容器状态以应用面板为准。Compose/SSH 的 `/opt/fgas`、回环 8080 和固定 `fgas` 项目名仅适用于下方保留的手动路线，不用于 Coolify 实例。
@@ -154,7 +156,7 @@ cd /opt/fgas/releases/fgas-版本号
 docker compose --env-file /opt/fgas/.env --env-file release.env -f compose.yaml ps
 ```
 
-固定项目名为 `fgas`，数据库保存在 `fgas_postgres-data` 卷，替换镜像和普通 `down` 不删除它。**不要执行 `down -v`、删除该卷，或对正式数据库运行测试脚本。** 已有其他 Compose 项目的数据卷不会自动迁移过来；接手旧环境先核对卷名、数据库和版本。
+固定项目名为 `fgas`，数据库保存在 `fgas_postgres-data` 卷，图片附件保存在 `fgas_attachments-data` 卷；替换镜像和普通 `down` 不删除它们。**不要执行 `down -v`、删除这些卷，或对正式数据库运行测试脚本。** 已有其他 Compose 项目的数据卷不会自动迁移过来；接手旧环境先核对卷名、数据库和版本。
 
 健康接口只检查数据库可连接，不能证明 schema 已升级。`apply-release.sh` 在每次更新前把数据库备份到 `/opt/fgas/backups`（`pg_dump -Fc`，保留 30 天），再执行一次性 `migrate` 服务（`alembic upgrade head`）；迁移失败会中止发布，不自动降级。手工 `docker compose up` 可能复用已退出的 one-shot 容器，更新前应显式执行 `docker compose run --rm migrate`，数据重要时先备份。
 
