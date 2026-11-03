@@ -1,6 +1,6 @@
 """Private image attachments for transfers, SKUs and accounts."""
 from backend.application.directory_views import by_code
-from backend.application.identity import authorize_write
+from backend.application.identity import authorize_write, require_admin
 from backend.infrastructure import attachment_store as files, stock_store, store
 from backend.infrastructure.models import FundAccount, Sku, StockAccount, StockTransfer, StockAudit, Transfer
 from backend.kernel.accounting import DomainError
@@ -27,8 +27,12 @@ def resolve_target(db, target_kind, target_code):
 def view(db, item):
     uploader = store.get_user(db, item.uploaded_by)
     target = db.get(TARGET_MODELS[item.target_kind], item.target_id)
+    target_name = None
+    if target is not None:
+        target_name = getattr(target, 'description', None) or getattr(target, 'name', None) or None
     return dict(
         id=item.id, target_kind=item.target_kind, target_code=target.code if target else None,
+        target_name=target_name,
         caption=item.caption, content_type=item.content_type, byte_size=item.byte_size,
         width=item.width, height=item.height, original_filename=item.original_filename,
         uploaded_by_id=item.uploaded_by,
@@ -81,6 +85,21 @@ def upload(db, user, *, target_kind, target_code, data, original_filename='', ca
 def list_for_target(db, target_kind, target_code):
     target = resolve_target(db, target_kind, target_code)
     return [view(db, item) for item in files.list_by_target(db, target_kind, target.id)]
+
+
+def admin_list(db, user, *, kind=None, q=None, page=1, limit=24):
+    require_admin(user)
+    if kind and kind not in TARGET_MODELS:
+        raise DomainError('不支持的附件对象类型', 400)
+    entries = [view(db, item) for item in files.all_items(db, kind)]
+    term = (q or '').strip().casefold()
+    if term:
+        entries = [item for item in entries if term in ' '.join(
+            str(item[key] or '') for key in ('caption', 'original_filename', 'uploaded_by_name', 'target_code', 'target_name')
+        ).casefold()]
+    total_bytes = sum(item['byte_size'] for item in entries)
+    start = (page - 1) * limit
+    return dict(items=entries[start:start + limit], total=len(entries), total_bytes=total_bytes, page=page, limit=limit)
 
 
 def get_file(db, identifier):

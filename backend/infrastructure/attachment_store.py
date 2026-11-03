@@ -93,6 +93,13 @@ def list_by_target(db, target_kind, target_id):
     return list(db.scalars(query))
 
 
+def all_items(db, kind=None):
+    query = select(Attachment).order_by(Attachment.created_at.desc(), Attachment.id.desc())
+    if kind:
+        query = query.where(Attachment.target_kind == kind)
+    return list(db.scalars(query))
+
+
 def count_by_target(db, target_kind, target_id):
     return int(db.scalar(select(func.count()).select_from(Attachment)
                          .where(Attachment.target_kind == target_kind, Attachment.target_id == target_id)))

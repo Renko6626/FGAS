@@ -20,9 +20,11 @@
 
 按 2026-10-26 待办与用户确认的朴素方案实现私有图片附件：新增 Alembic `0003` 与 `attachments` 表（多态 target：资金单、货物单、SKU、资金账户、货物账户；记录上传人、说明、原始文件名、格式、字节数、宽高），文件按 UUID 存入 `FGAS_ATTACHMENT_DIR` 统一目录（开发默认 `.runtime/attachments`），按魔数识别 PNG/JPEG/WebP，单张默认 10 MiB、每对象最多 20 张，写入使用临时文件加 rename。`POST /api/attachments`、列表、文件读取（`Cache-Control: private`）和删除均走 Cookie 会话：任何启用用户可上传；删除仅上传者本人或管理员；资金/货物目标写审计，SKU/账户不写。附件不影响金额、数量或过账状态；MCP 不暴露附件。
 
-前端新增动态加载的 canvas 预处理弹窗（裁剪框与 1:1/4:3/3:4/16:9 比例、独立输出宽高、JPEG/WebP 质量、PNG 透明、体积预估与 WebP 回退提示）和附件列表组件；接入资金/货物详情抽屉的折叠区、SKU 与资金/货物账户编辑弹窗。SKU/账户“上传并设为示意图/头像”把 `avatar_url` 填成附件地址，手填外链保留。部署新增 `attachments-data` 卷挂载 `/data/attachments`、Nginx `client_max_body_size 12m`，`apply-coolify.sh`、`apply-release.sh` 与 `backup-db.sh` 以同一时间戳打包附件 tar（保留 30 天），恢复需与数据库备份配对。
+前端新增动态加载的 canvas 预处理弹窗（裁剪框与 1:1/4:3/3:4/16:9 比例、独立输出宽高、JPEG/WebP 质量、PNG 透明、体积预估与 WebP 回退提示）和附件列表组件；接入资金/货物详情抽屉的折叠区、SKU 与资金/货物账户编辑弹窗。SKU/账户“上传并设为示意图/头像”把 `avatar_url` 填成附件地址，手填外链保留。弹窗后续调整为传统图片编辑布局：大图 + 遮罩裁剪框（三分线、四角/四边把手、固定比例按对角缩放）+ 右侧实时效果预览。管理员另有“基础资料 → 图片附件”总览（`GET /api/admin/attachments`，分页、按类型/关键字筛选、总量统计、预览、删除与跳转原单），仅管理员可见。部署新增 `attachments-data` 卷挂载 `/data/attachments`、Nginx `client_max_body_size 12m`，`apply-coolify.sh`、`apply-release.sh` 与 `backup-db.sh` 以同一时间戳打包附件 tar（保留 30 天），恢复需与数据库备份配对。
 
-验证：`./tools/run_tests.sh` 在专用 fgas_test 上 **95 passed, 3 skipped**（含迁移一致性与新增 5 个附件用例：上传/读取字节一致、审计、删除权限、非法格式/超限/不存在 target、SKU 头像回填）；`npm run build` 通过，附件组件为独立 chunk（AttachmentList 29.22 kB、ImagePrepareDialog 36.71 kB），主包 610.00→612.88 kB；两份 Compose `config --quiet`、`bash -n`、`compileall` 通过；在 fgas_test 上以临时服务完成真实 HTTP 冒烟（登录、上传、列表、取文件字节一致、删除后 404、目录清空）后停止并清理。未做浏览器自动点击/填表（画布压缩交互未实际运行）、未发布生产。
+验证：`./tools/run_tests.sh` 在专用 fgas_test 上 **96 passed, 3 skipped**（含迁移一致性与新增 6 个附件用例：上传/读取字节一致、审计、删除权限、非法格式/超限/不存在 target、SKU 头像回填、管理员总览权限与筛选）；`npm run build` 通过，附件组件与管理员总览均为独立 chunk，主包 610.00→613.29 kB；两份 Compose `config --quiet`、`bash -n`、`compileall` 通过；在 fgas_test 上以临时服务完成真实 HTTP 冒烟（登录、上传、列表、取文件字节一致、删除后 404、目录清空）后停止并清理；裁剪几何以 240 万次随机拖拽仿真校验无越界、比例误差仅为整数像素取整。未做浏览器自动点击/填表（画布压缩与管理页交互未实际运行）。
+
+同日发布生产：Actions `41687146226` 构建与 ACR 推送成功，Deploy with Coolify 步骤因 VPS 克隆 GitHub 的 TLS 连接中断（exit 128，`SSL_read: unexpected eof`）失败；在 Coolify 手动 Redeploy 后完成。迁移前备份 `/data/fgas-backups/fgas-20261103T181035Z-2720654-pre-migrate.dump`（73760 字节）与同时间戳 `-attachments.tar`（10240 字节，空卷），pg_restore 清单可读。公网健康返回提交 `cd85c03`、schema `0003`；web/api/db healthy，`attachments-data` 卷挂载在 `/data/attachments`，`attachments` 表存在，匿名 `/api/attachments` 返回 401，首页 200。未在浏览器中执行真实登录后上传/裁剪交互。
 
 ## 2026-11-04：生产验收确认
 

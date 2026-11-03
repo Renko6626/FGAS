@@ -6,6 +6,7 @@ export interface Attachment {
   id: string;
   target_kind: AttachmentTarget;
   target_code: string | null;
+  target_name: string | null;
   caption: string;
   content_type: string;
   byte_size: number;
@@ -16,6 +17,14 @@ export interface Attachment {
   uploaded_by_name: string | null;
   created_at: string;
   file_url: string;
+}
+
+export interface AdminAttachmentPage {
+  items: Attachment[];
+  total: number;
+  total_bytes: number;
+  page: number;
+  limit: number;
 }
 
 export interface AttachmentUpload {
@@ -40,4 +49,6 @@ export const attachmentsApi = {
     return requestForm<Attachment>("/attachments", form);
   },
   remove: (id: string) => request<{ ok: boolean }>(`/attachments/${id}`, "DELETE"),
+  adminList: (params: { kind?: string; q?: string; page?: number; limit?: number }) =>
+    request<AdminAttachmentPage>(`/admin/attachments${query(params)}`),
 };

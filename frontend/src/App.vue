@@ -12,6 +12,7 @@ import SettlementsView from "./views/SettlementsView.vue";
 import MembersView from "./views/MembersView.vue";
 import UsersView from "./views/UsersView.vue";
 import AgentConnectionsView from "./views/AgentConnectionsView.vue";
+const AttachmentsView = defineAsyncComponent(() => import("./views/AttachmentsView.vue"));
 const QuickStartView = defineAsyncComponent(() => import("./views/QuickStartView.vue"));
 const SharedModelSettingsView = defineAsyncComponent(() => import("./views/SharedModelSettingsView.vue"));
 const FloatingWebAgent = defineAsyncComponent(() => import("./components/FloatingWebAgent.vue"));
@@ -78,6 +79,7 @@ const pages: Record<string, { title: string }> = {
   locations: { title: "货物账户" },
   members: { title: "成员与联系人" },
   users: { title: "用户权限" },
+  attachments: { title: "图片附件" },
   agentConnections: { title: "Agent 连接" },
   sharedModelSettings: { title: "公共模型设置" },
 };
@@ -118,6 +120,7 @@ const groups = computed(() => [
       { value: "agentConnections", label: "Agent 连接" },
       ...(user.value?.role === "admin"
         ? [{ value: "users", label: "用户权限" },
+           { value: "attachments", label: "图片附件" },
            ...(webAgentEnabled.value ? [{ value: "sharedModelSettings", label: "公共模型设置" }] : [])]
         : []),
     ],
@@ -432,6 +435,10 @@ onMounted(async () => {
               v-else-if="tab === 'users' && user.role === 'admin'"
               :current-user-id="user.id"
               @changed="permissionChanged"
+            />
+            <AttachmentsView
+              v-else-if="tab === 'attachments' && user.role === 'admin'"
+              :key="`${user.id}:${identityEpoch}`"
             />
             <SharedModelSettingsView
               v-else-if="tab === 'sharedModelSettings' && user.role === 'admin' && webAgentEnabled"

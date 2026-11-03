@@ -203,6 +203,11 @@ def upload_attachment(file: UploadFile = File(...), target_kind: str = Form(...)
 @router.get('/api/attachments')
 def attachment_list(target_kind: str, target_code: str, user=Depends(identity), db=database_dependency):
     return attachments.list_for_target(db, target_kind, target_code)
+@router.get('/api/admin/attachments')
+def admin_attachment_list(kind: str | None=None, q: str | None=None,
+                          page: int=Query(1, ge=1), limit: int=Query(24, ge=1, le=100),
+                          user=Depends(identity), db=database_dependency):
+    return attachments.admin_list(db, user, kind=kind, q=q, page=page, limit=limit)
 @router.get('/api/attachments/{identifier}/file')
 def attachment_file(identifier: str, user=Depends(identity), db=database_dependency):
     item, path = attachments.get_file(db, identifier)

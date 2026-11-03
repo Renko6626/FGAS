@@ -90,3 +90,18 @@ def test_sku_attachment_sets_avatar(client, tmp_path, monkeypatch):
     found = next(entry for entry in client.get('/api/skus').json() if entry['code'] == sku)
     assert found['avatar_url'] == item['file_url']
     assert client.get(item['file_url']).content == PNG
+
+
+def test_admin_attachment_overview(client, tmp_path, monkeypatch):
+    monkeypatch.setenv('FGAS_ATTACHMENT_DIR', str(tmp_path))
+    code = transfer(client)['code']
+    item = upload(client, 'transfer', code, caption='管理总览').json()
+    client.post('/api/auth/login', json={'user_id': 'untrusted'})
+    assert client.get('/api/admin/attachments').status_code == 403
+    client.post('/api/auth/login', json={'user_id': 'admin'})
+    library = client.get('/api/admin/attachments').json()
+    assert library['total'] >= 1 and library['total_bytes'] >= len(PNG)
+    assert any(entry['id'] == item['id'] and entry['target_code'] == code for entry in library['items'])
+    filtered = client.get('/api/admin/attachments', params={'q': code}).json()
+    assert filtered['total'] == 1
+    assert client.get('/api/admin/attachments', params={'kind': 'sku'}).json()['total'] == 0

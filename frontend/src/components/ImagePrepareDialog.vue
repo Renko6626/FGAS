@@ -22,6 +22,7 @@ const ratioOptions = [
 const fileInput = ref<HTMLInputElement | null>(null);
 const stage = ref<HTMLDivElement | null>(null);
 const bitmap = ref<ImageBitmap | null>(null);
+const sourceUrl = ref("");
 const sourceW = ref(0);
 const sourceH = ref(0);
 const crop = ref({ x: 0, y: 0, w: 1, h: 1 });
@@ -57,7 +58,7 @@ const qualityEnabled = computed(() => format.value !== "image/png");
 
 watch(() => props.show, (value) => {
   if (value) resetState();
-  else clearPreview();
+  else { endDrag(); clearPreview(); }
 });
 watch(ratio, () => { if (bitmap.value) applyRatio(); });
 watch([format, quality], () => schedulePreview());
@@ -73,6 +74,8 @@ function clearPreview() {
 function resetState() {
   bitmap.value?.close();
   bitmap.value = null;
+  if (sourceUrl.value) URL.revokeObjectURL(sourceUrl.value);
+  sourceUrl.value = "";
   sourceW.value = 0;
   sourceH.value = 0;
   clearPreview();
@@ -106,6 +109,8 @@ async function loadFile(file: File | null | undefined) {
     const image = await createImageBitmap(file);
     bitmap.value?.close();
     bitmap.value = image;
+    if (sourceUrl.value) URL.revokeObjectURL(sourceUrl.value);
+    sourceUrl.value = URL.createObjectURL(file);
     sourceW.value = image.width;
     sourceH.value = image.height;
     originalName.value = file.name.replace(/\.[^.]+$/, "") || "image";
@@ -153,9 +158,9 @@ function setOutHeight(value: number | null) {
   schedulePreview();
 }
 
-type DragMode = "move" | "nw" | "ne" | "sw" | "se";
-interface DragState { mode: DragMode; startX: number; startY: number; crop: { x: number; y: number; w: number; h: number } }
-let drag: DragState | null = null;
+type DragMode = "move" | "nw" | "ne" | "sw" | "se" | "n" | "e" | "s" | "w";
+interface CropRect { x: number; y: number; w: number; h: number }
+let drag: { mode: DragMode; startX: number; startY: number; crop: CropRect } | null = null;
 
 function startDrag(event: PointerEvent, mode: DragMode) {
   if (!bitmap.value) return;
@@ -170,6 +175,33 @@ function endDrag() {
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup", endDrag);
 }
+
+function resizeFree(start: CropRect, mode: DragMode, dx: number, dy: number, min: number): CropRect {
+  let left = start.x, top = start.y, right = start.x + start.w, bottom = start.y + start.h;
+  if (mode.includes("w")) left = clamp(left + dx, 0, right - min);
+  if (mode.includes("e")) right = clamp(right + dx, left + min, sourceW.value);
+  if (mode.includes("n")) top = clamp(top + dy, 0, bottom - min);
+  if (mode.includes("s")) bottom = clamp(bottom + dy, top + min, sourceH.value);
+  return { x: left, y: top, w: right - left, h: bottom - top };
+}
+
+function resizeLocked(start: CropRect, mode: DragMode, dx: number, dy: number, min: number): CropRect {
+  const target = ratio.value;
+  const west = mode.includes("w");
+  const north = mode.includes("n");
+  const anchorX = west ? start.x + start.w : start.x;
+  const anchorY = north ? start.y + start.h : start.y;
+  const maxW = west ? anchorX : sourceW.value - anchorX;
+  const maxH = north ? anchorY : sourceH.value - anchorY;
+  const widthFromX = west ? start.w - dx : start.w + dx;
+  const widthFromY = (north ? start.h - dy : start.h + dy) * target;
+  let width = Math.abs(dx) >= Math.abs(dy) ? widthFromX : widthFromY;
+  const limit = Math.max(min, Math.min(maxW, maxH * target));
+  width = clamp(width, min, limit);
+  const height = width / target;
+  return { x: west ? anchorX - width : anchorX, y: north ? anchorY - height : anchorY, w: width, h: height };
+}
+
 function onPointerMove(event: PointerEvent) {
   if (!drag || !stage.value) return;
   const box = stage.value.getBoundingClientRect();
@@ -177,27 +209,30 @@ function onPointerMove(event: PointerEvent) {
   const dx = (event.clientX - drag.startX) * (sourceW.value / box.width);
   const dy = (event.clientY - drag.startY) * (sourceH.value / box.height);
   const min = 16;
-  const next = { ...drag.crop };
+  let next: CropRect;
   if (drag.mode === "move") {
-    next.x = clamp(next.x + dx, 0, sourceW.value - next.w);
-    next.y = clamp(next.y + dy, 0, sourceH.value - next.h);
+    next = {
+      ...drag.crop,
+      x: clamp(drag.crop.x + dx, 0, sourceW.value - drag.crop.w),
+      y: clamp(drag.crop.y + dy, 0, sourceH.value - drag.crop.h),
+    };
   } else if (ratio.value > 0) {
-    const width = clamp(drag.crop.w + dx, min, sourceW.value - next.x);
-    let height = width / ratio.value;
-    if (next.y + height > sourceH.value) {
-      height = sourceH.value - next.y;
-    }
-    next.w = Math.max(min, width);
-    next.h = Math.max(min, height);
+    next = resizeLocked(drag.crop, drag.mode, dx, dy, min);
   } else {
-    let left = next.x, top = next.y, right = next.x + next.w, bottom = next.y + next.h;
-    if (drag.mode.includes("w")) left = clamp(left + dx, 0, right - min);
-    if (drag.mode.includes("e")) right = clamp(right + dx, left + min, sourceW.value);
-    if (drag.mode.includes("n")) top = clamp(top + dy, 0, bottom - min);
-    if (drag.mode.includes("s")) bottom = clamp(bottom + dy, top + min, sourceH.value);
-    next.x = left; next.y = top; next.w = right - left; next.h = bottom - top;
+    next = resizeFree(drag.crop, drag.mode, dx, dy, min);
   }
-  crop.value = { x: Math.round(next.x), y: Math.round(next.y), w: Math.round(next.w), h: Math.round(next.h) };
+  const rounded = {
+    x: Math.round(next.x),
+    y: Math.round(next.y),
+    w: Math.max(1, Math.round(next.w)),
+    h: Math.max(1, Math.round(next.h)),
+  };
+  if (ratio.value > 0) {
+    rounded.h = Math.max(1, Math.round(rounded.w / ratio.value));
+    rounded.x = clamp(rounded.x, 0, sourceW.value - rounded.w);
+    rounded.y = clamp(rounded.y, 0, sourceH.value - rounded.h);
+  }
+  crop.value = rounded;
   if (linked.value) outHeight.value = Math.max(16, Math.round(outWidth.value / cropRatio.value));
   schedulePreview();
 }
@@ -234,9 +269,10 @@ async function renderPreview() {
   note.value = blob.type !== format.value ? "当前浏览器不支持所选格式，将改用 PNG 输出。" : "";
 }
 
-function confirm() {
+async function confirm() {
+  await renderPreview();
   const blob = pendingBlob.value;
-  if (!blob) { error.value = "图片仍在处理中，请稍候"; return; }
+  if (!blob) { error.value = "无法生成图片，请调整尺寸后重试"; return; }
   const ext = blob.type === "image/jpeg" ? "jpg" : blob.type === "image/webp" ? "webp" : "png";
   emit("confirm", {
     blob,
@@ -252,11 +288,13 @@ onBeforeUnmount(() => {
   endDrag();
   clearPreview();
   bitmap.value?.close();
+  if (sourceUrl.value) URL.revokeObjectURL(sourceUrl.value);
 });
 </script>
 
 <template>
-  <NModal v-model:show="shown" preset="card" title="准备图片" class="dialog prepare-dialog" :style="{ width: '760px', maxWidth: 'calc(100vw - 24px)' }">
+  <NModal v-model:show="shown" preset="card" title="准备图片" class="dialog prepare-dialog"
+    :style="{ width: '960px', maxWidth: 'calc(100vw - 24px)' }">
     <template v-if="!bitmap">
       <div class="prepare-drop" role="button" tabindex="0" @click="pick" @keydown.enter="pick"
         @dragover.prevent @drop.prevent="drop">
@@ -266,24 +304,42 @@ onBeforeUnmount(() => {
       <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="choose" />
     </template>
     <template v-else>
-      <div class="prepare-grid">
-        <div class="prepare-stage-wrap">
-          <div ref="stage" class="prepare-stage">
-            <div class="prepare-crop" :style="cropStyle" @pointerdown="startDrag($event, 'move')">
-              <template v-if="ratio > 0">
-                <span class="prepare-handle se" @pointerdown="startDrag($event, 'se')" />
-              </template>
-              <template v-else>
-                <span class="prepare-handle nw" @pointerdown="startDrag($event, 'nw')" />
-                <span class="prepare-handle ne" @pointerdown="startDrag($event, 'ne')" />
-                <span class="prepare-handle sw" @pointerdown="startDrag($event, 'sw')" />
-                <span class="prepare-handle se" @pointerdown="startDrag($event, 'se')" />
-              </template>
+      <div class="prepare-layout">
+        <div class="prepare-editor">
+          <div class="prepare-stage" @dragover.prevent @drop.prevent="drop">
+            <div ref="stage" class="prepare-canvas">
+              <img :src="sourceUrl" alt="待处理图片" draggable="false" />
+              <div class="prepare-crop" :style="cropStyle" @pointerdown="startDrag($event, 'move')">
+                <span class="prepare-grid" aria-hidden="true" />
+                <span class="prepare-handle corner nw" @pointerdown="startDrag($event, 'nw')" />
+                <span class="prepare-handle corner ne" @pointerdown="startDrag($event, 'ne')" />
+                <span class="prepare-handle corner sw" @pointerdown="startDrag($event, 'sw')" />
+                <span class="prepare-handle corner se" @pointerdown="startDrag($event, 'se')" />
+                <template v-if="ratio === 0">
+                  <span class="prepare-handle edge n" @pointerdown="startDrag($event, 'n')" />
+                  <span class="prepare-handle edge e" @pointerdown="startDrag($event, 'e')" />
+                  <span class="prepare-handle edge s" @pointerdown="startDrag($event, 's')" />
+                  <span class="prepare-handle edge w" @pointerdown="startDrag($event, 'w')" />
+                </template>
+              </div>
             </div>
           </div>
-          <p class="prepare-meta">原图 {{ sourceW }} × {{ sourceH }}；裁剪区域 {{ Math.round(crop.w) }} × {{ Math.round(crop.h) }}。拖动选区移动，拖动角点调整大小。</p>
+          <p class="prepare-meta">
+            原图 {{ sourceW }} × {{ sourceH }}，裁剪区域 {{ Math.round(crop.w) }} × {{ Math.round(crop.h) }}。
+            拖动选区移动，拖动角点或边调整大小；固定比例时角点按比例缩放。
+          </p>
         </div>
         <div class="prepare-controls">
+          <div class="prepare-preview-card">
+            <div class="prepare-preview-stage">
+              <img v-if="previewUrl" :src="previewUrl" alt="处理效果预览" />
+              <span v-else>{{ preparing ? "正在生成预览…" : "效果预览" }}</span>
+            </div>
+            <p class="prepare-preview-size">
+              <template v-if="previewSize">预计 {{ previewKb }} KB · {{ outWidth }} × {{ outHeight }}</template>
+              <template v-else>调整裁剪或尺寸后在这里查看效果</template>
+            </p>
+          </div>
           <label>裁剪比例<NSelect v-model:value="ratio" :options="ratioOptions" /></label>
           <label>输出尺寸
             <div class="prepare-size">
@@ -295,16 +351,11 @@ onBeforeUnmount(() => {
           <p class="prepare-hint">
             <span v-if="linked">宽高按裁剪比例联动；</span>
             <span v-else>宽高独立，会拉伸图片；</span>
-            <NButton text type="primary" size="tiny" @click="linked = !linked">{{ linked ? '解除联动以拉伸' : '恢复按比例联动' }}</NButton>
+            <NButton text type="primary" size="tiny" @click="linked = !linked">{{ linked ? "解除联动以拉伸" : "恢复按比例联动" }}</NButton>
           </p>
           <label>格式<NSelect v-model:value="format" :options="formatOptions" /></label>
           <label>清晰度 {{ quality }}%<NSlider v-model:value="quality" :min="30" :max="100" :step="5" :disabled="!qualityEnabled" /></label>
           <label>说明（可选）<NInput v-model:value="caption" maxlength="200" placeholder="如：8月摊位费收据" /></label>
-          <div class="prepare-preview">
-            <img v-if="previewUrl" :src="previewUrl" alt="压缩预览" />
-            <span v-if="preparing">正在生成预览…</span>
-            <span v-else-if="previewSize">预计 {{ previewKb }} KB（{{ outWidth }} × {{ outHeight }}）</span>
-          </div>
           <p v-if="note" class="prepare-hint">{{ note }}</p>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
         </div>
@@ -320,25 +371,46 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.prepare-drop { display:flex; flex-direction:column; align-items:center; gap:8px; padding:40px 20px; border:1px dashed #9fb3c4; border-radius:8px; background:#f7f9fa; cursor:pointer; text-align:center; }
+.prepare-drop { display:flex; flex-direction:column; align-items:center; gap:8px; padding:44px 20px; border:1px dashed #9fb3c4; border-radius:8px; background:#f7f9fa; cursor:pointer; text-align:center; }
 .prepare-drop span { color:#66707c; font-size:13px; max-width:520px; }
-.prepare-grid { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(220px,1fr); gap:16px; }
-.prepare-stage-wrap { min-width:0; }
-.prepare-stage { position:relative; display:inline-block; max-width:100%; overflow:hidden; line-height:0; background:#0f1c26; touch-action:none; }
-.prepare-stage :deep(img) { display:block; max-width:100%; max-height:360px; }
-.prepare-crop { position:absolute; cursor:move; box-shadow:0 0 0 9999px rgba(15,28,38,.5); border:1px solid #fff; }
-.prepare-handle { position:absolute; width:12px; height:12px; background:#fff; border:1px solid #345d78; }
-.prepare-handle.nw { left:-6px; top:-6px; cursor:nwse-resize; }
-.prepare-handle.ne { right:-6px; top:-6px; cursor:nesw-resize; }
-.prepare-handle.sw { left:-6px; bottom:-6px; cursor:nesw-resize; }
-.prepare-handle.se { right:-6px; bottom:-6px; cursor:nwse-resize; }
+.prepare-layout { display:grid; grid-template-columns:minmax(0,1fr) 272px; gap:16px; align-items:start; }
+.prepare-editor { min-width:0; }
+.prepare-stage { position:relative; display:flex; justify-content:center; align-items:center; min-height:220px; max-height:480px; overflow:hidden; background:#0f1c26; border-radius:8px; touch-action:none; }
+.prepare-canvas { position:relative; display:inline-block; max-width:100%; line-height:0; }
+.prepare-canvas img { display:block; max-width:100%; max-height:480px; user-select:none; }
+.prepare-crop { position:absolute; cursor:move; box-shadow:0 0 0 9999px rgba(15,28,38,.55); border:1px solid #fff; touch-action:none; }
+.prepare-grid { position:absolute; inset:0; pointer-events:none; background-image:
+  linear-gradient(to right, rgba(255,255,255,.35) 1px, transparent 1px),
+  linear-gradient(to bottom, rgba(255,255,255,.35) 1px, transparent 1px);
+  background-size:33.333% 33.333%; opacity:.7; }
+.prepare-handle { position:absolute; background:#fff; border:1px solid #345d78; border-radius:2px; touch-action:none; }
+.prepare-handle.corner { width:12px; height:12px; }
+.prepare-handle.corner.nw { left:-6px; top:-6px; cursor:nwse-resize; }
+.prepare-handle.corner.ne { right:-6px; top:-6px; cursor:nesw-resize; }
+.prepare-handle.corner.sw { left:-6px; bottom:-6px; cursor:nesw-resize; }
+.prepare-handle.corner.se { right:-6px; bottom:-6px; cursor:nwse-resize; }
+.prepare-handle.edge { width:20px; height:10px; }
+.prepare-handle.edge.n { left:50%; top:-5px; transform:translateX(-50%); cursor:ns-resize; }
+.prepare-handle.edge.s { left:50%; bottom:-5px; transform:translateX(-50%); cursor:ns-resize; }
+.prepare-handle.edge.e { top:50%; right:-5px; transform:translateY(-50%); width:10px; height:20px; cursor:ew-resize; }
+.prepare-handle.edge.w { top:50%; left:-5px; transform:translateY(-50%); width:10px; height:20px; cursor:ew-resize; }
 .prepare-meta, .prepare-hint { color:#66707c; font-size:12px; line-height:1.6; margin:6px 0 0; }
 .prepare-controls { display:flex; flex-direction:column; gap:10px; min-width:0; }
 .prepare-controls label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:#34515f; }
+.prepare-preview-card { display:flex; flex-direction:column; gap:6px; }
+.prepare-preview-stage { display:flex; align-items:center; justify-content:center; min-height:132px; max-height:180px; padding:6px; border:1px solid #e3e8ec; border-radius:8px;
+  background-color:#fafbfc;
+  background-image:linear-gradient(45deg,#eef1f3 25%,transparent 25%,transparent 75%,#eef1f3 75%),linear-gradient(45deg,#eef1f3 25%,transparent 25%,transparent 75%,#eef1f3 75%);
+  background-size:16px 16px; background-position:0 0,8px 8px; }
+.prepare-preview-stage img { display:block; max-width:100%; max-height:168px; }
+.prepare-preview-stage span { color:#8a949e; font-size:12px; }
+.prepare-preview-size { margin:0; color:#66707c; font-size:12px; }
 .prepare-size { display:flex; align-items:center; gap:6px; }
 .prepare-size span { color:#66707c; }
-.prepare-preview { display:flex; flex-direction:column; gap:4px; color:#66707c; font-size:12px; }
-.prepare-preview img { max-width:100%; max-height:120px; object-fit:contain; border:1px solid #e3e8ec; background:#fff; }
 .actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
-@media (max-width:640px) { .prepare-grid { grid-template-columns:minmax(0,1fr); } }
+@media (max-width:760px) {
+  .prepare-layout { grid-template-columns:minmax(0,1fr); }
+  .prepare-controls { order:2; }
+  .prepare-stage, .prepare-canvas img { max-height:320px; }
+}
 </style>

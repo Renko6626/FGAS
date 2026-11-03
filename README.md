@@ -60,7 +60,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 
 上传前浏览器会打开图片预处理：拖动裁剪框并选择 1:1、4:3、3:4、16:9 等比例，独立设置输出宽高（拉伸缩放），调整 JPEG/WebP 清晰度或改存 PNG，并实时显示预计体积；多数票据和示意图可压到几十 KB。服务端按文件头识别 PNG/JPEG/WebP，单张上限默认 10 MiB（`FGAS_ATTACHMENT_MAX_BYTES`），其他格式拒绝。
 
-文件保存在 `FGAS_ATTACHMENT_DIR` 指向的统一目录，开发环境默认 `.runtime/attachments`，Compose 部署挂载持久卷到 `/data/attachments`。人工接口：`POST /api/attachments`（multipart）、`GET /api/attachments?target_kind=&target_code=`、`GET /api/attachments/{id}/file`、`DELETE /api/attachments/{id}`，均使用 Cookie 会话；MCP 暂不提供附件。SKU 与账户的“上传并设为示意图/头像”会把 `avatar_url` 填成附件地址，手填外链仍然可用。
+文件保存在 `FGAS_ATTACHMENT_DIR` 指向的统一目录，开发环境默认 `.runtime/attachments`，Compose 部署挂载持久卷到 `/data/attachments`。人工接口：`POST /api/attachments`（multipart）、`GET /api/attachments?target_kind=&target_code=`、`GET /api/attachments/{id}/file`、`DELETE /api/attachments/{id}`，均使用 Cookie 会话；MCP 暂不提供附件。管理员另有“基础资料 → 图片附件”总览，可浏览、筛选、预览和删除全部图片并跳转来源单据，接口为 `GET /api/admin/attachments`。SKU 与账户的“上传并设为示意图/头像”会把 `avatar_url` 填成附件地址，手填外链仍然可用。
 
 ## HTTP 契约
 
