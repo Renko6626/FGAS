@@ -47,6 +47,7 @@ sudo -u fgas -H bash -c 'cd /srv/fgas && npm run db:init'
 
 ```bash
 sudo -u fgas -H bash -c 'cd /srv/fgas && npm run build'
+sudo -u fgas mkdir -p /srv/fgas/.runtime/attachments
 sudo cp /srv/fgas/deploy/fgas.service /srv/fgas/deploy/fgas-migrate.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now fgas
@@ -56,7 +57,9 @@ curl --fail http://127.0.0.1:10622/api/health
 
 健康接口应返回 status=ok。检查失败时先看 `journalctl -u fgas -n 100 --no-pager`，修好后再继续；systemd 显示 active 本身不能证明数据库可用。接口还会返回 `version`、`git_sha` 和 `schema_revision`，用于确认部署版本与迁移状态；版本信息可用 `.env` 中的 `FGAS_VERSION`、`FGAS_GIT_SHA` 覆盖，未设置时 `git_sha` 从项目 `.git` 读取。
 
-单元文件默认开启 `ProtectSystem=strict`、`PrivateTmp` 等加固，项目目录对服务只读；后端不需要写文件，日志交给 journald。代码放在家目录时 `ProtectHome=read-only` 仍可读取，若以后新增本地写文件需求，再用 `ReadWritePaths` 精确放行，不要直接关闭整个加固。端口写死在 `ExecStart` 中：修改 `.env` 的 `API_PORT` 时，要同步修改 [fgas.service](fgas.service) 的 `--port` 和 Nginx 配置，然后 `sudo systemctl daemon-reload` 再重启。
+单元文件默认开启 `ProtectSystem=strict`、`PrivateTmp` 等加固，仅通过 `ReadWritePaths` 放行 `/srv/fgas/.runtime/attachments` 供图片附件写入，项目其他目录对服务只读，日志交给 journald。附件目录须在启动前创建；若在 `.env` 中自定义 `FGAS_ATTACHMENT_DIR`，须创建该目录、赋予 `fgas` 用户写权限，并同步修改单元中的 `ReadWritePaths`。代码放在家目录时 `ProtectHome=read-only` 仍可读取。端口写死在 `ExecStart` 中：修改 `.env` 的 `API_PORT` 时，要同步修改 [fgas.service](fgas.service) 的 `--port` 和 Nginx 配置，然后 `sudo systemctl daemon-reload` 再重启。
+
+已有原生部署升级图片附件功能时，也须执行上面的建目录和复制单元命令，再运行 `sudo systemctl daemon-reload` 与 `sudo systemctl restart fgas`。
 
 ## 网页和 MCP 如何对外提供
 
