@@ -12,6 +12,7 @@ import SettlementsView from "./views/SettlementsView.vue";
 import MembersView from "./views/MembersView.vue";
 import UsersView from "./views/UsersView.vue";
 import AgentConnectionsView from "./views/AgentConnectionsView.vue";
+const ExportsView = defineAsyncComponent(() => import("./views/ExportsView.vue"));
 const AttachmentsView = defineAsyncComponent(() => import("./views/AttachmentsView.vue"));
 const QuickStartView = defineAsyncComponent(() => import("./views/QuickStartView.vue"));
 const SharedModelSettingsView = defineAsyncComponent(() => import("./views/SharedModelSettingsView.vue"));
@@ -68,6 +69,7 @@ const webAgent = ref<{ openWithDraft: (message: string) => void } | null>(null);
 const pages: Record<string, { title: string }> = {
   home: { title: "工作首页" },
   quickStart: { title: "快速了解" },
+  exports: { title: "导出台账" },
   accounts: { title: "资金账户" },
   transfers: { title: "资金流水" },
   settlements: { title: "私账结算" },
@@ -89,6 +91,7 @@ const groups = computed(() => [
     items: [
       { value: "home", label: "工作首页" },
       { value: "quickStart", label: "快速了解" },
+      { value: "exports", label: "导出台账" },
       ...(trusted.value ? [{ value: "approvals", label: "待办审批" }] : []),
     ],
   },
@@ -426,6 +429,7 @@ onMounted(async () => {
               :members="members"
               @changed="refresh"
             />
+            <ExportsView v-else-if="tab === 'exports'" :key="`${user.id}:${identityEpoch}`" />
             <AgentConnectionsView
               v-else-if="tab === 'agentConnections'"
               :key="`${user.id}:${identityEpoch}`"
