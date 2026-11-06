@@ -36,7 +36,7 @@ FT/ST/SC 由系统生成，数字至少6位；FA/SA/M 由系统生成，数字�
 
 ## 调用
 
-`fgas_help()` 返回当前权限和索引；查参数用 topic=query/propose/execute、resource 及必要的 action，完整业务口径用 topic=guide。熟悉参数时直接调用。
+尚未获得账本概览与当前权限的客户端先调用 `fgas_help()`；网页助手已随附概览与当前等级，可直接查询具体帮助。查参数用 topic=query/propose/execute、resource 及必要的 action，完整业务口径用 topic=guide。熟悉参数时直接调用。
 
 默认使用 low：可查询全部可读业务资料，并用 `fgas_propose` 提交资金、货物、整笔完成三类待审申请；无直接记账、审批或目录维护权限。low 不继承所属用户的人工自动批准权限，管理员所属 low 也须送审。申请已提交不代表已过账或已入库，报告时写明编号和待审状态。
 
@@ -57,3 +57,10 @@ high 可由受信任用户或管理员签发和使用，读取范围与 low 相�
 不从局部收付款或未结清单推断利润。货物尚未整笔到达或数量仍待核实时，不提交整笔完成报告，也不直接完成；核实后交接待处理原单。
 
 货物主单 ST 的页面流程为“待审批 → 待完成 → 已完成”；技术状态 `in_transit` 指已获批、尚未确认完成。普通用户提交完成报告后，主单仍待完成、库存不变，等待有权限的人核实并确认；受信任用户或管理员可直接确认完成。完成记录 `StockConfirmation` 使用 SC 编号，退回报告后主单仍待完成。
+
+## 读取工具结果
+
+- 写入成功后先看业务编号、status、ledger_effect_applied 和 approval_required：它们分别说明对象、状态、本次是否写入正式流水、是否待审批。ledger_effect_applied=false 不代表没有保存资料；目录维护、结算匹配或待审申请仍可能已保存。后续动作说明不构成新的执行授权。
+- 完成报告同时返回 confirmation_code（SC）、stock_transfer_code（ST）、报告 status 与主单 stock_transfer_status。报告 pending、主单 in_transit、ledger_effect_applied=false 表示已提交报告，仍待审批，库存未变；不要把报告与主单状态混为一谈。
+- 列表先看 filters（实际筛选范围）、page、has_more，再读 items。has_more=false 只表示该筛选范围已到末页，不能推出所有历史均已查询。snapshot_at 是查询快照时间，as_of 才是指定的历史截止时间。
+- fund_balances 的 total/total_minor 始终是全部公账合计，不是筛选行合计；inventory 的 totals 是整个筛选范围逐 SKU 汇总，各页重复返回，不能跨页相加。金额用元字段阅读，*_minor 是同一金额的分值，不是另一笔金额。

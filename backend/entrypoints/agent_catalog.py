@@ -149,10 +149,10 @@ ExecuteInput = create_model('ExecuteInput', __base__=Input,
 PUBLIC_INPUTS = {'fgas_help': HelpInput, 'fgas_query': QueryInput,
                  'fgas_propose': ProposeInput, 'fgas_execute': ExecuteInput}
 TOOL_DESCRIPTIONS = {
-    'fgas_help': '首次使用先无参调用，了解账本模型和当前权限；按 topic/resource/action 查输入参数与示例。已知用法无需重复查。',
-    'fgas_query': '读取业务资料。首次使用先 fgas_help()；identifier 查详情，filters 查列表。事件默认近30天，全量传 all_time=true；has_more=true 继续翻页。',
-    'fgas_propose': '提交资金、货物申请或整笔完成报告，high 也始终待审、不记正式流水。首次使用先 fgas_help()，参数查 topic=propose。',
-    'fgas_execute': '仅 high 直接办理业务。调用前说明对象、动作、关键参数和生效影响，获得用户对具体操作的明确确认；同一已确认批次无需重复确认。首次使用先 fgas_help()，具体参数查 topic=execute；资金创建过账，货物创建后待完成，确认整笔完成才记库存。',
+    'fgas_help': '尚无账本概览和当前权限时先无参调用；已有概览直接查具体帮助。按 topic/resource/action 查输入参数与示例。已知用法无需重复查。',
+    'fgas_query': '读取业务资料。尚无概览时先 fgas_help()；identifier 查详情，filters 查列表。事件默认近30天，全量传 all_time=true；has_more=true 继续翻页。',
+    'fgas_propose': '提交资金、货物申请或整笔完成报告，high 也始终待审、不记正式流水。尚无概览时先 fgas_help()，参数查 topic=propose。',
+    'fgas_execute': '仅 high 直接办理业务。调用前说明对象、动作、关键参数和生效影响，获得用户对具体操作的明确确认；同一已确认批次无需重复确认。尚无概览时先 fgas_help()，具体参数查 topic=execute；资金创建过账，货物创建后待完成，确认整笔完成才记库存。',
 }
 
 
@@ -250,7 +250,16 @@ def describe(topic, resource, selected, action=None, detail=False, *, include_ou
         if action is not None:
             example['action'] = action
     model = create_model('OperationInput', __base__=Input, **fields)
-    result = dict(summary=selected.summary, input_schema=model.model_json_schema(), example=example)
+    summary = selected.summary
+    if topic in ('propose', 'execute'):
+        summary += ' 结果按各对象的业务编号、status、ledger_effect_applied（本次正式流水影响）与approval_required读取；未入账不等于未保存，后续动作仍须授权。'
+        if resource == 'stock_completion' or action == 'complete':
+            summary += ' 完成报告区分SC报告状态与ST主单stock_transfer_status。'
+        if resource == 'stock_operation':
+            summary += ' 钱货组合结果分别读取fund_transfer和stock_transfer，不共享入账状态。'
+    elif not detail and resource != 'me':
+        summary += ' 列表按filters确认实际范围，page/has_more判断是否还有下一页；末页不代表查完所有历史。snapshot_at是查询时间，as_of是历史截止时间。'
+    result = dict(summary=summary, input_schema=model.model_json_schema(), example=example)
     if include_output_schema:
         result['output_schema'] = selected.output_model.model_json_schema()
     return result

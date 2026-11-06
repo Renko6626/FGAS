@@ -977,3 +977,65 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
                      if isinstance(part, ToolReturnPart) and part.tool_name == 'fgas_query' and part.outcome == 'success']
         assert len(completed) == 2
         assert completed[-1].content['data']['connection']['level'] == second_level
+
+
+@pytest.mark.parametrize('finish_reason', ['stop', 'length'])
+def test_web_agent_deepseek_wire_history_and_completion(monkeypatch, finish_reason):
+    """Real provider streaming/serialization, with only the HTTP endpoint replaced."""
+    import json
+    pytest.importorskip('pydantic_ai')
+    import httpx2 as httpx
+    from pydantic_ai.providers import deepseek
+    from pydantic_ai import mcp as mcp_tools
+    from pydantic_ai.toolsets import FunctionToolset
+    from backend.application import web_agent
+
+    requests = []
+
+    def endpoint(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        index = len(requests)
+        delta = {'role': 'assistant', 'reasoning_content': f'thought-{index}'}
+        if index == 1:
+            delta['tool_calls'] = [{'index': 0, 'id': 'probe-1', 'type': 'function',
+                                    'function': {'name': 'probe', 'arguments': '{}'}}]
+            reason = 'tool_calls'
+        else:
+            delta['content'] = '已查询' if index == 2 else '后续回答'
+            reason = 'stop' if index == 2 else finish_reason
+        chunk = {'id': f'reply-{index}', 'object': 'chat.completion.chunk', 'created': 1,
+                 'model': body['model'], 'choices': [{'index': 0, 'delta': delta, 'finish_reason': None}]}
+        end = {**chunk, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': reason}]}
+        data = ''.join('data: ' + json.dumps(item) + '\n\n' for item in (chunk, end)) + 'data: [DONE]\n\n'
+        return httpx.Response(200, headers={'content-type': 'text/event-stream'}, content=data)
+
+    def probe() -> dict:
+        return {'code': 'FT-000001', 'status': 'pending'}
+
+    real_provider = deepseek.DeepSeekProvider
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as http:
+            monkeypatch.setattr(deepseek, 'DeepSeekProvider', lambda **kwargs: real_provider(**kwargs, http_client=http))
+            monkeypatch.setattr(mcp_tools, 'MCPToolset', lambda *args, **kwargs: FunctionToolset(tools=[probe]))
+            identity = web_agent.ChatIdentity('本地连接', 'low', 'deepseek-flash', 'personal', 'offline-mcp', 'offline-model')
+            first = [json.loads(event[6:]) async for event in web_agent.chat_events(identity, '查询', [])]
+            assert first[-1]['type'] == 'done'
+            history = next(event['history'] for event in first if event['type'] == 'history')
+            # Match the browser's JSON round trip and the server's sanitization.
+            history = web_agent.load_history(json.loads(json.dumps(history)))
+            switched = web_agent.ChatIdentity('本地连接', 'low', 'deepseek-v4-pro', 'personal', 'offline-mcp', 'offline-model')
+            return [json.loads(event[6:]) async for event in web_agent.chat_events(switched, '继续', history)]
+
+    events = asyncio.run(run())
+    assert len(requests) == 3
+    assert requests[2]['model'] == 'deepseek-v4-pro'
+    assistants = [message for message in requests[2]['messages'] if message['role'] == 'assistant']
+    assert [message['reasoning_content'] for message in assistants] == ['thought-1', 'thought-2']
+    assert assistants[0]['tool_calls'][0]['id'] == 'probe-1'
+    result = next(message for message in requests[2]['messages'] if message['role'] == 'tool')
+    assert result['tool_call_id'] == 'probe-1'
+    assert json.loads(result['content']) == {'code': 'FT-000001', 'status': 'pending'}
+    assert any(event['type'] == 'history' for event in events)
+    assert events[-1]['type'] == ('done' if finish_reason == 'stop' else 'error')

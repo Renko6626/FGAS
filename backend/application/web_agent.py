@@ -136,9 +136,10 @@ async def chat_events(identity, message, history):
                        auth=identity.mcp_secret, tool_error_behavior='failed', max_retries=2)
     agent = Agent(_make_model(identity.model_key, identity.model), instructions=instructions,
                   toolsets=[tools], retries=0,
-                  model_settings={'max_tokens': 4096, 'parallel_tool_calls': False, 'max_retries': 0})
+                  model_settings={'max_tokens': 8192, 'parallel_tool_calls': False, 'max_retries': 0})
     yield _event('start', connection=identity.connection_name, level=identity.connection_level,
                  source=identity.source, model=identity.model)
+    truncated = False
     with capture_run_messages() as messages:
         try:
             async with agent.run_stream_events(message, message_history=history,
@@ -153,6 +154,7 @@ async def chat_events(identity, message, history):
                     elif isinstance(event, FunctionToolResultEvent):
                         yield _event('tool_end', id=event.part.tool_call_id, name=event.part.tool_name)
                     elif isinstance(event, AgentRunResultEvent):
+                        truncated = event.result.response.finish_reason == 'length'
                         usage = event.result.usage
                         yield _event('usage', input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
                                      cache_read_tokens=usage.cache_read_tokens, requests=usage.requests)
@@ -171,6 +173,10 @@ async def chat_events(identity, message, history):
             yield _event('error', message=error, configuration_error=isinstance(exc, ModelAPIError))
             return
         yield _event('history', history=ModelMessagesTypeAdapter.dump_python(messages, mode='json'))
+        if truncated:
+            yield _event('error', message='本轮回复达到长度上限，尚未完整结束；请核对已返回的结果，涉及业务提交时先查询记录再继续',
+                         configuration_error=False)
+            return
         yield _event('done')
 
 
