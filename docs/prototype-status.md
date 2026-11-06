@@ -1,6 +1,16 @@
 # 阶段记录：资金、成员往来与库存原型
 
-## 2026-11-06 阶段提交与发布尝试（待服务器网络恢复）
+## 2026-11-06：阶段功能已手动上线
+
+用户明确授权绕过 VPS 拉取 GitHub 后，通过 SSH 上传精确提交 `a31c648dd7ca818334ae8cc18947475f9a40d204` 的 git archive（SHA-256 `91cbec49ab506378c68d837587dc9105821dd7fc1873c791043741d8b3e352a6`），复用 Actions `42226984553` 已通过检查并推送 ACR 的镜像。仓库视图、关系图缩放／拖动、CSV 台账导出及 Agent 信息呈现改进现均已上线。
+
+保留 Coolify 生成的 Compose、路由标签、网络、容器名与数据卷，只更新 `.env` 中 API/web 的两个镜像变量；对比解析后的 Compose 确认差异仅为镜像引用。上传源码时排除生成的 Compose，随后运行原有 `bash deploy/apply-coolify.sh`，完成数据库／附件备份、Alembic upgrade 和服务更新。没有修改 Git 来源、凭据或代理，没有建立另一套 Compose 项目。此前第三次原队列重试 `4952223c-3df2-4fc1-bc91-b17a381f6a25` 同样因 GitHub 443 超时失败；Actions 和原 Coolify 队列仍保留失败状态，手动上线结果以当前容器与公网版本为准。
+
+公网 `/api/health` 返回 `a31c648dd7ca`，schema 保持 `0003`；web/api/db 全部 healthy。首页、仓库视图独立资源与缩放控件、CSV 导出资源读取通过，匿名 `/api/inventory`、`/api/exports`、`/mcp` 均为 401。未执行浏览器自动点击／填表或真实用户业务办理。
+
+迁移前备份同前缀 `/data/fgas-backups/fgas-20261106T135713Z-2521411`：数据库 `-pre-migrate.dump` 77892 字节、附件 `-attachments.tar` 10240 字节，均 0600；`pg_restore --list` 和 `tar -tf` 可读。私有应急目录 `/data/fgas-manual-releases/20261106-a31c648`（0700）保存旧源码／配置快照、旧环境配置、精确源码包和发布日志；其中 `rollback.sh`（0700）已通过 bash 语法检查但未执行，可在不访问 GitHub 的情况下恢复旧配置和缓存的旧 API/web 镜像，不恢复或降级数据库、不回退附件。该回退仅针对本次 schema 未变化的发布，后续变更后须重新评估。
+
+## 2026-11-06 阶段提交与发布尝试（历史失败记录，后已手动上线）
 
 仓库视图提交 `a31c648dd7ca818334ae8cc18947475f9a40d204` 已推送 `main`，同时带上此前本地的 CSV 导出提交 `5523dee`。本次生产发布目标包含仓库视图、CSV 导出和此前已推送的 Agent 信息呈现改进 `d7cf22b`；这些功能尚未上线。
 

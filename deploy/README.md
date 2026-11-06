@@ -122,6 +122,12 @@ bash deploy/apply-coolify.sh
 
 数据库使用应用自己的 `postgres-data` 持久卷（当前实际名 `j6grshmlx7t0lxyrwhe7mlmk_postgres-data`）；从 Coolify 删除资源时不要删除该卷。日志和容器状态以应用面板为准。Compose/SSH 的 `/opt/fgas`、回环 8080 和固定 `fgas` 项目名仅适用于下方保留的手动路线，不用于 Coolify 实例。
 
+### 2026-11-06 GitHub 故障时的应急上线记录
+
+本次经用户授权，通过 SSH 传入精确提交 `a31c648` 的源码归档，复用已通过 CI 的 ACR 镜像，绕过服务器克隆 GitHub。保留当前 Coolify 生成的 Compose、路由标签、网络、项目名与数据卷，上传源码时排除生成的 Compose，仅更新 `.env` 中两个镜像引用，再执行原 `deploy/apply-coolify.sh` 完成备份、迁移和启动；不要用仓库原始 Compose 覆盖平台生成配置。
+
+服务器私有目录 `/data/fgas-manual-releases/20261106-a31c648` 保存本次发布前的源码与配置、精确源码包、日志及 `rollback.sh`。回退脚本只恢复旧配置和本地旧 API/web 镜像，不回退数据库或附件，已做语法检查但未执行。它只适用于本次 schema 保持 `0003` 的版本；后续发布后不要直接照搬。正常发布仍走 Actions → ACR → Coolify。详细版本和备份记录见 [阶段记录](../docs/prototype-status.md)。
+
 ## 手动 Compose 的访问、日志和维护
 
 服务器本机检查：

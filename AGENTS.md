@@ -62,6 +62,8 @@ npm run db:init    # Alembic upgrade + 开发种子
 
 ## 已知待办线索
 
+- 2026-11-06 仓库视图、关系图缩放／拖动、CSV 导出及 Agent 信息呈现改进已以 `a31c648` 上线。Actions `42226984553` 构建／检查／推送通过，Coolify 三次因 VPS 连 GitHub 失败；用户随后授权 SSH 传精确源码、复用 CI 镜像并运行原发布脚本，保留平台生成 Compose／路由／项目／数据卷。公网版本 `a31c648dd7ca`、schema `0003`、三服务 healthy，数据库及附件备份可读；应急配置快照和回退脚本在 VPS `/data/fgas-manual-releases/20261106-a31c648`，仅适用于本次无 schema 变化的应用镜像回退。Actions／原部署队列仍显示历史失败，以当前线上核对为准。详见阶段记录。
+
 - 2026-11-05 附件部署配置修复 `e3926b8` 已上线：两份 Compose 传入上传大小上限，原生 systemd 放行附件目录并补部署步骤。Actions `41870112461` 构建/检查/推送通过，首次部署因 VPS 连 GitHub 超时失败；同一镜像经 Coolify 队列重试 `a24b7de8-26b8-4be3-bd3a-fff4410e47af` 成功。公网版本、schema `0003`、三容器健康、上传上限 10485760 字节及数据库/附件备份可读已核对；详见 `docs/prototype-status.md`。
 
 - 2026-11-04 实现图片附件：`attachments` 表（Alembic `0003`，多态 target：transfer/stock_transfer/sku/fund_account/stock_account）、`backend/infrastructure/attachment_store.py`（`FGAS_ATTACHMENT_DIR`，按魔数识别 PNG/JPEG/WebP，单张默认 10 MiB）、`backend/application/attachments.py` 与四个 `/api/attachments` 端点；任何启用用户可上传，删除仅上传者本人或管理员；MCP 不暴露附件。前端新增动态加载的 canvas 预处理组件（大图裁剪框、比例/输出宽高/质量、实时效果预览）与附件列表，接入资金／货物详情抽屉、SKU 与账户弹窗；管理员可在“基础资料 → 图片附件”查看全部附件（`GET /api/admin/attachments`，仅管理员，分页/筛选/删除/跳转原单）。Compose 新增 `attachments-data` 卷、Nginx `client_max_body_size 12m`，发布与每日备份把附件打成同一时间戳 tar。验证：后端 96 passed、前端构建通过（附件组件与管理页为独立 chunk，主包 610→613 KB）、裁剪几何 240 万次随机仿真、fgas_test 真实 HTTP 冒烟；同日已发布生产：Actions `41687146226` 构建推送成功，Coolify 首次部署因 VPS 克隆 GitHub 的 TLS 中断失败，手动 Redeploy 后上线，生产 schema `0003`、容器健康与匿名附件 401 已核对；随后 `dabec53`（管理员总览 + 弹窗重做）经 Actions `41696718991` 一次部署成功；未做浏览器自动交互。
