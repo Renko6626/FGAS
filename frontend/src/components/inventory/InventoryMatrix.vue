@@ -20,7 +20,7 @@ const sortedLocations = computed(() => {
 });
 const shownLocations = computed(() => sortedLocations.value);
 const focused = computed(() => props.totals.find(item => item.sku_code === selectedSku.value));
-const detailRows = computed(() => props.rows.filter(row => row.sku_code === selectedSku.value && (!detailLocation.value || row.account_code === detailLocation.value) &&
+const detailRows = computed(() => props.rows.filter(row => row.sku_code === selectedSku.value && props.locations.some(place => place.code === row.account_code) && (!detailLocation.value || row.account_code === detailLocation.value) &&
   [row.quantity, row.incoming_planned_quantity, row.outgoing_planned_quantity].some(value => BigInt(value || "0") !== 0n)));
 const detailPlans = computed(() => props.transfers.filter(item => item.lines.some(line => line.sku_code === selectedSku.value) &&
   (!detailLocation.value || item.source_account_code === detailLocation.value || item.destination_account_code === detailLocation.value)));
@@ -69,9 +69,9 @@ onMounted(revealSelection);
         <div v-if="focused" class="matrix-detail">
           <p class="detail-code">{{ selectedSku }}<span v-if="detailLocation"> / {{ locations.find(item => item.code === detailLocation)?.name }}</span></p>
           <div class="detail-total"><span>社团账面库存</span><strong>{{ focused.quantity }} <small>{{ focused.unit }}</small></strong></div>
-          <h3>保管分布</h3>
+          <h3>{{ detailLocation ? '当前地点库存' : '保管分布（当前筛选范围）' }}</h3>
           <div v-for="row in detailRows" :key="row.account_code" class="detail-place"><div><strong>{{ row.account_name }}</strong><small>{{ row.member_name || '未指定负责人' }}</small></div><div><strong>{{ row.quantity }} {{ row.unit }}</strong><small v-if="BigInt(row.incoming_planned_quantity || '0') > 0n">待入 {{ row.incoming_planned_quantity }}</small><small v-if="BigInt(row.outgoing_planned_quantity || '0') > 0n">待出 {{ row.outgoing_planned_quantity }}</small></div></div>
-          <p v-if="!detailRows.length" class="detail-code">这个地点当前没有该货物的库存或待完成转移。</p>
+          <p v-if="!detailRows.length" class="detail-code">{{ detailLocation ? '这个地点' : '当前筛选范围内' }}没有该货物的库存或待完成转移。</p>
           <h3>相关待处理转移</h3>
           <a v-for="plan in detailPlans" :key="plan.code" class="detail-plan" :href="`#stock?code=${encodeURIComponent(plan.code)}`"><strong>{{ plan.source_account_name }} → {{ plan.destination_account_name }}</strong><span>{{ quantityAt(plan) }} {{ focused.unit }}<small>{{ plan.code }}</small></span><small>{{ plan.status === 'pending' ? '待审批' : plan.confirmations.some(item => item.status === 'pending') ? '待完成（有人报告完成，待确认）' : '待完成' }}</small></a>
           <p v-if="!detailPlans.length" class="detail-code">没有相关的待处理转移。</p>

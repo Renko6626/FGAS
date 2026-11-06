@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { NButton, NInput, NSelect } from "naive-ui";
 import type { StockAccount } from "../api/accounts";
 import type { Member } from "../api/members";
@@ -7,10 +7,12 @@ import { warehouse, type InventoryRow, type InventoryTotals, type Sku, type Stoc
 import InventoryMap from "../components/inventory/InventoryMap.vue";
 import InventoryMatrix from "../components/inventory/InventoryMatrix.vue";
 import InventoryCatalog from "../components/inventory/InventoryCatalog.vue";
+const InventoryWarehouses = defineAsyncComponent(() => import("../components/inventory/InventoryWarehouses.vue"));
 
 const props = defineProps<{ locations: StockAccount[]; skus: Sku[]; members: Member[]; revision: number }>();
 const initial = new URLSearchParams(window.location.hash.split("?")[1] || "");
-const view = ref(initial.get("view") === "matrix" ? "matrix" : "map");
+const view = ref(initial.get("view") === "warehouses" ? "warehouses" : initial.get("view") === "matrix" ? "matrix" : "map");
+const selectedWarehouse = ref(initial.get("warehouse") || "");
 const selectedSku = ref(initial.get("sku") || "");
 const search = ref("");
 const tag = ref<string | null>(null);
@@ -71,9 +73,10 @@ watch(visibleTotals, items => {
     selectedSku.value = items.find(item => BigInt(item.incoming_to_org_quantity || "0") > 0n)?.sku_code || items[0]?.sku_code || "";
   }
 });
-watch([view, selectedSku, onlyPending, sort], () => {
+watch([view, selectedSku, onlyPending, sort, selectedWarehouse], () => {
   const params = new URLSearchParams();
   params.set("view", view.value);
+  if (view.value === "warehouses" && selectedWarehouse.value) params.set("warehouse", selectedWarehouse.value);
   if (selectedSku.value) params.set("sku", selectedSku.value);
   if (onlyPending.value) params.set("pending", "true");
   if (sort.value !== "name") params.set("sort", sort.value);
@@ -128,6 +131,7 @@ onBeforeUnmount(() => { ++requestSequence; });
       <div class="inventory-views" role="group" aria-label="库存视图">
         <button :class="{ active: view === 'map' }" :aria-pressed="view === 'map'" @click="view = 'map'">后勤沙盘</button>
         <button :class="{ active: view === 'matrix' }" :aria-pressed="view === 'matrix'" @click="view = 'matrix'">分布矩阵</button>
+        <button :class="{ active: view === 'warehouses' }" :aria-pressed="view === 'warehouses'" @click="view = 'warehouses'">仓库视图</button>
       </div>
       <button class="pending-filter" :class="{ active: onlyPending }" :aria-pressed="onlyPending" title="包含待审批和待完成的货物转移" @click="onlyPending = !onlyPending"><span class="pending-indicator"></span>仅看待处理<strong>{{ pendingSkuCount }} 种</strong></button>
       <NButton size="small" quaternary :aria-expanded="showFilters" @click="showFilters = !showFilters">{{ showFilters ? '收起筛选' : '筛选' }}</NButton>
@@ -138,9 +142,11 @@ onBeforeUnmount(() => { ++requestSequence; });
       <NSelect v-model:value="tag" :options="tagOptions" clearable placeholder="全部货物标签" aria-label="货物标签" />
       <NSelect v-model:value="selectedLocations" multiple clearable :max-tag-count="1" :options="locationOptions" placeholder="全部保管地点" aria-label="筛选保管地点" />
       <NSelect v-model:value="member" clearable :options="memberOptions" placeholder="全部负责人" aria-label="筛选负责人" />
+      <NSelect v-if="view === 'warehouses'" v-model:value="sort" :options="sortOptions" aria-label="货物排序" />
     </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <div v-if="totals.length" class="inventory-layout">
+    <InventoryWarehouses v-if="view === 'warehouses'" v-model:selected-warehouse="selectedWarehouse" :locations="locations" :location-codes="[...scopedCodes]" :rows="rows" :totals="visibleTotals" :transfers="scopedTransfers" :only-pending="onlyPending" />
+    <div v-else-if="totals.length" class="inventory-layout">
       <InventoryCatalog v-model:selected-sku="selectedSku" v-model:sort="sort" :totals="visibleTotals" :pending-counts="pendingCounts" :sort-options="sortOptions" />
       <div class="inventory-content">
         <InventoryMap v-if="view === 'map'" :selected-sku="selectedSku" :totals="visibleTotals" :rows="rows" :locations="locations" :location-codes="[...scopedCodes]" :skus="skus" :transfers="scopedTransfers" />
