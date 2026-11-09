@@ -10,7 +10,7 @@
 
 ## 导出台账
 
-登录后在“日常工作 → 导出台账”下载 ZIP，内含资金 CSV、货物 CSV 和说明.txt。支持全部台账、指定时点现状、时间段内已入账变化；首版不提供其他筛选，可在表格软件中自行筛选。
+登录后在顶部“工具 → 导出台账”下载 ZIP，内含资金 CSV、货物 CSV 和说明.txt。支持全部台账、指定时点现状、时间段内已入账变化；可使用中文日历选择日期和时间，或选择今天、近 7 天、本月。内容预览显示各 CSV 的总行数、表头和前 10 行真实记录；其他筛选可在表格软件中完成。需要衔接上次导出时，可勾选“粘贴精确时间”，保留微秒与时区。
 
 现状包含截止点，变化范围为 `(起始时间, 截止时间]`，统一按实际入账时间；留空截止时间使用本次导出的时间。将现状包中的完整截止时间填作变化包的起点，即可衔接计算余额与库存。原单和冲销单都保留；待审批资金和未完成货物不计入已入账变化。CSV 金额为元，货物一单一个 SKU 一行。
 
@@ -70,7 +70,7 @@ Compose 默认使用 `AUTH_MODE=casdoor`，需要先在 Casdoor 建立 FGAS 应�
 
 上传前浏览器会打开图片预处理：拖动裁剪框并选择 1:1、4:3、3:4、16:9 等比例，独立设置输出宽高（拉伸缩放），调整 JPEG/WebP 清晰度或改存 PNG，并实时显示预计体积；多数票据和示意图可压到几十 KB。服务端按文件头识别 PNG/JPEG/WebP，单张上限默认 10 MiB（`FGAS_ATTACHMENT_MAX_BYTES`），其他格式拒绝。
 
-文件保存在 `FGAS_ATTACHMENT_DIR` 指向的统一目录，开发环境默认 `.runtime/attachments`，Compose 部署挂载持久卷到 `/data/attachments`。人工接口：`POST /api/attachments`（multipart）、`GET /api/attachments?target_kind=&target_code=`、`GET /api/attachments/{id}/file`、`DELETE /api/attachments/{id}`，均使用 Cookie 会话；MCP 暂不提供附件。管理员另有“基础资料 → 图片附件”总览，可浏览、筛选、预览和删除全部图片并跳转来源单据，接口为 `GET /api/admin/attachments`。SKU 与账户的“上传并设为示意图/头像”会把 `avatar_url` 填成附件地址，手填外链仍然可用。
+文件保存在 `FGAS_ATTACHMENT_DIR` 指向的统一目录，开发环境默认 `.runtime/attachments`，Compose 部署挂载持久卷到 `/data/attachments`。人工接口：`POST /api/attachments`（multipart）、`GET /api/attachments?target_kind=&target_code=`、`GET /api/attachments/{id}/file`、`DELETE /api/attachments/{id}`，均使用 Cookie 会话；MCP 暂不提供附件。管理员另有“管理 → 图片附件”总览，可浏览、筛选、预览和删除全部图片并跳转来源单据，接口为 `GET /api/admin/attachments`。SKU 与账户的“上传并设为示意图/头像”会把 `avatar_url` 填成附件地址，手填外链仍然可用。
 
 ## HTTP 契约
 

@@ -11,15 +11,15 @@ async function save(){if(busy.value)return;busy.value=true;try{if(id.value)await
 </script>
 <template>
   <div class="page-toolbar"><span class="page-count">{{ members.length }} 位成员与联系人</span><div v-if="trusted" class="page-tools"><NButton size="small" @click="edit()">新增成员</NButton></div></div>
-  <div class="table-wrap compact-table">
+  <div class="table-wrap compact-table responsive-table">
     <table>
       <thead><tr><th>姓名</th><th>备注</th><th>关联资金账户</th><th>关联货物账户</th><th></th></tr></thead>
       <tbody>
         <tr v-for="m in props.members" :key="m.code">
-          <td>{{ m.name }}<small>{{ m.code }}</small></td><td>{{ m.note }}</td>
-          <td>{{ accounts.filter(a => a.member_code === m.code).map(a => a.name).join('，') || '无' }}</td>
-          <td>{{ locations.filter(a => a.member_code === m.code).map(a => a.name).join('，') || '无' }}</td>
-          <td><NButton v-if="trusted" size="small" @click="edit(m)">编辑</NButton></td>
+          <td class="table-primary">{{ m.name }}<small>{{ m.code }}</small></td><td class="table-wide" data-label="备注">{{ m.note }}</td>
+          <td class="table-priority" data-label="关联资金账户">{{ accounts.filter(a => a.member_code === m.code).map(a => a.name).join('，') || '无' }}</td>
+          <td class="table-priority" data-label="关联货物账户">{{ locations.filter(a => a.member_code === m.code).map(a => a.name).join('，') || '无' }}</td>
+          <td class="table-actions-cell"><NButton v-if="trusted" size="small" @click="edit(m)">编辑</NButton></td>
         </tr>
       </tbody>
     </table>

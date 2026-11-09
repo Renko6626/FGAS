@@ -34,23 +34,23 @@ onMounted(revealSelection);
 </template>
 
 <style scoped>
-.inventory-catalog { min-width:0; border-right:1px solid #e4ebeb; padding-right:15px; }
+.inventory-catalog { min-width:0; border-right:1px solid #e4e8ed; padding-right:15px; }
 .catalog-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:0 0 10px; }
-.catalog-heading strong { font-size:13px; color:#445b5c; }
-.catalog-heading small { font-size:11px; font-weight:400; color:#8b979b; margin-left:5px; }
+.catalog-heading strong { font-size:13px; color:#40516a; }
+.catalog-heading small { font-size:11px; font-weight:400; color:#85909e; margin-left:5px; }
 .catalog-heading :deep(.n-select) { width:100%; }
 .catalog-items { position:relative; max-height:650px; overflow:auto; scrollbar-width:thin; }
-.catalog-item { display:block; width:100%; text-align:left; padding:11px 10px; border:0; border-left:3px solid transparent; background:transparent; color:#435557; min-width:0; border-radius:0 5px 5px 0; }
-.catalog-item:hover { background:#f4f8f7; }
-.catalog-item.selected { background:#eaf3ef; border-left-color:#337a6e; }
+.catalog-item { display:block; width:100%; text-align:left; padding:11px 10px; border:0; border-left:3px solid transparent; background:transparent; color:#35465b; min-width:0; border-radius:0 5px 5px 0; }
+.catalog-item:hover { background:#f5f7fa; }
+.catalog-item.selected { background:#eef2f7; border-left-color:#60768e; }
 .catalog-name { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:12px; line-height:1.7; }
-.catalog-item.selected .catalog-name { color:#23594f; font-weight:650; }
+.catalog-item.selected .catalog-name { color:#293f59; font-weight:650; }
 .catalog-meta { display:flex; justify-content:space-between; gap:7px; align-items:center; margin-top:7px; }
-.catalog-meta > small { color:#8b979b; font-size:10px; }
+.catalog-meta > small { color:#85909e; font-size:10px; }
 .catalog-meta strong { font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .catalog-meta strong small { font-size:10px; font-weight:400; margin-left:3px; }
 .catalog-pending { display:inline-block; margin-top:6px; padding:1px 5px; border-radius:3px; background:#f4e4c4; color:#815a20 !important; font-size:10px; }
-.catalog-empty { color:#83918d; font-size:12px; padding:16px 4px; }
+.catalog-empty { color:#788391; font-size:12px; padding:16px 4px; }
 .catalog-mobile { display:none; }
 @media(max-width:760px) {
   .inventory-catalog { border:0; padding:0; margin-bottom:12px; }

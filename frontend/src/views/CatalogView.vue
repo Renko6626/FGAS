@@ -284,11 +284,11 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
 .catalog-categories button.active { color:#244a66; border-bottom-color:#345d78 !important; font-weight:650; }
 .catalog-categories span { font-size:12px; margin-left:5px; color:#66707c !important; }
 .account-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px 14px; }
-.account-card { min-width:0; display:flex; flex-direction:column; padding:12px 14px; border:1px solid #e3e8ec; border-radius:8px; background:#fff; }
-.account-card.inactive { background:#f5f6f5; border-color:#d8ddd8; }
+.account-card { min-width:0; display:flex; flex-direction:column; padding:12px 14px; border:1px solid #e3e8ec; border-radius:6px; background:#fff; }
+.account-card.inactive { background:#f5f6f8; border-color:#dfe4eb; }
 .account-card.inactive .card-name,.account-card.inactive .card-balance,.account-card.inactive .card-custodian { opacity:.65; }
-.account-card.public-account:not(.inactive) { border-color:#4d7e63; box-shadow:inset 0 0 0 1px #4d7e63; background:#eaf4ed; }
-.account-card.public-account:not(.inactive) .card-name strong,.account-card.public-account:not(.inactive) .card-balance strong { color:#245437; font-weight:750; }
+.account-card.public-account:not(.inactive) { border-color:#9aaabd; box-shadow:inset 3px 0 #60768e; background:#f8fafd; }
+.account-card.public-account:not(.inactive) .card-name strong,.account-card.public-account:not(.inactive) .card-balance strong { color:#29323e; font-weight:650; }
 .card-heading { display:flex; align-items:center; gap:8px; min-width:0; }
 .card-heading :deep(.account-avatar) { width:36px; height:36px; margin:0; border-radius:50%; font-size:16px; }
 .card-name { flex:1; min-width:0; }
@@ -298,8 +298,8 @@ function dateText(value: string) { return new Date(value).toLocaleString("zh-CN"
 .card-balance,.card-custodian { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:2px 8px; margin-top:10px; }
 .card-balance span,.card-custodian span,.card-meta { color:#66707c; font-size:12px; }
 .card-balance strong { font-size:22px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-.card-custodian strong { font-size:22px; overflow-wrap:anywhere; }
-.card-custodian.unassigned strong { color:#976a26; font-size:18px; }
+.card-custodian strong { font-size:16px; font-weight:600; overflow-wrap:anywhere; }
+.card-custodian.unassigned strong { color:#976a26; font-size:14px; }
 .card-meta { display:flex; flex-wrap:wrap; gap:3px 14px; margin-top:6px; }
 .card-tags { margin-top:4px; }
 .card-actions { display:flex; flex-wrap:nowrap; gap:8px; margin-top:auto; padding-top:8px; }

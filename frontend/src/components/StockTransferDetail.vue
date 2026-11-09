@@ -21,6 +21,7 @@ const { options: fundOptions, loading: fundLoading, search: searchFunds } = useF
 onMounted(() => searchFunds(""));
 const detailShow = ref(false), detail = shallowRef<StockTransfer | null>(null), busy = ref(false), error = ref(""), notice = ref("");
 const attachmentCount = ref(0);
+const detailTab = ref<"info" | "history">("info");
 type Processing = "reject" | "cancel" | "return_report";
 const processing = ref<Processing | null>(null), reason = ref(""), completionDate = ref(today());
 const processingTitles = { reject: "拒绝货物转移", cancel: "取消货物转移", return_report: "退回完成报告" };
@@ -59,6 +60,7 @@ async function open(code: string) {
   error.value = "";
   notice.value = "";
   attachmentCount.value = 0;
+  detailTab.value = "info";
   emit("error", "");
   try {
     detail.value = await warehouse.detail(code);
@@ -134,6 +136,11 @@ defineExpose({ open, busy });
         </div>
         <label v-else-if="canComplete" class="drawer-completion-date">完成日期<input v-model="completionDate" type="date" :disabled="busy" /></label>
 
+        <div class="drawer-tabs" role="group" aria-label="详情内容">
+          <button :class="{ active: detailTab === 'info' }" :aria-pressed="detailTab === 'info'" @click="detailTab = 'info'">单据信息</button>
+          <button :class="{ active: detailTab === 'history' }" :aria-pressed="detailTab === 'history'" @click="detailTab = 'history'">处理记录</button>
+        </div>
+        <section v-show="detailTab === 'info'" aria-label="单据信息">
         <details class="drawer-disclosure">
           <summary>关联资金（{{ detail.fund_references.length }}）</summary>
           <p class="drawer-caption">资金与货物独立生效，关联记录不代表已付款。</p>
@@ -154,14 +161,17 @@ defineExpose({ open, busy });
           <AttachmentList target-kind="stock_transfer" :target-code="detail.code"
             @updated="attachmentCount = $event.length" @error="error = $event" />
         </details>
-        <details class="drawer-disclosure">
+        </section>
+        <section v-show="detailTab === 'history'" aria-label="处理记录">
+        <details open class="drawer-disclosure">
           <summary>审批与操作记录</summary>
           <dl class="drawer-meta"><dt>审批方式</dt><dd>{{ approvalLabel(detail.approval_mode) }}<template v-if="approvalAgent">（{{ approvalAgent.agent_credential_name || approvalAgent.agent_credential_id }}）</template><template v-if="detail.approved_by">，{{ detail.approved_by }}</template></dd><template v-if="detail.tags.length"><dt>标签</dt><dd>{{ detail.tags.join('，') }}</dd></template></dl>
           <div v-for="report in detail.confirmations.filter(c => c.status !== 'pending')" :key="report.code" class="drawer-related"><div class="drawer-related-heading"><strong>完成记录 {{ report.code }}</strong><span class="status-pill" :class="`status-${report.status}`">{{ stockStatuses[report.status] || fundStatuses[report.status] || report.status }}</span></div><p class="drawer-caption">报告人 {{ report.actor_id }}<template v-if="report.submitted_credential_id">，通过 {{ report.submitted_credential_name || report.submitted_credential_id }}</template>；完成日期 {{ report.effective_date }}</p><p v-if="report.approved_by" class="drawer-caption">{{ approvalLabel(completionAudit(report.code)?.detail.mode) }}<template v-if="completionAudit(report.code)?.agent_credential_id">（{{ completionAudit(report.code)?.agent_credential_name || completionAudit(report.code)?.agent_credential_id }}）</template>，审批人 {{ report.approved_by }}</p></div>
           <ol class="drawer-audit"><li v-for="event in detail.audit" :key="event.created_at + event.action"><strong>{{ actionNames[event.action] || event.action }}</strong><span>{{ event.actor_id }}<template v-if="event.agent_credential_id">，通过 {{ event.agent_credential_name || event.agent_credential_id }}</template></span><small>{{ new Date(event.created_at).toLocaleString('zh-CN') }}</small><p v-if="event.detail.reason">{{ event.detail.reason }}</p></li></ol>
           <NButton size="small" :disabled="busy" @click="copyReference(true)">复制定位链接</NButton>
         </details>
-        <details v-if="trusted && ['pending', 'in_transit'].includes(detail.status)" class="drawer-disclosure"><summary>其他操作</summary><NButton size="small" :disabled="busy" @click="prepareProcessing('cancel')">取消货物转移</NButton></details>
+        </section>
+        <details v-if="detailTab === 'info' && trusted && ['pending', 'in_transit'].includes(detail.status)" class="drawer-disclosure"><summary>其他操作</summary><NButton size="small" :disabled="busy" @click="prepareProcessing('cancel')">取消货物转移</NButton></details>
       </template>
       <template #footer>
         <div v-if="detail" class="drawer-footer">

@@ -33,14 +33,20 @@ const destination = computed(() =>
 
 <style scoped>
 .account-route {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+  width: 100%;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px;
   vertical-align: middle;
   max-width: 100%;
 }
+.account-route > :first-child {
+  justify-content: flex-end;
+  text-align: right;
+}
 .account-route-arrow {
+  text-align: center;
   color: #666;
   flex-shrink: 0;
 }

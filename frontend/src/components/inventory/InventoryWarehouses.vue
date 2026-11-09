@@ -11,6 +11,7 @@ const selectedWarehouse = defineModel<string>("selectedWarehouse", { default: ""
 const selectedGoods = ref("");
 const routeKey = ref("");
 const drawerOpen = ref(false);
+const mobileMapOpen = ref(false);
 const visibleSkus = computed(() => new Set(props.totals.map(item => item.sku_code)));
 const plans = computed(() => props.transfers.filter(plan => plan.lines.some(line => visibleSkus.value.has(line.sku_code))));
 const scope = computed(() => new Set(props.locationCodes));
@@ -106,12 +107,28 @@ watch(() => props.locationCodes.join("|"), () => { if (selectedWarehouse.value &
 </script>
 
 <template>
-  <section class="warehouse-view">
+  <section class="warehouse-view" :class="{ 'mobile-map-open': mobileMapOpen }">
     <template v-if="!place">
       <header class="sketch-heading">
         <div><h2>仓库之间</h2><p>点一个仓库进去看看，点虚线查看交接单。</p></div>
         <div class="sketch-key"><span><i></i>待完成</span><span class="approval"><i></i>待审批</span></div>
       </header>
+      <div v-if="nodes.length" class="mobile-warehouse-overview">
+        <div class="mobile-warehouse-places" aria-label="仓库与代管地点">
+          <button v-for="node in nodes.filter(item => item.kind === 'internal')" :key="node.code" @click="enter(node.code)">
+            <span><strong>{{ node.name }}</strong><small>{{ !scope.has(node.code) ? '关联地点，' : '' }}{{ node.member_name || '未指定负责人' }}</small></span>
+            <span><strong>{{ countGoods(node.code) }} 种货物</strong><small v-if="countPlans(node.code)" class="pending-count">{{ countPlans(node.code) }} 笔待处理</small><small v-else>暂无交接</small></span>
+          </button>
+        </div>
+        <section v-if="routes.length" class="mobile-warehouse-routes" aria-label="仓库间待处理交接">
+          <h3>待处理交接</h3>
+          <button v-for="route in routes" :key="route.key" @click="openRoute(route.key)">
+            <span class="mobile-handoff-route"><span>{{ route.source }}</span><span aria-label="转向">→</span><span>{{ route.destination }}</span></span>
+            <small :class="{ 'pending-count': route.pending }">{{ route.items.length }} 笔{{ route.pending ? '待审批' : '待完成' }}，查看单据</small>
+          </button>
+        </section>
+        <button class="mobile-map-toggle" :aria-expanded="mobileMapOpen" aria-controls="warehouse-relation-map" @click="mobileMapOpen = !mobileMapOpen">{{ mobileMapOpen ? '收起关系图' : '展开关系图' }}</button>
+      </div>
       <div v-if="nodes.length" class="graph-toolbar" role="group" aria-label="关系图缩放">
         <span>拖动画布移动，滚轮缩放</span>
         <button :disabled="graph.scale.value <= graph.minScale.value" aria-label="缩小关系图" @click="graph.zoom(1 / 1.2)">−</button>
@@ -119,7 +136,7 @@ watch(() => props.locationCodes.join("|"), () => { if (selectedWarehouse.value &
         <button :disabled="graph.scale.value >= 2" aria-label="放大关系图" @click="graph.zoom(1.2)">＋</button>
         <button class="fit-graph" @click="graph.fit">适应画布</button>
       </div>
-      <div v-if="nodes.length" ref="graphViewport" class="graph-viewport" :class="{ dragging: graph.dragging.value }" :style="{ aspectRatio: `${graphBounds.width} / ${graphBounds.height}` }" tabindex="0" role="region" aria-label="仓库关系图，可拖动和缩放；方向键移动，加减键缩放，Home 键适应画布"
+      <div v-if="nodes.length" id="warehouse-relation-map" ref="graphViewport" class="graph-viewport" :class="{ dragging: graph.dragging.value }" :style="{ aspectRatio: `${graphBounds.width} / ${graphBounds.height}` }" tabindex="0" role="region" aria-label="仓库关系图，可拖动和缩放；方向键移动，加减键缩放，Home 键适应画布"
         @pointerdown="graph.pointerDown" @pointermove="graph.pointerMove" @pointerup="graph.pointerEnd" @pointercancel="graph.pointerEnd" @lostpointercapture.self="graph.pointerEnd" @pointerleave="graph.pointerLeave" @click.capture="graph.click" @wheel.prevent="graph.wheel" @keydown="graph.keydown">
         <div class="graph-paper" :style="{ height: `${graphHeight}px`, transform: graph.transform.value }">
           <span v-if="hasExternalNodes" class="graph-label external-label">外部联系</span><span class="graph-label internal-label">仓库与代管地点</span>
@@ -193,11 +210,12 @@ watch(() => props.locationCodes.join("|"), () => { if (selectedWarehouse.value &
 </template>
 
 <style scoped>
-.warehouse-view { --sketch-ink:#365550; --sketch-muted:#6d817b; --sketch-line:#8ca79b; --sketch-green:#387562; --sketch-amber:#946a2d; color:var(--sketch-ink); min-width:0; }
+.warehouse-view { --sketch-ink:#35465b; --sketch-muted:#758194; --sketch-line:#9aabba; --sketch-green:#387562; --sketch-amber:#946a2d; color:var(--sketch-ink); min-width:0; }
+.mobile-warehouse-overview { display:none; }
 .warehouse-view button { font:inherit; cursor:pointer; color:inherit; }
 .warehouse-view button:focus-visible,.graph-route:focus-visible { outline:2px solid #387562; outline-offset:5px; }
-.sketch-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:20px 4px 18px; }
-.sketch-heading h2 { margin:0 0 7px; font-size:25px; font-weight:500; font-family:var(--serif,serif); }
+.sketch-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:12px 4px; }
+.sketch-heading h2 { margin:0 0 7px; font-size:18px; font-weight:600; font-family:var(--serif,serif); }
 .sketch-heading p,.handoff-area header p { font-size:12px; color:var(--sketch-muted); margin:0; }
 .sketch-key { display:flex; gap:20px; font-size:12px; white-space:nowrap; }
 .sketch-key span { display:flex; align-items:center; gap:7px; }
@@ -267,7 +285,25 @@ watch(() => props.locationCodes.join("|"), () => { if (selectedWarehouse.value &
 .drawer-plan { margin-bottom:14px; }.route-title { font-size:14px; color:#365550; }
 .empty-sketch { padding:55px 16px; text-align:center; font-size:13px; color:var(--sketch-muted); }.empty-handoffs { padding:14px 0; font-size:12px; color:var(--sketch-muted); }
 @media(max-width:760px) {
-  .sketch-heading { align-items:flex-start; gap:12px; flex-wrap:wrap; }.sketch-heading h2 { font-size:23px; }.sketch-key { gap:16px; }
+  .mobile-warehouse-overview { display:block; }
+  .mobile-warehouse-places { display:grid; gap:8px; }
+  .mobile-warehouse-places > button { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; border:1px solid #e1e6ed; border-radius:6px; padding:12px; background:#f8f9fb; text-align:left; }
+  .mobile-warehouse-places > button > span:first-child { flex:1; min-width:0; }
+  .mobile-warehouse-places > button > span:last-child { flex:none; text-align:right; }
+  .mobile-warehouse-places strong { display:block; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+  .mobile-warehouse-places small { display:block; font-size:11px; color:#788391; margin-top:4px; }
+  .mobile-warehouse-routes { margin-top:18px; }
+  .mobile-warehouse-routes h3 { font-size:13px; margin:0 0 8px; }
+  .mobile-warehouse-routes > button { display:block; width:100%; padding:12px 0; border:0; border-top:1px solid var(--line); background:none; text-align:left; }
+  .mobile-handoff-route { display:grid; grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr); align-items:start; gap:8px; font-size:12px; }
+  .mobile-handoff-route > span { overflow-wrap:anywhere; }.mobile-handoff-route > span:first-child { text-align:right; }.mobile-handoff-route > span:nth-child(2) { text-align:center; }
+  .mobile-warehouse-routes small { display:block; margin-top:7px; color:#788391; font-size:11px; }
+  .warehouse-view .mobile-map-toggle { width:100%; margin-top:12px; padding:9px; border:1px solid var(--line); border-radius:5px; background:white; color:#596f89; font-size:12px; }
+  .warehouse-view .graph-toolbar,.warehouse-view .graph-viewport,.warehouse-view .sketch-foot { display:none; }
+  .warehouse-view.mobile-map-open .graph-toolbar,.warehouse-view.mobile-map-open .sketch-foot { display:flex; }
+  .warehouse-view.mobile-map-open .graph-toolbar { margin-top:12px; }
+  .warehouse-view.mobile-map-open .graph-viewport { display:block; }
+  .sketch-heading { align-items:flex-start; gap:12px; flex-wrap:wrap; }.sketch-heading h2 { font-size:17px; }.sketch-key { gap:16px; }
   .graph-toolbar { flex-wrap:wrap; }.graph-toolbar > span { flex-basis:100%; margin-bottom:3px; }.room-floor { padding:10px 0 0; }.goods-floor { padding:14px 4px 12px; }
   .storage-rack { padding:4px 5px 12px; }.rack-shelf { gap:5px; padding:12px 5px 0; }.warehouse-view .goods-bin { padding:18px 3px 7px; }.warehouse-view .goods-bin.small { width:86%; min-height:84px; }.warehouse-view .goods-bin.medium { width:92%; min-height:94px; }.bin-label strong { font-size:11px; }.bin-label > span { font-size:16px; }
   .room-count { font-size:12px; }.handoff-area header { align-items:flex-start; }.room-label { padding:0 8px; }

@@ -20,7 +20,7 @@ function selectKind(value: 'funds' | 'stock') { kind.value = value; step.value =
 <template>
   <article class="quick-start">
     <header class="guide-intro">
-      <h1>先看懂东西在哪里，怎样流动</h1>
+      <h2 class="guide-heading">先看懂东西在哪里，怎样流动</h2>
       <p>FGAS 记录社团的钱和货物。记住账户和转移，就可以开始使用。</p>
       <p class="intro-ai">这里支持 AI Agent 接入。看懂基本规则后，就可以把日常登记、核对和整理交给 Agent。</p>
     </header>
@@ -90,7 +90,7 @@ function selectKind(value: 'funds' | 'stock') { kind.value = value; step.value =
 
 <style scoped>
 .quick-start{max-width:960px;margin:0 auto;padding:28px 36px 40px;background:#fff;color:#222;line-height:1.8}
-.guide-intro h1{font-size:24px;line-height:1.45;margin:0 0 12px;font-weight:600}.guide-intro p{color:#555;margin:0}
+.guide-intro .guide-heading{font-size:24px;line-height:1.45;margin:0 0 12px;font-weight:600}.guide-intro p{color:#555;margin:0}
 .guide-section{border-top:1px solid #ddd;margin-top:32px;padding-top:24px}.guide-section h2{font-size:18px;font-weight:600;margin:0 0 16px}.guide-section h3{font-size:15px;margin:0 0 8px}.guide-section p{margin:0 0 12px}
 .places{display:grid;grid-template-columns:1fr 1fr;gap:32px}.places p{max-width:34em}.examples,.guide-note{font-size:13px;color:#666}.examples{display:block;border-left:2px solid #aaa;padding-left:10px}.section-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}.section-heading>span{font-size:12px;color:#777}
 .example-tabs{display:flex;gap:20px;margin:4px 0 24px}.example-tabs button{border:0;border-bottom:2px solid transparent;background:none;padding:5px 0;font:inherit;color:#666;cursor:pointer}.example-tabs button[aria-pressed=true]{border-color:#222;color:#111;font-weight:600}
@@ -101,7 +101,7 @@ button:focus-visible{outline:2px solid #387454;outline-offset:3px}
 .private-flow{display:grid;grid-template-columns:1fr .9fr 1fr .9fr 1fr;gap:12px;align-items:center;background:#f6f7f8;padding:24px 12px;margin-top:20px}.private-flow .flow-path{min-height:70px}.private-flow .flow-packet{padding:5px 7px;font-size:13px}.awaiting-payment{opacity:.45}.private-flow+.private-demo{margin-top:2px}.reimbursement-edge{transform-origin:left;animation:draw-edge .5s ease-out both}
 @keyframes draw-edge{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes transfer{from{transform:translateX(-45%);opacity:.4}to{transform:translateX(0);opacity:1}}@keyframes balance{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:640px){.quick-start{padding:20px 16px 32px}.guide-intro h1{font-size:21px}.places{grid-template-columns:1fr;gap:22px}.flow{gap:4px;padding:20px 4px;grid-template-columns:1fr 1fr 1fr}.flow-end strong{font-size:14px}.flow-packet{font-size:12px;padding:5px 7px}.private-demo,.next-option{align-items:flex-start;flex-direction:column;gap:16px}.guide-section{margin-top:24px}.demo-steps button{padding:5px 8px}}
+@media(max-width:640px){.quick-start{padding:20px 16px 32px}.guide-intro .guide-heading{font-size:21px}.places{grid-template-columns:1fr;gap:22px}.flow{gap:4px;padding:20px 4px;grid-template-columns:1fr 1fr 1fr}.flow-end strong{font-size:14px}.flow-packet{font-size:12px;padding:5px 7px}.private-demo,.next-option{align-items:flex-start;flex-direction:column;gap:16px}.guide-section{margin-top:24px}.demo-steps button{padding:5px 8px}}
 @media(max-width:640px){.private-flow{gap:4px;padding:20px 4px}.private-flow .flow-end strong{font-size:13px}.private-flow .flow-packet{font-size:11px;padding:5px 3px}.private-flow .flow-end small{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.flow-packet.moved,.private-balance,.reimbursement-edge{animation:none}}
 </style>

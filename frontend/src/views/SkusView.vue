@@ -70,7 +70,7 @@ async function save() {
     <NSelect v-model:value="status" size="small" clearable :options="[{ label: '启用', value: 'active' }, { label: '停用', value: 'inactive' }]" placeholder="所有状态" />
     <div class="page-tools"><StatusHint label="货物字段" text="名称包含款式与规格；数量按整数记录，单位用于说明计数方式。" /><NButton v-if="editable" size="small" @click="edit()">新建 SKU</NButton></div>
   </div>
-  <div class="table-wrap compact-table">
+  <div class="table-wrap compact-table responsive-table">
     <table>
       <thead>
         <tr>
@@ -84,22 +84,22 @@ async function save() {
       </thead>
       <tbody>
         <tr v-for="s in filteredItems" :key="s.code">
-          <td>{{ s.code }}</td>
-          <td>
+          <td data-label="代号">{{ s.code }}</td>
+          <td class="table-primary">
             <AccountLabel :name="s.name" :url="s.avatar_url" />
           </td>
-          <td>{{ s.tags.join("，") || "—" }}</td>
-          <td>{{ s.unit }}</td>
-          <td>
+          <td class="table-wide" data-label="标签">{{ s.tags.join("，") || "—" }}</td>
+          <td class="table-priority" data-label="单位">{{ s.unit }}</td>
+          <td class="table-priority" data-label="状态">
             <span
               class="status-pill"
               :class="s.active ? 'status-active' : 'status-inactive'"
               >{{ s.active ? "启用" : "停用" }}</span
             >
           </td>
-          <td><NButton v-if="editable" size="small" @click="edit(s)">编辑</NButton></td>
+          <td class="table-actions-cell"><NButton v-if="editable" size="small" @click="edit(s)">编辑</NButton></td>
         </tr>
-        <tr v-if="!filteredItems.length"><td colspan="6">暂无符合条件的商品</td></tr>
+        <tr v-if="!filteredItems.length"><td class="table-empty" colspan="6">暂无符合条件的商品</td></tr>
       </tbody>
     </table>
   </div>

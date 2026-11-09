@@ -3,6 +3,7 @@ import csv
 from datetime import timedelta, timezone
 from decimal import Decimal
 from io import BytesIO, StringIO
+from itertools import islice
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from backend.infrastructure import export_store, store
@@ -35,7 +36,7 @@ def csv_bytes(headers, rows):
     return output.getvalue().encode('utf-8-sig'), count
 
 
-def bundle(db, user, mode, *, as_of=None, start=None, end=None):
+def _contents(db, user, mode, *, as_of=None, start=None, end=None):
     if not user.active:
         raise DomainError('请先登录', 401)
     if mode not in ('all', 'snapshot', 'changes'):
@@ -106,9 +107,25 @@ def bundle(db, user, mode, *, as_of=None, start=None, end=None):
             '不包含附件、审批历史或结算匹配明细，不作为数据库恢复备份。',
             *[f'{name}：{count} 行（不含表头）' for name, (_, count) in files], '',
         ])
-        output = BytesIO()
-        with ZipFile(output, 'w', ZIP_DEFLATED) as archive:
-            for name, (data, _) in files:
-                archive.writestr(name, data)
-            archive.writestr('说明.txt', note.encode('utf-8-sig'))
-        return output.getvalue(), f'fgas-{mode}-{generated.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")}.zip'
+        return files, note, generated, cutoff, scope
+
+
+def preview(db, user, mode, *, as_of=None, start=None, end=None):
+    files, _, generated, cutoff, scope = _contents(db, user, mode, as_of=as_of, start=start, end=end)
+    samples = []
+    for name, (data, count) in files:
+        rows = csv.reader(StringIO(data.decode('utf-8-sig')))
+        samples.append({'name': name, 'columns': next(rows), 'total_rows': count,
+                        'rows': list(islice(rows, 10))})
+    return {'files': samples, 'generated_at': timestamp(generated), 'cutoff': timestamp(cutoff),
+            'scope': scope}
+
+
+def bundle(db, user, mode, *, as_of=None, start=None, end=None):
+    files, note, generated, _, _ = _contents(db, user, mode, as_of=as_of, start=start, end=end)
+    output = BytesIO()
+    with ZipFile(output, 'w', ZIP_DEFLATED) as archive:
+        for name, (data, _) in files:
+            archive.writestr(name, data)
+        archive.writestr('说明.txt', note.encode('utf-8-sig'))
+    return output.getvalue(), f'fgas-{mode}-{generated.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")}.zip'

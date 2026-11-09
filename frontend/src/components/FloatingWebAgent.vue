@@ -188,7 +188,7 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); key.value = ''; })
 
 <template>
   <Teleport to="body">
-  <button v-show="!open || !expanded" class="agent-launcher" :class="{ 'agent-launcher-open': open }" type="button" :aria-expanded="open" aria-controls="web-agent-panel" @click="open = !open">
+  <button v-show="!open || !expanded" class="agent-launcher" :class="{ 'agent-launcher-open': open }" type="button" :aria-label="busy ? '网页助手正在回复' : open ? '收起网页助手' : '打开网页助手'" :title="open ? '收起网页助手' : '打开网页助手'" :aria-expanded="open" aria-controls="web-agent-panel" @click="open = !open">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9l-5 3v-3H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 9h10M7 13h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
     <span>{{ busy ? '回复中…' : open ? '收起助手' : '网页助手' }}</span>
   </button>
@@ -280,7 +280,8 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); key.value = ''; })
 .agent-send small { font-size:10px; }
 @media(max-width:700px) {
   .web-agent-panel,.web-agent-panel.agent-expanded { top:0; right:0; bottom:auto; width:100%; height:100dvh; border:0; border-radius:0; }
-  .agent-launcher { right:12px; bottom:18px; padding:9px 13px; }
+  .agent-launcher { right:12px; bottom:max(12px,env(safe-area-inset-bottom)); width:42px; height:42px; justify-content:center; padding:0; border-radius:50%; }
+  .agent-launcher span { display:none; }
   .agent-launcher-open,.agent-expand-button { display:none; }
   .agent-header { padding:calc(9px + env(safe-area-inset-top)) 13px 9px; }
   .agent-transcript { padding:12px; }

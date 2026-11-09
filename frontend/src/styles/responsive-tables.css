@@ -1,0 +1,26 @@
+/* Existing table cells become labeled records on narrow screens. Business
+   rendering and action availability stay in their original views. */
+@media (max-width: 760px) {
+  .table-wrap.responsive-table { overflow:visible; }
+  .table-wrap.responsive-table::before { display:none; }
+  .table-wrap.responsive-table > table { display:block; width:100%; min-width:0; }
+  .responsive-table colgroup { display:none; }
+  .responsive-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .responsive-table tbody { display:block; }
+  .responsive-table tbody > tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 16px; padding:14px 0; border-bottom:1px solid var(--line); }
+  .responsive-table tbody > tr:first-child { border-top:1px solid var(--line); }
+  .responsive-table tbody > tr:last-child { border-bottom:0; }
+  .responsive-table tbody > tr:hover { background:transparent; }
+  .responsive-table.compact-table > table > tbody > tr > td { display:block; min-width:0; padding:0; border:0; text-align:left; font-size:12px; white-space:normal; overflow-wrap:anywhere; order:3; }
+  .responsive-table td[data-label]::before { content:attr(data-label); display:block; margin-bottom:4px; color:#788391; font-size:11px; font-weight:400; }
+  .responsive-table.compact-table > table > tbody > tr > .table-primary { grid-column:1/-1; order:0; font-size:14px; font-weight:600; }
+  .responsive-table .table-primary small { font-size:11px; font-weight:400; color:#788391; }
+  .responsive-table.compact-table > table > tbody > tr > .table-priority { order:1; }
+  .responsive-table.compact-table > table > tbody > tr > .table-route { grid-column:1/-1; order:2; }
+  .responsive-table .table-wide { grid-column:1/-1; }
+  .responsive-table.compact-table > table > tbody > tr > .table-actions-cell { grid-column:1/-1; order:4; }
+  .responsive-table .table-actions { justify-content:flex-start; flex-wrap:wrap; white-space:normal; }
+  .responsive-table .table-actions .n-button { min-width:0; }
+  .responsive-table.compact-table > table > tbody > tr > .table-empty { grid-column:1/-1; padding:12px 0; color:#788391; }
+  .responsive-table td .n-select { min-width:0; width:100%; }
+}

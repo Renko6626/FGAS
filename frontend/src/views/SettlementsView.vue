@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, h, onBeforeUnmount, ref, watch } from "vue";
-import { NButton, NSelect, type SelectOption } from "naive-ui";
+import { NButton, NInput, NSelect, type SelectOption } from "naive-ui";
 import { money, statuses } from "../presentation/funds";
 import type { Account } from "../api/accounts";
 import { settlementsApi, type SettlementOverview } from "../api/settlements";
+import AccountAvatar from "../components/AccountAvatar.vue";
 import AccountLabel from "../components/AccountLabel.vue";
 import AccountRoute from "../components/AccountRoute.vue";
 import SettlementEditor from "../components/SettlementEditor.vue";
@@ -21,6 +22,19 @@ const options = computed(() =>
     .filter((a) => a.kind === "private")
     .map((a) => ({ label: `${a.name}（${a.code}）`, value: a.code })),
 );
+const search = ref("");
+const privateAccounts = computed(() => props.accounts.filter(account => account.kind === "private"));
+const accountRows = computed(() => {
+  const query = search.value.trim().toLocaleLowerCase();
+  return privateAccounts.value.filter(account => !query ||
+    `${account.name} ${account.code} ${account.member_name || ''}`.toLocaleLowerCase().includes(query))
+    .sort((a, b) => Math.abs(b.balance_minor) - Math.abs(a.balance_minor) || a.name.localeCompare(b.name, 'zh-CN'));
+});
+const receivable = computed(() => privateAccounts.value.reduce((sum, account) => sum + Math.max(account.balance_minor, 0), 0));
+const payable = computed(() => privateAccounts.value.reduce((sum, account) => sum + Math.max(-account.balance_minor, 0), 0));
+function balanceDirection(value: number) {
+  return value > 0 ? "成员应交回" : value < 0 ? "社团应偿还" : "净余额为零";
+}
 function renderAccountLabel(option: SelectOption) {
   const account = props.accounts.find((a) => a.code === option.value);
   return h(AccountLabel, {
@@ -111,178 +125,63 @@ function edit(value: "expense" | "receipt") {
 </script>
 
 <template>
-  <div class="page-toolbar">
-    <NSelect class="account-picker" v-model:value="selected" size="small" :options="options" :render-label="renderAccountLabel" placeholder="选择私账账户" aria-label="私账账户" />
-    <div class="page-tools">
-      <NButton size="small" :disabled="!selected" :loading="busy" @click="load">刷新</NButton>
-      <NButton size="small" :disabled="!selected" @click="copyLink">复制定位链接</NButton>
+  <template v-if="!selected">
+    <div class="settlement-overview" aria-label="私账往来净余额">
+      <div><span>成员应交回（净额）</span><strong>¥ {{ money(receivable) }}</strong></div>
+      <div><span>社团应偿还（净额）</span><strong>¥ {{ money(payable) }}</strong></div>
+      <small>{{ privateAccounts.length }} 个私账</small>
     </div>
+    <p class="settlement-caption">净余额说明往来方向。逐笔未结款项请进入账户核对，净余额为零也可能有未结明细。</p>
+    <div class="page-toolbar"><NInput v-model:value="search" clearable placeholder="搜索私账、成员或账户编号" :input-props="{ 'aria-label': '搜索私账' }" /><span class="page-count">{{ accountRows.length }} 个账户</span></div>
+    <div v-if="accountRows.length" class="settlement-accounts">
+      <button v-for="account in accountRows" :key="account.code" class="settlement-account" @click="selected = account.code">
+        <AccountAvatar :name="account.name" :url="account.avatar_url" />
+        <span class="settlement-account-name"><strong>{{ account.name }}</strong><small>{{ account.code }}<template v-if="account.member_name">　{{ account.member_name }}</template><template v-if="!account.active">　已停用</template></small></span>
+        <span class="settlement-account-balance"><strong>¥ {{ money(Math.abs(account.balance_minor)) }}</strong><small>{{ balanceDirection(account.balance_minor) }}</small></span>
+        <span class="settlement-account-open">查看明细 <span aria-hidden="true">›</span></span>
+      </button>
+    </div>
+    <div v-else class="empty-state"><p>{{ privateAccounts.length ? '没有符合条件的私账' : '还没有私账账户，可在资金账户中建立。' }}</p><NButton v-if="search" size="small" @click="search = ''">清空搜索</NButton></div>
+  </template>
+  <div v-else class="page-toolbar">
+    <NButton size="small" @click="selected = null">全部私账</NButton>
+    <NSelect class="account-picker" v-model:value="selected" size="small" :options="options" :render-label="renderAccountLabel" placeholder="选择私账账户" aria-label="私账账户" />
+    <div class="page-tools"><NButton size="small" :loading="busy" @click="load">刷新</NButton><NButton size="small" @click="copyLink">复制定位链接</NButton></div>
   </div>
-  <p v-if="error" class="error">{{ error }}</p>
+  <p v-if="error" class="error" role="alert">{{ error }}</p>
+  <p v-if="selected && busy && !detail" class="empty-state" role="status">正在读取结算明细…</p>
   <template v-if="detail">
     <div class="settlement-summary">
-      <div class="account-balance">
-        <span>净余额</span
-        ><strong class="balance-value"
-          >¥{{ money(detail.account.balance_minor) }}</strong
-        >
-        <p class="balance-direction">
-          {{
-            detail.account.balance_minor > 0
-              ? "应交回社团"
-              : detail.account.balance_minor < 0
-                ? "社团应偿还"
-                : "净余额为零"
-          }}
-        </p>
-      </div>
-      <div class="outstanding-summary">
-        <div>
-          <span>报销未结</span><strong>¥{{ money(expenseOutstanding) }}</strong>
-        </div>
-        <div>
-          <span>代收未结</span><strong>¥{{ money(receiptOutstanding) }}</strong>
-        </div>
-      </div>
+      <div class="account-balance"><span>净余额</span><strong class="balance-value">¥{{ money(detail.account.balance_minor) }}</strong><p class="balance-direction">{{ balanceDirection(detail.account.balance_minor) }}</p></div>
+      <div class="outstanding-summary"><div><span>报销未结</span><strong>¥{{ money(expenseOutstanding) }}</strong></div><div><span>代收未结</span><strong>¥{{ money(receiptOutstanding) }}</strong></div></div>
     </div>
     <div class="page-toolbar settlement-tabs">
-      <div class="segmented-tabs" aria-label="结算类别">
-      <button
-        :class="{ active: activeTab === 'expense' }"
-        @click="activeTab = 'expense'"
-      >
-        报销支出</button
-      ><button
-        :class="{ active: activeTab === 'receipt' }"
-        @click="activeTab = 'receipt'"
-      >
-        代收交回</button
-      ><button
-        :class="{ active: activeTab === 'history' }"
-        @click="activeTab = 'history'"
-      >
-        结算历史
-      </button>
-      </div>
-      <div v-if="trusted && activeTab !== 'history'" class="page-tools">
-        <NButton size="small" @click="edit(activeTab === 'receipt' ? 'receipt' : 'expense')">{{ activeTab === 'receipt' ? '交回代收款' : '报销支出' }}</NButton>
-      </div>
+      <div class="segmented-tabs" aria-label="结算类别"><button :class="{ active: activeTab === 'expense' }" @click="activeTab = 'expense'">报销支出</button><button :class="{ active: activeTab === 'receipt' }" @click="activeTab = 'receipt'">代收交回</button><button :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">结算历史</button></div>
+      <div v-if="trusted && activeTab !== 'history'" class="page-tools"><NButton size="small" type="primary" @click="edit(activeTab === 'receipt' ? 'receipt' : 'expense')">{{ activeTab === 'receipt' ? '交回代收款' : '报销支出' }}</NButton></div>
     </div>
-    <section
-      v-for="group in groups.filter((group) => group.key === activeTab)"
-      :key="group.key"
-    >
-      <div v-if="group.items.length" class="table-wrap compact-table">
-        <table>
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>来源 → 去向</th>
-              <th>说明 / 标签</th>
-              <th class="numeric">金额</th>
-              <th class="numeric">已结</th>
-              <th class="numeric">未结</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in group.items" :key="item.transfer.code">
-              <td>{{ item.transfer.effective_date }}</td>
-              <td>
-                <AccountRoute
-                  :accounts="accounts"
-                  :source-id="item.transfer.source_account_code"
-                  :destination-id="item.transfer.destination_account_code"
-                  :source-name="item.transfer.source_account_name"
-                  :destination-name="item.transfer.destination_account_name"
-                />
-              </td>
-              <td>
-                <div v-if="item.transfer.description">
-                  {{ item.transfer.description }}
-                </div>
-                <span
-                  v-for="tag in item.transfer.tags"
-                  :key="tag"
-                  class="tag"
-                  >{{ tag }}</span
-                >
-                <details class="record-detail">
-                  <summary>记录编号</summary>
-                  <small>{{ item.transfer.code }}</small>
-                </details>
-              </td>
-              <td class="numeric">¥{{ money(item.transfer.amount_minor) }}</td>
-              <td class="numeric">¥{{ money(item.settled_minor) }}</td>
-              <td class="numeric">¥{{ money(item.outstanding_minor) }}</td>
-              <td>
-                <span
-                  class="status-pill"
-                  :class="`status-${item.transfer.status}`"
-                  >{{
-                    statuses[item.transfer.status] || item.transfer.status
-                  }}</span
-                >
-              </td>
-            </tr>
-          </tbody>
+    <section v-for="group in groups.filter(group => group.key === activeTab)" :key="group.key">
+      <div v-if="group.items.length" class="table-wrap compact-table responsive-table">
+        <table class="settlement-table">
+          <colgroup><col style="width:26%" /><col style="width:12%" /><col style="width:32%" /><col style="width:10%" /><col style="width:10%" /><col style="width:10%" /></colgroup>
+          <thead><tr><th>事项 / 日期</th><th class="numeric">金额</th><th>来源 → 去向</th><th class="numeric">已结</th><th class="numeric">未结</th><th>状态</th></tr></thead>
+          <tbody><tr v-for="item in group.items" :key="item.transfer.code">
+            <td class="table-primary"><strong>{{ item.transfer.description || '未填写说明' }}</strong><small>{{ item.transfer.effective_date }}　{{ item.transfer.code }}</small><span v-for="tag in item.transfer.tags" :key="tag" class="tag">{{ tag }}</span></td>
+            <td class="numeric table-priority" data-label="金额"><strong>¥{{ money(item.transfer.amount_minor) }}</strong></td>
+            <td class="settlement-route-cell table-route" data-label="来源 → 去向"><AccountRoute :accounts="accounts" :source-id="item.transfer.source_account_code" :destination-id="item.transfer.destination_account_code" :source-name="item.transfer.source_account_name" :destination-name="item.transfer.destination_account_name" /></td>
+            <td class="numeric" data-label="已结">¥{{ money(item.settled_minor) }}</td>
+            <td class="numeric" data-label="未结"><strong>¥{{ money(item.outstanding_minor) }}</strong></td>
+            <td class="table-priority" data-label="状态"><span class="status-pill" :class="`status-${item.transfer.status}`">{{ statuses[item.transfer.status] || item.transfer.status }}</span></td>
+          </tr></tbody>
         </table>
-      </div>
-      <p v-else class="empty-state">暂无{{ group.title }}记录</p>
+      </div><p v-else class="empty-state">暂无{{ group.title }}记录</p>
     </section>
     <section v-if="activeTab === 'history'">
-      <div v-if="detail.settlements.length" class="table-wrap compact-table">
-        <table>
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>来源 → 去向</th>
-              <th>说明 / 标签</th>
-              <th class="numeric">金额</th>
-              <th class="numeric">有效匹配</th>
-              <th class="numeric">未匹配</th>
-              <th>状态 / 匹配记录</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="payment in detail.settlements"
-              :key="payment.transfer.code"
-            >
-              <td>{{ payment.transfer.effective_date }}</td>
-              <td>
-                <AccountRoute
-                  :accounts="accounts"
-                  :source-id="payment.transfer.source_account_code"
-                  :destination-id="payment.transfer.destination_account_code"
-                  :source-name="payment.transfer.source_account_name"
-                  :destination-name="payment.transfer.destination_account_name"
-                />
-              </td>
-              <td>
-                <div v-if="payment.transfer.description">
-                  {{ payment.transfer.description }}
-                </div>
-                <span
-                  v-for="tag in payment.transfer.tags"
-                  :key="tag"
-                  class="tag"
-                  >{{ tag }}</span
-                >
-              </td>
-              <td class="numeric">
-                ¥{{ money(payment.transfer.amount_minor) }}
-              </td>
-              <td class="numeric">¥{{ money(payment.matched_minor) }}</td>
-              <td class="numeric">¥{{ money(payment.unmatched_minor) }}</td>
-              <td>
-                <span
-                  class="status-pill"
-                  :class="`status-${payment.transfer.status}`"
-                  >{{
-                    statuses[payment.transfer.status] || payment.transfer.status
-                  }}</span
-                >
+      <div v-if="detail.settlements.length" class="table-wrap compact-table responsive-table">
+        <table class="settlement-table">
+          <colgroup><col style="width:26%" /><col style="width:12%" /><col style="width:32%" /><col style="width:10%" /><col style="width:10%" /><col style="width:10%" /></colgroup>
+          <thead><tr><th>事项 / 匹配记录</th><th class="numeric">金额</th><th>来源 → 去向</th><th class="numeric">有效匹配</th><th class="numeric">未匹配</th><th>状态</th></tr></thead>
+          <tbody><tr v-for="payment in detail.settlements" :key="payment.transfer.code">
+            <td class="table-primary"><strong>{{ payment.transfer.description || '结算付款' }}</strong><small>{{ payment.transfer.effective_date }}　{{ payment.transfer.code }}</small><span v-for="tag in payment.transfer.tags" :key="tag" class="tag">{{ tag }}</span>
                 <details class="record-detail">
                   <summary>匹配记录（{{ payment.matches.length }}）</summary>
                   <div
@@ -337,26 +236,19 @@ function edit(value: "expense" | "receipt") {
                     >结算编号：{{ payment.transfer.code }}</small
                   >
                 </details>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-else class="empty-state">暂无结算记录</p>
-    </section>
 
-    <SettlementEditor
-      :show="show"
-      :direction="direction"
-      :account="detail.account"
-      :accounts="accounts"
-      :items="direction === 'expense' ? detail.expenses : detail.receipts"
-      :payments="detail.settlements"
-      @close="show = false"
-      @saved="changed"
-    />
+            </td>
+            <td class="numeric table-priority" data-label="金额"><strong>¥{{ money(payment.transfer.amount_minor) }}</strong></td>
+            <td class="settlement-route-cell table-route" data-label="来源 → 去向"><AccountRoute :accounts="accounts" :source-id="payment.transfer.source_account_code" :destination-id="payment.transfer.destination_account_code" :source-name="payment.transfer.source_account_name" :destination-name="payment.transfer.destination_account_name" /></td>
+            <td class="numeric" data-label="有效匹配">¥{{ money(payment.matched_minor) }}</td>
+            <td class="numeric" data-label="未匹配">¥{{ money(payment.unmatched_minor) }}</td>
+            <td class="table-priority" data-label="状态"><span class="status-pill" :class="`status-${payment.transfer.status}`">{{ statuses[payment.transfer.status] || payment.transfer.status }}</span></td>
+          </tr></tbody>
+        </table>
+      </div><p v-else class="empty-state">暂无结算记录</p>
+    </section>
+    <SettlementEditor :show="show" :direction="direction" :account="detail.account" :accounts="accounts" :items="direction === 'expense' ? detail.expenses : detail.receipts" :payments="detail.settlements" @close="show = false" @saved="changed" />
   </template>
-  <p v-else-if="!selected" class="empty-state">选择私账账户后查看结算记录</p>
 </template>
 
 <style scoped>
@@ -371,9 +263,9 @@ function edit(value: "expense" | "receipt") {
   flex-wrap: wrap;
   margin:0 0 12px;
   padding:10px 12px;
-  border:1px solid #e1e7e3;
+  border:1px solid var(--line);
   border-radius:6px;
-  background:#f6f9f7;
+  background:#f8f9fb;
 }
 .account-balance {
   display:flex;
@@ -386,7 +278,7 @@ function edit(value: "expense" | "receipt") {
 .account-balance .balance-value { display:inline; margin:0; font:inherit; font-size:22px; font-weight:650; }
 .balance-direction {
   margin:0;
-  color:#66766b;
+  color:#657286;
   font-size:12px;
 }
 .outstanding-summary {
@@ -401,6 +293,11 @@ function edit(value: "expense" | "receipt") {
   font-variant-numeric: tabular-nums;
   margin-left:8px;
 }
+.settlement-table { table-layout:fixed; min-width:920px; }
+.settlement-table .table-primary > strong { font-size:13px; font-weight:600; }
+.settlement-table .table-primary > small { color:#788391; font-size:11px; }
+.settlement-route-cell { overflow-wrap:anywhere; }
+.settlement-table :deep(.account-avatar) { display:none; }
 .settlement-tabs .segmented-tabs { margin-bottom:0; }
 .record-detail {
   margin-top: 8px;
@@ -416,7 +313,7 @@ function edit(value: "expense" | "receipt") {
 }
 .match-record {
   padding: 12px 0;
-  min-width: 260px;
+  min-width: 0;
 }
 .match-record p {
   margin: 0 0 6px;
@@ -435,4 +332,15 @@ function edit(value: "expense" | "receipt") {
     width: 100%;
   }
 }
+
+.settlement-overview { display:flex; align-items:center; flex-wrap:wrap; gap:16px 36px; padding:4px 0 14px; border-bottom:1px solid var(--line); }
+.settlement-overview > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 12px; }
+.settlement-overview span { color:#788391; font-size:12px; }.settlement-overview strong { font-size:22px; font-weight:650; font-variant-numeric:tabular-nums; }.settlement-overview > small { margin-left:auto; font-size:12px; }
+.settlement-caption { margin:10px 0 16px; color:#788391; font-size:12px; }
+.settlement-accounts { border-top:1px solid var(--line); }
+.settlement-account { display:flex; align-items:center; width:100%; min-width:0; gap:12px; padding:14px 10px; border:0; border-bottom:1px solid var(--line); background:white; text-align:left; color:#29323e; }
+.settlement-account:hover,.settlement-account:focus-visible { background:#f5f7fa; }.settlement-account :deep(.account-avatar) { width:32px; height:32px; margin:0; flex:none; font-size:14px; }
+.settlement-account-name { min-width:0; flex:1; }.settlement-account-name strong { display:block; font-size:14px; font-weight:600; overflow-wrap:anywhere; }.settlement-account small { display:block; color:#788391; font-size:11px; margin-top:3px; }
+.settlement-account-balance { text-align:right; flex:none; font-variant-numeric:tabular-nums; }.settlement-account-balance strong { font-size:16px; font-weight:600; }.settlement-account-open { display:flex; align-items:center; gap:8px; margin-left:24px; font-size:12px; color:#788391; }
+@media(max-width:760px) { .settlement-overview { gap:12px; }.settlement-overview > div { justify-content:space-between; width:100%; }.settlement-overview > small { margin-left:0; }.settlement-account { padding:12px 0; gap:8px; }.settlement-account-open { display:none; }.settlement-account-balance strong { font-size:14px; }.settlement-account :deep(.account-avatar) { display:none; } }
 </style>

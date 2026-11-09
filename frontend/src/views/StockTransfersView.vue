@@ -13,6 +13,7 @@ const props = defineProps<{
   skus: Sku[];
   accounts: Account[];
   approvals?: boolean;
+  hideCreate?: boolean;
   revision?: number;
   targetCode?: string;
   initialStatus?: string;
@@ -75,7 +76,7 @@ onBeforeUnmount(() => window.clearTimeout(filterTimer));
 </script>
 
 <template>
-  <StockTransferFilters v-model="filters" :approvals="approvals" :count="total" :trusted="trusted" :loading="loading" @create="emit('create')" @refresh="emit('changed')" />
+  <StockTransferFilters :hide-create="hideCreate" v-model="filters" :approvals="approvals" :count="total" :trusted="trusted" :loading="loading" @create="emit('create')" @refresh="emit('changed')" />
   <StockTransferRecords :target-code="targetCode" :items="items" :locations="locations" :trusted="trusted" :skus="skus" :accounts="accounts"
     :approvals="approvals" :loading="loading" :error="error" @changed="emit('changed')" />
   <PaginationBar :page="page" :limit="limit" :total="total" @update:page="page = $event" @update:limit="limit = $event" />

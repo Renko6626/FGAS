@@ -103,10 +103,45 @@ def test_export_stock_snapshot_and_later_completion(client):
 
 def test_export_empty_auth_and_time_validation(client):
     assert exported(client, 'all')['资金台账.csv'] == []
+    empty = client.get('/api/exports/preview', params={'mode': 'all'})
+    assert empty.status_code == 200
+    assert all(file['total_rows'] == 0 and file['rows'] == [] for file in empty.json()['files'])
     for params in [dict(mode='changes'), dict(mode='snapshot', as_of='2026-01-01T00:00:00'),
                    dict(mode='all', start='2026-01-01T00:00:00Z'),
                    dict(mode='snapshot', as_of='2999-01-01T00:00:00Z'),
                    dict(mode='changes', start='2026-02-01T00:00:00Z', end='2026-01-01T00:00:00Z')]:
         assert client.get('/api/exports', params=params).status_code in (400, 422)
+        assert client.get('/api/exports/preview', params=params).status_code in (400, 422)
     client.cookies.clear()
     assert client.get('/api/exports', params={'mode': 'all'}).status_code == 401
+    assert client.get('/api/exports/preview', params={'mode': 'all'}).status_code == 401
+
+
+def test_export_preview_matches_csv_and_limits_sample(client):
+    for _ in range(12):
+        assert transfer(client, 'opening', 'fund_pool', '1.25').status_code == 201
+    assert client.post('/api/skus', json={'code': 'PREVIEW', 'name': '=书,"版本"\n说明', 'unit': '本'}).status_code == 201
+    supplier = client.post('/api/stock-accounts', json={'name': '商家', 'kind': 'external'}).json()['code']
+    stock = client.post('/api/stock-transfers', json=dict(source_account_code=supplier,
+        destination_account_code=seed_code('main'), effective_date='2026-01-01',
+        lines=[{'sku_code': 'PREVIEW', 'quantity': '3'}])).json()
+    assert client.post(f"/api/stock-transfers/{stock['code']}/completion",
+                       json={'effective_date': '2026-01-01'}).status_code == 200
+    cutoff = datetime.now(timezone.utc).isoformat()
+    for params in [dict(mode='all'), dict(mode='snapshot', as_of=cutoff),
+                   dict(mode='changes', start='2020-01-01T00:00:00+08:00', end=cutoff)]:
+        response = client.get('/api/exports/preview', params=params)
+        assert response.status_code == 200, response.text
+        assert response.headers['cache-control'] == 'no-store'
+        files = response.json()['files']
+        download = client.get('/api/exports', params=params)
+        assert download.status_code == 200
+        with ZipFile(BytesIO(download.content)) as archive:
+            assert {file['name'] for file in files} == set(archive.namelist()) - {'说明.txt'}
+            for file in files:
+                rows = list(csv.reader(StringIO(archive.read(file['name']).decode('utf-8-sig'))))
+                assert file['columns'] == rows[0]
+                assert file['total_rows'] == len(rows) - 1
+                assert file['rows'] == rows[1:11]
+        if params['mode'] != 'snapshot':
+            assert files[0]['total_rows'] == 12 and len(files[0]['rows']) == 10

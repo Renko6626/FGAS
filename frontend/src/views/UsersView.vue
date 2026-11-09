@@ -28,19 +28,19 @@ async function force(user:AdminUser){
   <div class="page-toolbar"><span class="page-count">{{ users.length }} 个用户</span><StatusHint label="权限管理" text="用户在 Casdoor 首次登录后自动创建，默认普通用户；角色由本地管理员维护。停用账号会撤销其全部网页会话并阻止 Agent 继续访问；强制退出只撤销网页会话，不影响 Agent 连接。" /></div>
   <p v-if="error" class="error" role="alert">{{error}}</p>
   <p v-if="notice" role="status">{{notice}}</p>
-  <div class="table-wrap compact-table"><table>
+  <div class="table-wrap compact-table responsive-table"><table>
     <thead><tr><th>用户</th><th>Casdoor 账号</th><th>邮箱</th><th>最后登录</th><th>角色</th><th>启用</th><th></th></tr></thead>
     <tbody>
       <tr v-for="user in users" :key="user.id">
-        <td>{{user.display_name}}<small v-if="user.id===props.currentUserId">当前账号</small><small v-else>{{user.source==='casdoor'?'Casdoor':'开发账号'}}</small></td>
-        <td>{{user.sso_username||'—'}}<small v-if="user.sso_subject">sub: {{short(user.sso_subject)}}</small></td>
-        <td>{{user.email||'—'}}</td>
-        <td>{{date(user.last_login_at)}}</td>
-        <td><NSelect v-model:value="user.role" size="small" :options="roles"/></td>
-        <td><NCheckbox v-model:checked="user.active"/></td>
-        <td><div class="table-actions"><NButton size="small" :loading="busy===user.id" @click="save(user)">保存</NButton><NPopconfirm @positive-click="force(user)"><template #trigger><NButton size="small" :loading="busy==='force:'+user.id" :disabled="!user.active">强制退出</NButton></template>撤销该用户的全部网页登录？</NPopconfirm></div></td>
+        <td class="table-primary">{{user.display_name}}<small v-if="user.id===props.currentUserId">当前账号</small><small v-else>{{user.source==='casdoor'?'Casdoor':'开发账号'}}</small></td>
+        <td data-label="Casdoor 账号">{{user.sso_username||'—'}}<small v-if="user.sso_subject">sub: {{short(user.sso_subject)}}</small></td>
+        <td data-label="邮箱">{{user.email||'—'}}</td>
+        <td class="table-wide" data-label="最后登录">{{date(user.last_login_at)}}</td>
+        <td class="table-priority" data-label="角色"><NSelect :aria-label="`${user.display_name}的角色`" v-model:value="user.role" size="small" :options="roles"/></td>
+        <td class="table-priority" data-label="启用"><NCheckbox :aria-label="`启用${user.display_name}`" v-model:checked="user.active"/></td>
+        <td class="table-actions-cell"><div class="table-actions"><NButton size="small" :loading="busy===user.id" @click="save(user)">保存</NButton><NPopconfirm @positive-click="force(user)"><template #trigger><NButton size="small" :loading="busy==='force:'+user.id" :disabled="!user.active">强制退出</NButton></template>撤销该用户的全部网页登录？</NPopconfirm></div></td>
       </tr>
-      <tr v-if="!users.length"><td colspan="7">暂无用户</td></tr>
+      <tr v-if="!users.length"><td class="table-empty" colspan="7">暂无用户</td></tr>
     </tbody>
   </table></div>
 </template>

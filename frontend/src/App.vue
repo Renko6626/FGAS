@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref, watch } from "vue";
-import { NButton, NSelect, NModal, NConfigProvider, zhCN } from "naive-ui";
+import { NButton, NSelect, NModal, NDropdown, NConfigProvider, zhCN, dateZhCN } from "naive-ui";
 import { workspaceTheme } from "./theme";
 import DashboardView from "./views/DashboardView.vue";
 import { useSession } from "./composables/useSession";
@@ -35,6 +35,7 @@ const busy = ref(false);
 const showTransfer = ref(false);
 const opening = ref(false);
 const mobileNav = ref(false);
+const sidebarCollapsed = ref(false);
 const showIdentity = ref(false);
 const approvalType = ref("funds");
 const {
@@ -87,15 +88,16 @@ const pages: Record<string, { title: string }> = {
 };
 const groups = computed(() => [
   {
-    label: "日常工作",
+    value: "work",
+    label: "工作台",
     items: [
       { value: "home", label: "工作首页" },
-      { value: "quickStart", label: "快速了解" },
-      { value: "exports", label: "导出台账" },
       ...(trusted.value ? [{ value: "approvals", label: "待办审批" }] : []),
+      ...(stocktakesEnabled ? [{ value: "stocktakes", label: "阶段盘点" }] : []),
     ],
   },
   {
+    value: "funds",
     label: "资金",
     items: [
       { value: "transfers", label: "资金流水" },
@@ -104,6 +106,7 @@ const groups = computed(() => [
     ],
   },
   {
+    value: "goods",
     label: "货物",
     items: [
       { value: "inventory", label: "当前库存" },
@@ -112,25 +115,43 @@ const groups = computed(() => [
       { value: "locations", label: "货物账户" },
     ],
   },
-  ...(stocktakesEnabled ? [{
-    label: "盘点",
-    items: [{ value: "stocktakes", label: "阶段盘点" }],
-  }] : []),
   {
+    value: "catalogs",
     label: "基础资料",
-    items: [
-      { value: "members", label: "成员与联系人" },
-      { value: "agentConnections", label: "Agent 连接" },
-      ...(user.value?.role === "admin"
-        ? [{ value: "users", label: "用户权限" },
-           { value: "attachments", label: "图片附件" },
-           ...(webAgentEnabled.value ? [{ value: "sharedModelSettings", label: "公共模型设置" }] : [])]
-        : []),
-    ],
+    items: [{ value: "members", label: "成员与联系人" }],
   },
+  ...(user.value?.role === "admin" ? [{
+    value: "admin",
+    label: "管理",
+    items: [
+      { value: "users", label: "用户权限" },
+      { value: "attachments", label: "图片附件" },
+      ...(webAgentEnabled.value ? [{ value: "sharedModelSettings", label: "公共模型设置" }] : []),
+    ],
+  }] : []),
 ]);
-const nav = computed(() => groups.value.flatMap((group) => group.items));
+const utilityGroups = [
+  { value: "help", label: "帮助", items: [{ value: "quickStart", label: "快速了解" }] },
+  { value: "tools", label: "工具", items: [{ value: "exports", label: "导出台账" }] },
+  { value: "personal", label: "个人设置", items: [{ value: "agentConnections", label: "Agent 连接" }] },
+];
+const allGroups = computed(() => [...groups.value, ...utilityGroups]);
+const nav = computed(() => allGroups.value.flatMap((group) => group.items));
+const currentGroup = computed(() =>
+  allGroups.value.find((group) => group.items.some((item) => item.value === tab.value)) || groups.value[0]!,
+);
 const currentPage = computed(() => pages[tab.value] || pages.home!);
+const toolOptions = computed(() => [
+  { label: "导出台账", key: "exports" },
+  { type: "divider", key: "divider" },
+  { label: "刷新数据", key: "refresh", disabled: busy.value },
+]);
+const identityOptions = computed(() => [
+  { label: mode.value === "development" ? "开发账号" : "当前账号", key: "identity" },
+  { label: "Agent 连接", key: "agentConnections" },
+  { type: "divider", key: "divider" },
+  { label: "退出登录", key: "logout" },
+]);
 const approvalCount = computed(
   () => counts.value.pendingFunds + counts.value.pendingStock,
 );
@@ -141,6 +162,19 @@ function navigate(value: string, approval?: "funds" | "stock", status?: string) 
   mobileNav.value = false;
   targetStatus.value = status || "";
   window.location.hash = value + (status ? `?status=${encodeURIComponent(status)}` : "");
+}
+function navigateGroup(value: string) {
+  const group = groups.value.find((item) => item.value === value);
+  if (group?.items[0]) navigate(group.items[0].value);
+}
+function selectTool(key: string | number) {
+  if (key === "refresh") void refresh();
+  else if (key === "exports") navigate("exports");
+}
+function selectIdentity(key: string | number) {
+  if (key === "identity") showIdentity.value = true;
+  else if (key === "logout") void logout();
+  else if (key === "agentConnections") navigate("agentConnections");
 }
 function readPageHash() {
   if (!user.value) return;
@@ -175,11 +209,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <NConfigProvider :locale="zhCN" :theme-overrides="workspaceTheme">
+  <NConfigProvider :locale="zhCN" :date-locale="dateZhCN" :theme-overrides="workspaceTheme">
     <div
       v-if="user && !switching"
       class="workspace"
-      :class="{ 'nav-open': mobileNav }"
+      :class="{ 'nav-open': mobileNav, 'sidebar-collapsed': sidebarCollapsed }"
     >
       <button
         v-if="mobileNav"
@@ -188,22 +222,11 @@ onMounted(async () => {
         @click="mobileNav = false"
       ></button>
       <aside id="workspace-navigation" class="sidebar">
-        <button
-          class="brand"
-          aria-label="FGAS 工作首页"
-          @click="navigate('home')"
-        >
-          <span><strong>FGAS</strong></span>
-        </button>
-        <nav class="side-nav" aria-label="主导航">
-          <div
-            v-for="group in groups"
-            :key="group.label"
-            class="nav-group fantasy_guide_div_1"
-          >
-            <span class="nav-group-label">{{ group.label }}</span>
+        <nav class="side-nav" :aria-label="currentGroup.label + '页面'">
+          <div class="nav-group">
+            <span class="nav-group-label">{{ currentGroup.label }}</span>
             <button
-              v-for="item in group.items"
+              v-for="item in currentGroup.items"
               :key="item.value"
               class="nav-item"
               :class="{ active: tab === item.value }"
@@ -225,48 +248,57 @@ onMounted(async () => {
       </aside>
       <div class="workspace-body">
         <header class="workspace-header">
-          <div class="header-title">
+          <button class="header-title" aria-label="FGAS 工作首页" @click="navigate('home')">
             <img src="/fantasyguide/touhouFantasyGuideLOGO.svg" alt="" />
-            <div>
-              <strong>FGAS</strong>
-              <h2>资金与库存工作台</h2>
-            </div>
-          </div>
-          <div class="header-left">
-            <NButton
-              class="mobile-menu"
-              quaternary
-              :aria-expanded="mobileNav"
-              aria-controls="workspace-navigation"
-              aria-label="展开导航"
-              @click="mobileNav = !mobileNav"
-              >☰</NButton
-            ><span>{{ currentPage.title }}</span>
-          </div>
+            <strong>FGAS</strong>
+          </button>
+          <nav class="business-nav" aria-label="业务区域">
+            <button
+              v-for="group in groups"
+              :key="group.value"
+              class="business-nav-item"
+              :class="{ active: currentGroup.value === group.value }"
+              :aria-current="currentGroup.value === group.value ? 'true' : undefined"
+              @click="navigateGroup(group.value)"
+            >{{ group.label }}</button>
+          </nav>
           <div class="header-right">
-            <NButton quaternary :loading="busy" @click="refresh">刷新</NButton
-            ><button class="identity-button" @click="showIdentity = true">
+            <NButton quaternary :class="{ 'utility-active': tab === 'quickStart' }" @click="navigate('quickStart')">帮助</NButton>
+            <NDropdown trigger="click" :options="toolOptions" @select="selectTool">
+              <NButton quaternary :loading="busy" :class="{ 'utility-active': tab === 'exports' }">工具 <span class="menu-chevron" aria-hidden="true">⌄</span></NButton>
+            </NDropdown>
+            <NDropdown trigger="click" :options="identityOptions" @select="selectIdentity">
+              <button class="identity-button" :class="{ 'utility-active': tab === 'agentConnections' }" aria-label="用户菜单">
               <AccountAvatar
                 class="user-avatar"
                 :name="user.display_name"
                 :style="{ marginRight: '0' }"
               />
-              <span class="identity-name"
+              <span class="identity-name" :title="user.display_name"
                 >{{ user.display_name
                 }}<small v-if="user.display_name !== roles[user.role]">{{
                   roles[user.role]
                 }}</small></span
-              ><span aria-hidden="true">⌄</span>
-            </button>
+              ><span class="menu-chevron" aria-hidden="true">⌄</span>
+              </button>
+            </NDropdown>
           </div>
         </header>
         <div class="main_background" aria-hidden="true"></div>
         <main class="workspace-main">
-          <div v-if="tab === 'home'" class="page-toolbar">
-            <NButton text size="small" @click="navigate('quickStart')">第一次使用？快速了解</NButton>
-            <div class="page-tools">
-              <NButton size="small" @click="createStock">{{ trusted ? "登记转移" : "申请转移" }}</NButton>
-              <NButton size="small" type="primary" @click="create()">登记资金</NButton>
+          <div class="workspace-page-heading" :class="{ 'home-heading': tab === 'home' }">
+            <button
+              class="navigation-toggle mobile-menu"
+              :aria-expanded="mobileNav"
+              aria-controls="workspace-navigation"
+              :aria-label="mobileNav ? '关闭页面导航' : '展开页面导航'"
+              @click="mobileNav = !mobileNav"
+            ><span aria-hidden="true">☰</span></button>
+            <button class="navigation-toggle desktop-menu" :aria-expanded="!sidebarCollapsed" aria-controls="workspace-navigation" :aria-label="sidebarCollapsed ? '展开页面导航' : '收起页面导航'" @click="sidebarCollapsed = !sidebarCollapsed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+            <div><span class="page-context">{{ currentGroup.label }}</span><h1>{{ currentPage.title }}</h1></div>
+            <div v-if="['home', 'transfers', 'stock'].includes(tab)" class="page-tools">
+              <NButton v-if="tab !== 'transfers'" size="small" :type="tab === 'stock' ? 'primary' : 'default'" @click="createStock">{{ trusted ? "登记转移" : "申请转移" }}</NButton>
+              <NButton v-if="tab !== 'stock'" size="small" type="primary" @click="create()">登记资金</NButton>
             </div>
           </div>
           <p v-if="error" class="banner error" role="alert">{{ error }}</p>
@@ -315,6 +347,7 @@ onMounted(async () => {
               :key="`${user.id}:${identityEpoch}`"
               :accounts="accounts"
               :approvals="false"
+              hide-create
               :trusted="trusted"
               :revision="revision"
               @changed="refresh"
@@ -384,6 +417,7 @@ onMounted(async () => {
               :target-code="targetCode"
               :initial-status="targetStatus"
               v-else-if="tab === 'stock'"
+              hide-create
               :key="`${user.id}:${identityEpoch}:stock`"
               :locations="locations"
               :trusted="trusted"

@@ -37,6 +37,14 @@ def export_ledger(mode: Literal['all', 'snapshot', 'changes'], as_of: AwareDatet
     content, filename = exports.bundle(db, user, mode, as_of=as_of, start=start, end=end)
     return Response(content, media_type='application/zip', headers={
         'Content-Disposition': f'attachment; filename="{filename}"', 'Cache-Control': 'no-store'})
+
+@router.get('/api/exports/preview')
+def preview_ledger(mode: Literal['all', 'snapshot', 'changes'], as_of: AwareDatetime | None = None,
+                   start: AwareDatetime | None = None, end: AwareDatetime | None = None,
+                   user=Depends(identity), db=database_dependency):
+    return JSONResponse(exports.preview(db, user, mode, as_of=as_of, start=start, end=end),
+                        headers={'Cache-Control': 'no-store'})
+
 @router.get('/api/auth/config')
 def auth_config_view():
     return {'mode': auth_config.auth_mode(), 'web_agent_prototype': web_agent.enabled()}

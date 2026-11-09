@@ -19,6 +19,7 @@ const emit = defineEmits<{
 const detail = ref<Transfer | null>(null), error = ref(""), reason = ref(""), busy = ref(false);
 const notice = ref("");
 const attachmentCount = ref(0);
+const detailTab = ref<"info" | "history">("info");
 const processing = ref<"reject" | "reverse" | null>(null);
 const taskTitle = computed(() => processing.value === "reject" ? "拒绝资金申请" : processing.value === "reverse" ? "冲销资金流水" : detail.value?.status === "pending" ? (props.trusted ? "审批资金申请" : "查看资金申请") : "资金流水详情");
 const effect = computed(() => detail.value?.status === "pending" ? (props.trusted ? "批准后正式入账，更新相关账户余额。" : "这笔申请等待审批，尚未影响账户余额。") : detail.value?.status === "posted" ? "这笔流水已正式入账。需要更正时可提交冲销，保留原记录。" : detail.value?.status === "reversed" ? "原流水已冲销，历史记录保留。" : "这笔申请已拒绝，未产生资金分录。");
@@ -37,6 +38,7 @@ async function open(item: Pick<Transfer, "code">) {
   error.value = "";
   notice.value = "";
   attachmentCount.value = 0;
+  detailTab.value = "info";
   emit("error", "");
   reason.value = "";
   processing.value = null;
@@ -104,8 +106,8 @@ defineExpose({ open });
           <span class="status-pill" :class="`status-${detail.status}`">{{ statuses[detail.status] || detail.status }}</span>
           <div class="drawer-record-tools"><span>{{ detail.code }}</span><NButton size="tiny" :disabled="busy" @click="copyReference()">复制编号</NButton><NButton size="tiny" :disabled="busy" @click="open(detail)">刷新</NButton></div>
         </div>
-        <strong class="drawer-amount">¥ {{ money(detail.amount_minor) }}</strong>
         <h3 class="drawer-subject">{{ detail.description || (detail.reversal_of_code ? '资金冲销' : '未填写说明') }}</h3>
+        <strong class="drawer-amount">¥ {{ money(detail.amount_minor) }}</strong>
         <div class="drawer-route" aria-label="资金来源与去向">
           <div class="drawer-account"><span>{{ detail.source_account_name }}</span><small>{{ detail.source_account_code }}</small></div>
           <span class="drawer-route-arrow" aria-label="转向">→</span>
@@ -113,6 +115,11 @@ defineExpose({ open });
         </div>
         <div class="drawer-brief"><span>业务日期 {{ detail.effective_date }}</span><span>发起人 {{ detail.actor_name }}</span></div>
         <p v-if="detail.submitted_credential_id" class="drawer-caption">由 {{ detail.submitted_credential_name || detail.submitted_credential_id }} 提交</p>
+        <div class="drawer-tabs" role="group" aria-label="详情内容">
+          <button :class="{ active: detailTab === 'info' }" :aria-pressed="detailTab === 'info'" @click="detailTab = 'info'">单据信息</button>
+          <button :class="{ active: detailTab === 'history' }" :aria-pressed="detailTab === 'history'" @click="detailTab = 'history'">处理记录</button>
+        </div>
+        <section v-show="detailTab === 'info'" aria-label="单据信息">
         <dl v-if="detail.counterparty || detail.tags.length || detail.reason" class="drawer-meta">
           <template v-if="detail.counterparty"><dt>往来方</dt><dd>{{ detail.counterparty }}</dd></template>
           <template v-if="detail.tags.length"><dt>标签</dt><dd>{{ detail.tags.join('，') }}</dd></template>
@@ -129,7 +136,9 @@ defineExpose({ open });
           <p v-if="!detail.journal_lines?.length" class="drawer-caption">尚未产生资金分录。</p>
           <div v-else class="drawer-table-wrap"><table class="drawer-table"><thead><tr><th>账户</th><th class="numeric">借方</th><th class="numeric">贷方</th></tr></thead><tbody><tr v-for="(line, index) in detail.journal_lines" :key="index"><td>{{ accounts.find(a => a.code === line.account_code)?.name || line.account_code }}</td><td class="numeric">{{ money(line.debit_minor) }}</td><td class="numeric">{{ money(line.credit_minor) }}</td></tr></tbody></table></div>
         </details>
-        <details class="drawer-disclosure">
+        </section>
+        <section v-show="detailTab === 'history'" aria-label="处理记录">
+        <details open class="drawer-disclosure">
           <summary>审批与操作记录</summary>
           <dl class="drawer-meta">
             <dt>审批方式</dt><dd>{{ approvalLabel(detail.approval_mode) }}<template v-if="approvalAgent">（{{ approvalAgent.agent_credential_name || approvalAgent.agent_credential_id }}）</template><template v-if="detail.approved_by_name">，{{ detail.approved_by_name }}</template></dd>
@@ -139,7 +148,8 @@ defineExpose({ open });
           <ol class="drawer-audit"><li v-for="(event, index) in audit" :key="index"><strong>{{ actionNames[event.action] || event.action }}</strong><span>{{ event.actor_id }}<template v-if="event.agent_credential_id">，通过 {{ event.agent_credential_name || event.agent_credential_id }}</template></span><small>{{ new Date(event.created_at).toLocaleString('zh-CN') }}</small><p v-if="event.detail">{{ ['automatic', 'manual', 'agent_direct', 'agent_approval'].includes(event.detail) ? approvalLabel(event.detail) : event.detail }}</p></li></ol>
           <NButton size="small" :disabled="busy" @click="copyReference(true)">复制定位链接</NButton>
         </details>
-        <details v-if="detail.status === 'posted'" class="drawer-disclosure">
+        </section>
+        <details v-if="detailTab === 'info' && detail.status === 'posted'" class="drawer-disclosure">
           <summary>更正这笔流水</summary>
           <p class="drawer-caption">冲销会新建关联原单的反向资金流水，原记录保留。</p>
           <NButton size="small" :disabled="busy" @click="processing = 'reverse'; reason = ''; error = ''; notice = ''">提交冲销</NButton>

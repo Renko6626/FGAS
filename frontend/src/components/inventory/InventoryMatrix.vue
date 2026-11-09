@@ -87,13 +87,13 @@ onMounted(revealSelection);
 .matrix-scroll { overflow:auto; max-height:650px; border:1px solid #dfe7e9; border-radius:8px; isolation:isolate; scrollbar-color:#b7c9ca #f1f5f5; }
 .matrix-table { border-collapse:separate; border-spacing:0; table-layout:fixed; width:max-content; min-width:100%; font-size:13px; }
 .matrix-table th,.matrix-table td { box-sizing:border-box; border:0; border-bottom:1px solid #e8edef !important; padding:0; vertical-align:middle; white-space:normal; }
-.matrix-table thead th { position:sticky; top:0; z-index:3; height:76px; background:#edf4f3; color:#405b5b; text-align:center; font-weight:600; padding:12px; }
+.matrix-table thead th { position:sticky; top:0; z-index:3; height:76px; background:#f5f7fa; color:#40516a; text-align:center; font-weight:600; padding:12px; }
 .matrix-table th small { display:block; font-size:11px; font-weight:400; color:#7a8a8c; margin-top:5px; }
 .matrix-table .product-column { position:sticky; left:0; z-index:2; width:var(--product-width); min-width:var(--product-width); max-width:var(--product-width); background:#fff; border-right:1px solid #e2e9ea; text-align:left; }
-.matrix-table thead .product-column { z-index:4; background:#edf4f3; }
+.matrix-table thead .product-column { z-index:4; background:#f5f7fa; }
 .matrix-table .place-column { width:var(--place-width); min-width:var(--place-width); max-width:var(--place-width); text-align:center; }
-.matrix-table .total-column { position:sticky; right:0; z-index:2; width:var(--total-width); min-width:var(--total-width); max-width:var(--total-width); background:#f4f8f7; border-left:1px solid #dfe9e6; text-align:center; }
-.matrix-table thead .total-column { z-index:4; background:#e4efeb; }
+.matrix-table .total-column { position:sticky; right:0; z-index:2; width:var(--total-width); min-width:var(--total-width); max-width:var(--total-width); background:#f8f9fb; border-left:1px solid #dfe9e6; text-align:center; }
+.matrix-table thead .total-column { z-index:4; background:#eef2f7; }
 .matrix-table tbody tr:last-child > * { border-bottom:0; }
 .matrix-table button { border:0; border-image:none; background:transparent; color:inherit; min-width:0; cursor:pointer; }
 .product-button { display:block; width:100%; text-align:left; padding:13px 14px; }
@@ -102,7 +102,7 @@ onMounted(revealSelection);
 .plan-dot { display:inline-block; width:6px; height:6px; flex-shrink:0; border-radius:50%; background:#bc812b; }
 .stock-cell { width:100%; min-height:66px; padding:9px 4px; color:#c4ced1 !important; }
 .stock-cell strong { font-size:17px; font-weight:500; font-variant-numeric:tabular-nums; }
-.stock-cell.populated { color:#245e58 !important; background:#eaf5f12e; }
+.stock-cell.populated { color:#35465b !important; background:#f8f9fb; }
 .cell-plans { display:flex; flex-wrap:wrap; justify-content:center; gap:3px 7px; }
 .cell-plans small { font-size:10px; white-space:nowrap; }
 .incoming { color:#33796b !important; }
@@ -110,15 +110,15 @@ onMounted(revealSelection);
 .total-column button { width:100%; padding:15px 4px; }
 .total-column button strong { font-size:18px; font-variant-numeric:tabular-nums; }
 .total-column button small { display:inline; margin-left:5px; font-size:11px; color:#7b8c88; }
-.matrix-table tbody tr:hover .product-column,.matrix-table tbody tr.focused-row .product-column { background:#f0f7f5; }
-.stock-cell:hover { background:#e8f2ef !important; }
+.matrix-table tbody tr:hover .product-column,.matrix-table tbody tr.focused-row .product-column { background:#f0f3f7; }
+.stock-cell:hover { background:#eef2f7 !important; }
 .matrix-legend { display:flex; align-items:center; flex-wrap:wrap; gap:5px; color:#77848c; font-size:11px; margin:12px 0 0; }
 .matrix-legend .plan-dot { margin-right:2px; }
 .matrix-legend .incoming { margin-left:8px; }
 .matrix-empty { padding:35px 0; color:#73808b; }
 .matrix-detail { color:#273e43; }
 .detail-code { font-size:12px; color:#78858c; line-height:1.7; }
-.detail-total { background:#edf5f1; padding:18px; border-radius:7px; display:flex; justify-content:space-between; align-items:center; }
+.detail-total { background:#f5f7fa; padding:18px; border-radius:7px; display:flex; justify-content:space-between; align-items:center; }
 .detail-total > span { font-size:13px; }
 .detail-total strong { font-size:26px; }
 .detail-total small { font-size:12px; font-weight:400; }

@@ -146,8 +146,8 @@ onMounted(centerMap);
             <pattern id="inventory-map-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#dce6e5" /></pattern>
             <marker v-for="[kind, color] in [['incoming', '#40887a'], ['outgoing', '#b78a40'], ['internal', '#64859d']]" :id="`inventory-arrow-${kind}`" :key="kind" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6" fill="none" :stroke="color" stroke-width="1.8" /></marker>
           </defs>
-          <rect width="100%" height="100%" fill="#f7faf9" />
-          <rect x="265" y="12" :width="mapWidth - 530" :height="mapHeight - 24" rx="16" fill="#edf4f1" />
+          <rect width="100%" height="100%" fill="#f8f9fb" />
+          <rect x="265" y="12" :width="mapWidth - 530" :height="mapHeight - 24" rx="16" fill="#f0f3f7" />
           <rect width="100%" height="100%" fill="url(#inventory-map-grid)" />
           <text x="32" y="40" class="lane-label">外部来源</text><text :x="mapWidth / 2" y="40" text-anchor="middle" class="lane-label internal-lane">社团保管</text><text :x="mapWidth - 32" y="40" text-anchor="end" class="lane-label">外部去向</text>
           <g v-for="route in routes" :key="route.key" class="map-route" :class="[route.kind, { dimmed: routeDimmed(route.source.code, route.destination.code, route.key), selected: selectedRoute === route.key }]" tabindex="0" role="button" :aria-label="`${route.source.name}到${route.destination.name}，${route.quantity}${focused.unit}待完成，查看相关单据`" @click="selectRoute(route.key)" @keydown.enter.prevent="selectRoute(route.key)" @keydown.space.prevent="selectRoute(route.key)">
@@ -202,7 +202,7 @@ onMounted(centerMap);
 .product-identity h3 { margin:0; line-height:1.6; font-size:15px; color:#24473f; }
 .map-total { display:flex; align-items:baseline; gap:8px; flex-shrink:0; text-align:right; }
 .map-total > span { color:#7a8a85; font-size:11px; }
-.map-total > strong { color:#245d50; font-size:24px; font-weight:650; line-height:1.4; font-variant-numeric:tabular-nums; }
+.map-total > strong { color:#293f59; font-size:24px; font-weight:650; line-height:1.4; font-variant-numeric:tabular-nums; }
 .map-total strong small { color:#71867d; font-size:12px; font-weight:400; margin-left:7px; }
 .map-plans-summary { display:flex; flex-wrap:wrap; align-items:center; gap:6px 22px; padding:8px 0 12px; font-size:12px; }
 .map-plans-summary strong { font-size:16px; font-variant-numeric:tabular-nums; margin-left:4px; }
@@ -216,10 +216,10 @@ onMounted(centerMap);
 .route-symbol { display:inline-block; width:18px; border-top:2px dashed #638d91; margin-left:10px; }
 .map-stage-heading label { display:flex; align-items:center; gap:5px; }
 .map-stage-heading input { accent-color:#337a6e; }
-.map-viewport { overflow:auto; max-height:580px; border:1px solid #e1eae6; border-radius:10px; scrollbar-width:thin; scrollbar-color:#b6cac2 #f4f8f6; }
+.map-viewport { overflow:auto; max-height:580px; border:1px solid #e1eae6; border-radius:6px; scrollbar-width:thin; scrollbar-color:#b6cac2 #f4f8f6; }
 .map-stage { display:block; width:100%; min-width:760px; height:auto; }
 .lane-label { fill:#87988e; font-size:14px; letter-spacing:1px; }
-.internal-lane { fill:#668976; }
+.internal-lane { fill:#718499; }
 .empty-lane { fill:#a6b3ac; font-size:12px; }
 .map-route { cursor:pointer; outline:none; }
 .map-route.dimmed { opacity:.2; }
@@ -232,34 +232,34 @@ onMounted(centerMap);
 .route-label text { fill:#5f7b87; font-size:13px; font-family:inherit; }
 .map-route.incoming .route-label text { fill:#367562; }
 .map-route.outgoing .route-label text { fill:#a47a2d; }
-.map-node { box-sizing:border-box; display:flex; flex-direction:column; width:calc(100% - 4px); height:125px; margin:2px; border:1px solid #cadfd3; border-radius:9px; padding:14px 16px 11px; background:#fff; text-align:left; color:#33594b; box-shadow:0 4px 10px #254b3610; min-width:0; cursor:pointer; }
-.map-node:hover,.map-node.selected { border-color:#398267; box-shadow:0 0 0 2px #3982671a; }
-.map-node.context { border-style:dashed; background:#f5f8f6; }
-.map-node.external { background:#fafcfb; border-style:dashed; border-color:#bdcdc6; color:#7c8f84; height:105px; margin-top:12px; box-shadow:none; }
-.node-caption { display:flex; justify-content:space-between; align-items:center; width:100%; gap:8px; color:#7f988a !important; font-size:12px; }
-.node-caption small { color:#9caaa2; font-size:9px; }
+.map-node { box-sizing:border-box; display:flex; flex-direction:column; width:calc(100% - 4px); height:125px; margin:2px; border:1px solid #dce3eb; border-radius:6px; padding:14px 16px 11px; background:#fff; text-align:left; color:#35465b; box-shadow:none; min-width:0; cursor:pointer; }
+.map-node:hover,.map-node.selected { border-color:#60768e; box-shadow:0 0 0 2px #60768e1a; }
+.map-node.context { border-style:dashed; background:#f5f7fa; }
+.map-node.external { background:#fafbfc; border-style:dashed; border-color:#bdcdc6; color:#788391; height:105px; margin-top:12px; box-shadow:none; }
+.node-caption { display:flex; justify-content:space-between; align-items:center; width:100%; gap:8px; color:#7b899a !important; font-size:12px; }
+.node-caption small { color:#85909e; font-size:9px; }
 .node-name { display:block; font-size:17px; font-weight:600; margin-top:8px; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
-.node-quantity { display:flex; align-items:baseline; gap:5px; font-size:30px; line-height:1.3; color:#2e654f !important; font-weight:650; font-variant-numeric:tabular-nums; margin-top:4px; }
-.node-quantity > small { font-size:11px; font-weight:400; color:#839b8c; }
-.node-plans { display:flex; flex-direction:column; gap:3px; margin-left:auto; font-size:10px; color:#7f9686 !important; font-weight:400; }
+.node-quantity { display:flex; align-items:baseline; gap:5px; font-size:30px; line-height:1.3; color:#293f59 !important; font-weight:650; font-variant-numeric:tabular-nums; margin-top:4px; }
+.node-quantity > small { font-size:11px; font-weight:400; color:#7b899a; }
+.node-plans { display:flex; flex-direction:column; gap:3px; margin-left:auto; font-size:10px; color:#7b899a !important; font-weight:400; }
 .node-plans small { font-size:10px; }
 .distribution-track { display:block; height:3px; width:100%; margin-top:auto; border-radius:3px; background:#edf3ef; overflow:hidden; }
-.distribution-track > span { display:block; height:100%; background:#85b19a; }
+.distribution-track > span { display:block; height:100%; background:#8da4ba; }
 .external-note { font-size:11px; margin-top:12px; color:#9baa9f !important; }
 .map-context { min-height:35px; display:flex; align-items:center; flex-wrap:wrap; gap:5px 16px; padding:9px 3px; font-size:11px; color:#8a9792; }
-.map-context strong { font-size:12px; color:#4a715c; }
+.map-context strong { font-size:12px; color:#40516a; }
 .map-context button { margin-left:auto; min-width:0; border:0; background:transparent; color:#397d65; padding:3px 0; font-size:11px; }
 .mobile-map-tip { display:none; }
 .map-transfer-section { border-top:1px solid #e5ece8; padding-top:16px; }
 .transfer-heading { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
-.transfer-heading h4 { margin:0; color:#496456; font-size:14px; }
+.transfer-heading h4 { margin:0; color:#40516a; font-size:14px; }
 .transfer-heading h4 span { color:#8b9b91 !important; font-weight:400; font-size:12px; margin-left:8px; }
 .transfer-heading > small { color:#94a197; font-size:10px; }
 .map-transfer-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-.map-transfer { display:block; min-width:0; color:#506b5b; text-decoration:none; background:#f8faf8; border:1px solid #e0e9e2; border-radius:7px; padding:13px 14px; }
-.map-transfer:hover { border-color:#8bb39a; background:#f0f7f1; }
+.map-transfer { display:block; min-width:0; color:#40516a; text-decoration:none; background:#f8f9fb; border:1px solid #e1e6ed; border-radius:7px; padding:13px 14px; }
+.map-transfer:hover { border-color:#8bb39a; background:#f0f3f7; }
 .transfer-direction { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:10px; color:#8a9d8d !important; }
-.transfer-direction strong { font-size:16px; color:#427258; font-variant-numeric:tabular-nums; }
+.transfer-direction strong { font-size:16px; color:#40516a; font-variant-numeric:tabular-nums; }
 .transfer-route { display:flex; align-items:center; flex-wrap:wrap; gap:5px; font-size:12px; font-weight:500; margin-top:7px; line-height:1.8; }
 .transfer-route span { color:#99ab9d !important; }
 .transfer-meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin-top:9px; }
@@ -281,13 +281,13 @@ onMounted(centerMap);
   .map-stage-heading { line-height:1.8; }
   .map-viewport,.map-stage-heading .desktop-map-legend { display:none; }
   .mobile-place-list { display:grid; gap:8px; }
-  .mobile-place-list > button { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; padding:12px; border:1px solid #e1eae4; border-radius:7px; background:#f8fbf9; text-align:left; color:#3c6250; }
-  .mobile-place-list > button.selected { border-color:#589877; background:#edf6ef; }
+  .mobile-place-list > button { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; padding:12px; border:1px solid #e1eae4; border-radius:7px; background:#f8f9fb; text-align:left; color:#35465b; }
+  .mobile-place-list > button.selected { border-color:#60768e; background:#eef2f7; }
   .mobile-place-list > button > span:last-child { text-align:right; flex-shrink:0; }
   .mobile-place-list strong { display:block; font-size:13px; font-weight:600; }
   .mobile-place-list small { display:block; color:#83998a; font-size:11px; margin-top:5px; }
   .mobile-place-list strong small { display:inline; font-size:11px; font-weight:400; }
-  .mobile-place-list > button > span:last-child > strong { font-size:22px; color:#376f51; font-variant-numeric:tabular-nums; }
+  .mobile-place-list > button > span:last-child > strong { font-size:22px; color:#293f59; font-variant-numeric:tabular-nums; }
   .map-context { line-height:1.7; }
   .desktop-map-tip { display:none; }
   .mobile-map-tip { display:inline; }

@@ -163,8 +163,8 @@ onBeforeUnmount(() => { ++requestSequence; });
 .inventory-content { min-width:0; }
 .inventory-controls { display:flex; align-items:center; gap:8px; padding:0 0 10px; }
 .inventory-views { display:flex; padding:4px; background:#edf1f4; border-radius:7px; margin-right:auto; }
-.inventory-views button { padding:7px 15px; border:0; background:transparent; color:#52616c; border-radius:4px; min-width:0; font-size:14px; }
-.inventory-views button.active { background:#fff; color:#1f4b51; box-shadow:0 1px 4px #1d394214; font-weight:650; }
+.inventory-views button { padding:7px 15px; border:0; background:transparent; color:#52616c; border-radius:4px; min-width:0; font-size:13px; }
+.inventory-views button.active { background:#fff; color:#293f59; box-shadow:0 1px 4px #1d394214; font-weight:650; }
 .pending-filter { display:flex; align-items:center; gap:8px; min-width:0; padding:8px 12px; border:1px solid #d49a35; border-radius:6px; background:#fff6e4; color:#81520f; font-size:13px; font-weight:600; white-space:nowrap; }
 .pending-filter:hover { background:#ffedc9; }
 .pending-filter.active { background:#98601b; border-color:#98601b; color:#fff; }
