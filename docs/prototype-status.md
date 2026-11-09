@@ -1,5 +1,17 @@
 # 阶段记录：资金、成员往来与库存原型
 
+## 2026-11-09：阶段提交已推送，Coolify 发布受 GitHub 网络阻塞
+
+用户授权阶段提交、推送和部署。导航、统一 ERP 记录视图、结算／手机布局和 CSV 真实预览合并为 `58fbe792134621f7cb548ba517f943a87d25e091`，已快进合入并推送 `main`。发布前 `npm run build`（TypeScript 与 Vite）及 `git diff --check` 通过；仅在专用 `fgas_test` 重跑 `backend/tests/test_exports.py -q --tb=short`，4 passed，未运行或重建日常开发库。
+
+Actions [42610850413](https://github.com/Renko6626/FGAS/actions/runs/42610850413) 的 API/web 镜像构建、容器／Nginx／迁移／API／MCP 基础检查、ACR 推送及发布包上传通过；镜像版本 `sha-58fbe792134621f7cb548ba517f943a87d25e091-42610850413-1` 可复用，无需重建。Coolify 当前为 4.6.0，应用仍为 `j6grshmlx7t0lxyrwhe7mlmk`。
+
+首次 Coolify 队列 `5e7qcgpibdsn20csetqkezgp` 于克隆源码时连接 GitHub 443 超时失败；保留原配置、同一提交和镜像，经原 `queue_application_deployment` 重试 `14d6f85e-a2e3-43e0-b7ac-70dee38bd826`，也在 `git ls-remote` 因连接 GitHub 443 超时失败。发布前服务器主机的只读远程查询曾成功，但 Coolify helper 内的 Git 操作未能完成。两次均未进入本次迁移前备份、迁移或业务容器替换。
+
+公网仍运行 `a31c648dd7ca`、schema `0003`，web/api/db 健康。应用配置已固定本次目标提交和镜像；Actions 保留部署失败结论，不代表镜像构建／检查失败。未改 Git 来源、代理、网络、凭据或平台生成 Compose。
+
+已在本地准备精确提交源码归档，SHA-256 `4ab61980e4bd7e262454ab219cf6b78d7f309732ca812dd72e1d17837415cec7`，以及保留平台 Compose、路由／数据卷、仅更新 api/migrate/web 镜像的应急更新脚本。沿用项目已有 SSH 应急流程的确认已向用户提出，等待答复；尚未上传或执行应急更新。后续若采用此路径，需先确认原队列已终止，保存当前源码／环境／Compose 快照，校验归档与仅镜像配置差异，再执行原 `deploy/apply-coolify.sh` 并核对新备份、健康和公网版本。不得直接使用 2026-11-06 的旧回退脚本。
+
 ## 2026-11-09：私账结算入口与手机记录优化（本地，未发布）
 
 结算初始页使用已有私账账户展示成员应交回／社团应偿还的净额、账户清单和搜索入口，保留零余额及停用账户；明确净余额不等于逐笔未结金额，零余额也可能有未结明细。进入账户后保留原选择器、刷新、定位链接、报销／代收／结算历史及匹配有效性，事项／日期和金额前置，来源、箭头和去向维持固定布局。
