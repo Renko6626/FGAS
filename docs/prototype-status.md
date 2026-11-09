@@ -1,5 +1,17 @@
 # 阶段记录：资金、成员往来与库存原型
 
+## 2026-11-10：阶段版本已按应急流程上线
+
+用户明确授权先再试 Coolify、失败则沿用旧应急流程。重试队列 `e5f3d419-5d61-493d-9484-20098292384d` 仍在克隆 GitHub 时遇到 TLS unexpected EOF，未进入业务更新；确认本应用没有活动部署后，通过 SSH 上传并校验精确提交 `58fbe792134621f7cb548ba517f943a87d25e091` 的源码归档（SHA-256 `4ab61980e4bd7e262454ab219cf6b78d7f309732ca812dd72e1d17837415cec7`），复用 Actions `42610850413` 已检查并推送的 API/web 镜像 `sha-58fbe792134621f7cb548ba517f943a87d25e091-42610850413-1`。导航、ERP 共用记录、CSV 真实预览、私账结算和手机布局现已上线。
+
+第一次应急启动误将仓库模板 `docker-compose.coolify.yml` 当作平台渲染配置，导致容器健康但公网短暂返回 404。平台真正的渲染配置 `docker-compose.yaml` 保持完整；随后使用该文件恢复原容器名、网络、路由与卷，再运行原发布脚本成功。与更新前源码快照逐字节核对，平台 `docker-compose.yaml` 未改变。`deploy/apply-coolify.sh` 已修正为优先使用 `docker-compose.yaml`、兼容旧文件名，已同步到宿主机；`bash -n`、实际文件选择与 `docker compose config --quiet` 检查通过。没有修改 Traefik、证书、Git 来源或凭据。
+
+最终公网 `/api/health` 返回 `58fbe7921346`、schema `0003`；原命名的 web/api/db 均 healthy。首页和新 JS/CSS 200，统一记录、结算入口与手机表格资源存在；匿名 `/api/exports/preview?mode=all`、`/api/inventory`、`/api/auth/me`、`/mcp` 均 401。未执行自动点击／填表、真实登录后的业务写入或完整恢复演练。原 Actions 及 Coolify 队列保留失败历史，以本次手动发布后的服务和公网核对为准。
+
+最终成对备份 `/data/fgas-backups/fgas-20261109T184301Z-212372-pre-migrate.dump`（77892 字节）与同前缀 `-attachments.tar`（10240 字节）均 0600，`pg_restore --list` 与附件归档清单可读；第一次应急运行的成对备份 `fgas-20261109T184013Z-198187` 也保留。服务器日期按 UTC，发布记录日期按上海时间。
+
+私有目录 `/data/fgas-manual-releases/20261110-58fbe79`（0700）保存精确源码归档、更新脚本、原源码快照、原环境／Compose、正确的平台渲染配置快照及两次发布日志。`compose-before.yml` 是本次误选的仓库模板，不应作为路由恢复来源；正确文件为 `rendered-compose-before.yml` 或原源码快照中的 `docker-compose.yaml`。恢复旧应用镜像时应核对先前实际运行版本 `a31c648`，不能只凭本次环境快照推断旧镜像（平台已预先固定目标镜像）。不回退数据库，不直接运行 2026-11-06 的旧回退脚本。
+
 ## 2026-11-09：阶段提交已推送，Coolify 发布受 GitHub 网络阻塞
 
 用户授权阶段提交、推送和部署。导航、统一 ERP 记录视图、结算／手机布局和 CSV 真实预览合并为 `58fbe792134621f7cb548ba517f943a87d25e091`，已快进合入并推送 `main`。发布前 `npm run build`（TypeScript 与 Vite）及 `git diff --check` 通过；仅在专用 `fgas_test` 重跑 `backend/tests/test_exports.py -q --tb=short`，4 passed，未运行或重建日常开发库。

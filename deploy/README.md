@@ -106,7 +106,7 @@ Coolify 使用 Git Compose 应用，GitHub App `renko6626`，仓库 `Renko6626/F
 bash deploy/apply-coolify.sh
 ```
 
-当前应用为 `j6grshmlx7t0lxyrwhe7mlmk`，可从 [Coolify 应用配置](https://coolify.secret-sealing.club/project/fsj7tn8gqtnhlmlqrnws4u0i/environment/wr3ynnxmxkkcxibfk7xuu9ft/application/j6grshmlx7t0lxyrwhe7mlmk) 维护。web 绑定上述 HTTPS 域名，内部端口 80；API 和数据库不映射宿主机端口。全局 ACR 登录负责拉取镜像。平台保留的仓库用于运行部署脚本，脚本使用 Coolify 生成的 Compose、`.env` 和项目名，不另建一套容器。
+当前应用为 `j6grshmlx7t0lxyrwhe7mlmk`，可从 [Coolify 应用配置](https://coolify.secret-sealing.club/project/fsj7tn8gqtnhlmlqrnws4u0i/environment/wr3ynnxmxkkcxibfk7xuu9ft/application/j6grshmlx7t0lxyrwhe7mlmk) 维护。web 绑定上述 HTTPS 域名，内部端口 80；API 和数据库不映射宿主机端口。全局 ACR 登录负责拉取镜像。平台保留的仓库用于运行部署脚本，脚本使用 Coolify 生成的 Compose、`.env` 和项目名，不另建一套容器。运行时优先使用平台生成的 `docker-compose.yaml`；仓库中的 `docker-compose.coolify.yml` 是输入模板，不能在未核对路由标签、容器名和网络前当作运行配置。脚本保留旧文件名作为旧安装的兼容路径。
 
 运行时变量在 Coolify 配置：`POSTGRES_PASSWORD`、`CASDOOR_ISSUER`、`CASDOOR_CLIENT_ID`、`CASDOOR_CLIENT_SECRET`、`CASDOOR_REDIRECT_URI`、`INITIAL_ADMIN_SUBJECT`，以及 CI 管理的两个镜像变量。会话 Cookie 固定为 Secure，登录模式固定为 Casdoor。
 
@@ -127,6 +127,12 @@ bash deploy/apply-coolify.sh
 本次经用户授权，通过 SSH 传入精确提交 `a31c648` 的源码归档，复用已通过 CI 的 ACR 镜像，绕过服务器克隆 GitHub。保留当前 Coolify 生成的 Compose、路由标签、网络、项目名与数据卷，上传源码时排除生成的 Compose，仅更新 `.env` 中两个镜像引用，再执行原 `deploy/apply-coolify.sh` 完成备份、迁移和启动；不要用仓库原始 Compose 覆盖平台生成配置。
 
 服务器私有目录 `/data/fgas-manual-releases/20261106-a31c648` 保存本次发布前的源码与配置、精确源码包、日志及 `rollback.sh`。回退脚本只恢复旧配置和本地旧 API/web 镜像，不回退数据库或附件，已做语法检查但未执行。它只适用于本次 schema 保持 `0003` 的版本；后续发布后不要直接照搬。正常发布仍走 Actions → ACR → Coolify。详细版本和备份记录见 [阶段记录](../docs/prototype-status.md)。
+
+### 2026-11-10 应急更新与渲染配置文件
+
+本次已复用 CI 镜像发布 `58fbe79`，保留平台生成的 `docker-compose.yaml`。应急更新前先终止或确认原队列已结束、保存源码和环境快照、校验源码归档，并排除两个运行配置文件及 `.env`，再核对渲染配置中的镜像、原路由标签、网络、容器名和卷。不要仅比较仓库模板的镜像字段；模板缺少平台运行元数据。
+
+应急目录为 `/data/fgas-manual-releases/20261110-58fbe79`。本次第一次误用模板引起短暂 404，已恢复原渲染配置；部署脚本已改为优先使用 `docker-compose.yaml`。目录内 `compose-before.yml` 是误选模板，正确的路由恢复快照是 `rendered-compose-before.yml` 或源码快照中的 `docker-compose.yaml`。完整版本、备份和验证见阶段记录。旧回退脚本不得跨发布直接复用。
 
 ## 手动 Compose 的访问、日志和维护
 

@@ -4,7 +4,13 @@
 set -euo pipefail
 umask 077
 cd "$(dirname "$0")/.."
-export COMPOSE_FILE="$PWD/docker-compose.coolify.yml"
+# Newer Coolify versions render routing/container metadata into this file.
+# The repository's docker-compose.coolify.yml can still be the unrendered template.
+if [[ -f "$PWD/docker-compose.yaml" ]]; then
+    export COMPOSE_FILE="$PWD/docker-compose.yaml"
+else
+    export COMPOSE_FILE="$PWD/docker-compose.coolify.yml"
+fi
 export COMPOSE_PROJECT_NAME="${PWD##*/}"
 docker compose config --quiet
 docker compose pull
