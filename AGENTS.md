@@ -62,6 +62,8 @@ npm run db:init    # Alembic upgrade + 开发种子
 
 ## 已知待办线索
 
+- 2026-11-10 Agent 体验优化已以 `2dc51b746f10` 上线，包含网页助手首次导引/近全屏/会话提示/业务结果与模型错误分类，以及外部连接完整接入说明。Actions `42787924918` 构建、基础检查、ACR 推送成功；Coolify 因 GitHub 超时失败，确认队列结束后沿既定 SSH 应急方式复用镜像发布。公网版本、schema `0003`、三服务 healthy 和数据库/附件备份可读已核对。快照 VPS `/data/fgas-manual-releases/20261110-2dc51b7`；运行 `docker-compose.yaml` 逐字保留。Coolify 共享 `.env` 会把两个镜像变量注入所有服务，比较配置时除 api/migrate/web image 外，只允许 environment 中同名 FGAS_API_IMAGE/FGAS_WEB_IMAGE 同步变化。MCP 四入口及业务契约未改，后续 MCP 优化暂缓。详见最新阶段记录。
+
 - 2026-11-10 本轮导航／ERP 记录、CSV 真实预览、私账结算与手机布局已以 `58fbe7921346` 上线。Coolify 重试仍因 GitHub TLS 中断失败，用户授权沿用 SSH 应急流程，复用 Actions `42610850413` 镜像。公网版本、schema `0003`、三服务 healthy 和数据库／附件备份可读已核对。平台实际渲染文件为 `docker-compose.yaml`，仓库 `docker-compose.coolify.yml` 是输入模板；误用会丢失路由／容器名／网络。部署脚本已优先选择前者。私有快照在 VPS `/data/fgas-manual-releases/20261110-58fbe79`，正确路由快照为 `rendered-compose-before.yml`；不要将本次 `compose-before.yml`（误选模板）或旧回退脚本当作现状。详见阶段记录。
 
 - 2026-11-06 仓库视图、关系图缩放／拖动、CSV 导出及 Agent 信息呈现改进已以 `a31c648` 上线。Actions `42226984553` 构建／检查／推送通过，Coolify 三次因 VPS 连 GitHub 失败；用户随后授权 SSH 传精确源码、复用 CI 镜像并运行原发布脚本，保留平台生成 Compose／路由／项目／数据卷。公网版本 `a31c648dd7ca`、schema `0003`、三服务 healthy，数据库及附件备份可读；应急配置快照和回退脚本在 VPS `/data/fgas-manual-releases/20261106-a31c648`，仅适用于本次无 schema 变化的应用镜像回退。Actions／原部署队列仍显示历史失败，以当前线上核对为准。详见阶段记录。

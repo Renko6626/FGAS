@@ -1,13 +1,19 @@
 # 阶段记录：资金、成员往来与库存原型
 
 
-## 2026-11-10：Agent 体验优化阶段提交（准备发布）
+## 2026-11-10：Agent 体验优化已上线
 
 网页助手改动 `77744b6`、外部连接导引 `e14c0dd` 已提交。网页助手首次配置改为缺项引导，权限用业务语言说明；加入会话清空提醒、清空确认、20轮前提示和电脑端近全屏模式。工具步骤展示业务编号、状态及本次流水影响，区分成功、失败与待核对；模型错误区分凭据、余额、限流、服务异常、上下文及本轮上限，临时错误不再弹配置窗口。外部连接页提供创建、复制完整接入说明（含本人密钥）、只读核对身份的流程，并修正指南导航。
 
 沿用现有 MCP 四入口、业务契约、权限和原生历史，无新增依赖或数据库迁移。后续 MCP 构思暂不实施。验证：专用 fgas_test 的 Agent 测试58通过，最后分类调整定向4通过；前端构建、最终类型检查和差异检查通过，独立只读审阅无核心问题。未做浏览器自动交互、真实模型调用或真实外部客户端接入验证。方案记录见本日 web-agent-onboarding、web-agent-results-errors、external-agent-onboarding 计划。
 
-用户授权阶段性推送并部署，沿用 Actions → ACR → Coolify；当前待执行发布，不能将本地检查视为上线完成。用户原有 Casdoor 文档改动不纳入本轮提交。
+用户授权阶段性推送并部署，发布目标 `2dc51b746f105aaaefc1be1bb8224eb6daa36ea1` 已推送。Actions [42787924918](https://github.com/Renko6626/FGAS/actions/runs/42787924918) 的镜像构建、容器/Nginx/迁移基础检查、ACR 推送通过；Coolify 队列 `v1rpqxj1mn6pzrwxtdjlpzun` 在 GitHub `git ls-remote` 阶段连接超时失败，未进入容器更新。确认原队列已结束后，沿既定 SSH 应急流程复用该 CI 镜像，传入精确源码归档（SHA-256 `640a3c83ef677df6e5f53b4049d1a126324f433cec15dfe17255f8b67469bd6e`），执行原 `deploy/apply-coolify.sh` 成功上线。
+
+公网版本 `2dc51b746f10`、schema `0003`，web/api/db 均 healthy；HTTPS、首页新资源、网页助手启用、接入指南及匿名助手配置/凭据/me/MCP 的 401 已核对。数据库备份 `/data/fgas-backups/fgas-20261110T091639Z-3725542-pre-migrate.dump`（77892 字节）和同前缀附件 tar（10240 字节）均 0600，归档清单可读。未做浏览器自动交互、真实模型或真实客户端接入验收。
+
+私有应急快照为 VPS `/data/fgas-manual-releases/20261110-2dc51b7`，含原源码、环境、`rendered-compose-before.yml`、`running-images-before.json` 和发布日志。实际运行 Compose 保持逐字不变，仍是 `docker-compose.yaml`，路由、网络、卷及证书路径未改。前两次保护检查在更新业务容器前停止并恢复环境文件：Coolify 会把共享 `.env` 注入各服务，两个镜像变量除改变 api/migrate/web 的 image 外，也同步改变各服务 environment 中同名 `FGAS_API_IMAGE` / `FGAS_WEB_IMAGE`。精确比对这组变化后才执行发布，其他配置必须不变。最初 manual-update.py 保留诊断用，实际成功由 apply-verified-images.py 执行；勿未经核对直接复用旧应急脚本。
+
+Actions 和原 Coolify 队列保留失败状态，以当前公网版本、容器健康和备份核对为上线证据。用户原有 Casdoor 文档改动未纳入本轮提交。
 
 ## 2026-11-10：阶段版本已按应急流程上线
 
