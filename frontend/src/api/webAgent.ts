@@ -20,6 +20,9 @@ export interface AgentEvent {
   text?: string;
   message?: string;
   configuration_error?: boolean;
+  code?: string;
+  outcome?: 'success' | 'failed' | 'unknown';
+  summary?: string;
   id?: string;
   name?: string;
   input_tokens?: number;

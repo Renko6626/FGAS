@@ -965,6 +965,11 @@ def test_web_agent_can_correct_tool_arguments_in_second_turn(client, monkeypatch
         events = [json.loads(line[6:]) for line in second.text.splitlines() if line.startswith('data: ')]
         assert not any(event['type'] == 'error' for event in events), events
         assert events[-1]['type'] == 'done'
+        results = [event for event in events if event['type'] == 'tool_end']
+        assert results[0]['outcome'] == 'failed'
+        assert results[0]['code'] == ('tool_arguments' if bad_arguments == 'not-json' else 'validation_error')
+        assert results[-1]['outcome'] == 'success'
+        assert '查询完成' in results[-1]['summary']
         assert f'查询成功，当前是 {second_level} 连接。' == ''.join(event.get('text', '') for event in events)
         # Ordinary failure still returns the tool results already obtained in this turn.
         history = next(event['history'] for event in events if event['type'] == 'history')
@@ -1039,3 +1044,71 @@ def test_web_agent_deepseek_wire_history_and_completion(monkeypatch, finish_reas
     assert json.loads(result['content']) == {'code': 'FT-000001', 'status': 'pending'}
     assert any(event['type'] == 'history' for event in events)
     assert events[-1]['type'] == ('done' if finish_reason == 'stop' else 'error')
+    if finish_reason == 'length':
+        assert events[-1]['code'] == 'output_limit'
+        assert events[-1]['configuration_error'] is False
+
+
+@pytest.mark.parametrize('data,expected', [
+    ({'resource_type': 'fund_transfer', 'transfer_code': 'FT-000123', 'status': 'pending',
+      'ledger_effect_applied': False, 'approval_required': True},
+     '资金单 FT-000123：待审批；本次未记资金流水'),
+    ({'resource_type': 'stock_confirmation', 'confirmation_code': 'SC-000123', 'status': 'completed',
+      'stock_transfer_code': 'ST-000456', 'stock_transfer_status': 'completed',
+      'ledger_effect_applied': True, 'approval_required': False},
+     '完成报告 SC-000123：已完成；本次已记库存流水；货物单 ST-000456：已完成'),
+    ({'resource_type': 'stock_operation',
+      'fund_transfer': {'resource_type': 'fund_transfer', 'transfer_code': 'FT-000123', 'status': 'posted',
+                        'ledger_effect_applied': True, 'approval_required': False},
+      'stock_transfer': {'resource_type': 'stock_transfer', 'stock_transfer_code': 'ST-000456', 'status': 'in_transit',
+                         'ledger_effect_applied': False, 'approval_required': False}},
+     '资金单 FT-000123：已入账；本次已记资金流水\n货物单 ST-000456：待完成；本次未记库存流水'),
+])
+def test_web_agent_tool_summary_preserves_business_effects(data, expected):
+    pytest.importorskip('pydantic_ai')
+    from pydantic_ai.messages import ToolReturnPart
+    from backend.application.web_agent import _tool_result
+    result = _tool_result(ToolReturnPart(tool_name='fgas_execute', content={'api_version': '2', 'data': data}))
+    assert result == {'outcome': 'success', 'summary': expected}
+
+
+def test_web_agent_tool_failure_does_not_claim_success_or_expose_raw_exception():
+    pytest.importorskip('pydantic_ai')
+    from pydantic_ai.messages import ToolReturnPart, RetryInfo
+    from backend.application.web_agent import _tool_result
+    import json
+    failure = ToolReturnPart(tool_name='fgas_execute', outcome='failed', content=json.dumps({
+        'api_version': '2', 'code': 'state_conflict', 'message': '货物单已经完成，不能再次批准'}))
+    assert _tool_result(failure) == {'outcome': 'failed', 'code': 'state_conflict',
+                                    'summary': '货物单已经完成，不能再次批准'}
+    unknown = _tool_result(ToolReturnPart(tool_name='fgas_execute', outcome='failed', content='secret-provider-body'))
+    assert unknown['outcome'] == 'unknown'
+    assert '核对' in unknown['summary'] and 'secret-provider-body' not in unknown['summary']
+    protocol_retry = _tool_result(ToolReturnPart(tool_name='fgas_execute', outcome='retried',
+        retry=RetryInfo(cause='model_retry'), content='secret-protocol-error'))
+    assert protocol_retry['outcome'] == 'unknown'
+    assert '未执行' not in protocol_retry['summary'] and 'secret-protocol-error' not in protocol_retry['summary']
+
+
+@pytest.mark.parametrize('kind,code,configuration', [
+    (401, 'model_authentication', True), (402, 'model_quota', False),
+    (429, 'model_rate_limit', False), (503, 'model_unavailable', False),
+    ('limit', 'request_limit', False), ('timeout', 'model_timeout', False),
+    ('context', 'context_limit', False),
+])
+def test_web_agent_run_errors_give_specific_safe_guidance(kind, code, configuration):
+    pytest.importorskip('pydantic_ai')
+    from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded, ModelTimeoutError, ModelContextWindowExceededError
+    from backend.application.web_agent import _run_error
+    if isinstance(kind, int):
+        error = ModelHTTPError(kind, 'test-model', body='secret-provider-body')
+    elif kind == 'limit':
+        error = UsageLimitExceeded('secret-provider-body')
+    elif kind == 'timeout':
+        error = ModelTimeoutError('test-model', message='secret-provider-body')
+    else:
+        error = ModelContextWindowExceededError('test-model', message='secret-provider-body')
+    result = _run_error(error)
+    assert result['code'] == code
+    assert result['configuration_error'] is configuration
+    assert 'secret-provider-body' not in result['message']

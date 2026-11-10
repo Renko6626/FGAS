@@ -113,10 +113,85 @@ def load_history(history):
     return sanitize_messages(messages)
 
 
+def _write_summary(data):
+    """Project validated MCP effects; never infer ledger changes from status alone."""
+    resource = data.get('resource_type')
+    if resource == 'stock_operation':
+        return '\n'.join(_write_summary(data[key]) for key in ('fund_transfer', 'stock_transfer'))
+    labels = {
+        'fund_transfer': ('资金单', 'transfer_code'), 'stock_transfer': ('货物单', 'stock_transfer_code'),
+        'stock_confirmation': ('完成报告', 'confirmation_code'), 'settlement': ('结算付款', 'transfer_code'),
+        'fund_account': ('资金账户', 'account_code'), 'stock_account': ('货物账户', 'account_code'),
+        'sku': ('商品', 'sku_code'), 'member': ('联系人', 'member_code'),
+    }
+    statuses = {'pending': '待审批', 'posted': '已入账', 'in_transit': '待完成', 'completed': '已完成',
+                'rejected': '已拒绝', 'cancelled': '已取消', 'invalidated': '已失效',
+                'reversed': '已冲销', 'active': '已启用', 'inactive': '已停用'}
+    if resource not in labels:
+        return '操作已完成，请查看助手回复中的业务结果'
+    label, key = labels[resource]
+    summary = f"{label} {data[key]}：{statuses.get(data['status'], '已处理')}"
+    ledger = '资金' if resource in ('fund_transfer', 'settlement') else '库存' if resource in ('stock_transfer', 'stock_confirmation') else None
+    if ledger:
+        summary += f"；本次{'已' if data['ledger_effect_applied'] else '未'}记{ledger}流水"
+    if resource == 'stock_confirmation':
+        summary += f"；货物单 {data['stock_transfer_code']}：{statuses.get(data['stock_transfer_status'], '已处理')}"
+    return summary
+
+
+def _tool_result(part):
+    content = part.content
+    if isinstance(content, str):
+        try:
+            content = json.loads(content)
+        except ValueError:
+            content = None
+    if part.outcome == 'retried' and part.retry and part.retry.cause == 'validation_error':
+        return dict(outcome='failed', code='tool_arguments', summary='工具参数未通过校验，本次调用未执行；助手已收到参数错误信息')
+    if isinstance(content, dict) and content.get('api_version') == '2':
+        code = content.get('code')
+        if code in ('validation_error', 'permission_denied', 'not_found', 'state_conflict', 'tool_migrated', 'internal_error'):
+            return dict(outcome='unknown' if code == 'internal_error' else 'failed', code=code,
+                        summary=content['message'])
+        if part.outcome == 'success' and isinstance(content.get('data'), dict):
+            if part.tool_name in ('fgas_propose', 'fgas_execute'):
+                return dict(outcome='success', summary=_write_summary(content['data']))
+            return dict(outcome='success', summary='业务指南已读取' if part.tool_name == 'fgas_help' else '查询完成，具体范围见助手回复')
+    return dict(outcome='unknown', summary='未能确认本次结果，涉及业务提交时请先查询记录核对')
+
+
+def _run_error(exc):
+    from pydantic_ai import exceptions as errors
+
+    code, message, configuration = 'run_failed', '本轮未能完成，请查看已返回的结果。', False
+    status = getattr(exc, 'status_code', None) if isinstance(exc, errors.ModelAPIError) else None
+    if isinstance(exc, errors.UsageLimitExceeded):
+        code, message = 'request_limit', '本轮已达到 10 次模型请求上限，请核对已完成的步骤，再让助手分批继续。'
+    elif isinstance(exc, errors.ModelContextWindowExceededError):
+        code, message = 'context_limit', '对话内容已超过模型可处理的长度，请保存所需内容，清空对话后分批处理。'
+    elif isinstance(exc, errors.ModelAuthenticationError) or status in (401, 403):
+        code, message, configuration = 'model_authentication', '模型凭据无效或无访问权限，请在助手设置中核对模型来源；社团模型请联系管理员。', True
+    elif isinstance(exc, errors.ModelNotFoundError) or status == 404:
+        code, message, configuration = 'model_configuration', '所选模型不可用，请检查助手设置中的模型，或联系管理员。', True
+    elif isinstance(exc, errors.ModelQuotaExceededError) or status == 402:
+        code, message = 'model_quota', '模型账户余额或额度不足。社团模型请联系管理员；个人模型请检查账户余额，或在助手设置中主动切换来源。'
+    elif isinstance(exc, errors.ModelRateLimitError) or status == 429:
+        code, message = 'model_rate_limit', '模型请求暂时受限，请稍后再试，无需重新填写 Key。'
+    elif isinstance(exc, (errors.ModelTimeoutError, errors.ModelRequestTimeout)):
+        code, message = 'model_timeout', '等待模型响应超时，请稍后再试。'
+    elif isinstance(exc, errors.ModelConnectionError):
+        code, message = 'model_connection', '暂时无法连接模型服务，请稍后再试。'
+    elif isinstance(exc, (errors.ModelUnavailableError, errors.ModelServerError)) or (status is not None and status >= 500):
+        code, message = 'model_unavailable', '模型服务暂时不可用，请稍后再试，无需重新填写 Key。'
+    elif isinstance(exc, errors.ModelAPIError):
+        code, message = 'model_request', '模型服务未能接受本次请求，请稍后重试；若持续出现，请联系管理员检查模型配置。'
+    return dict(code=code, message=message + ' 涉及业务提交时，先核对记录，不要直接重复提交。',
+                configuration_error=configuration)
+
+
 async def chat_events(identity, message, history):
     # No database session is retained while waiting for model or MCP requests.
     from pydantic_ai import Agent, AgentRunResultEvent, capture_run_messages
-    from pydantic_ai.exceptions import ModelAPIError
     from pydantic_ai.messages import (
         FunctionToolCallEvent, FunctionToolResultEvent, ModelMessagesTypeAdapter,
         PartStartEvent, PartDeltaEvent, TextPart, TextPartDelta,
@@ -152,7 +227,8 @@ async def chat_events(identity, message, history):
                     elif isinstance(event, FunctionToolCallEvent):
                         yield _event('tool_start', id=event.part.tool_call_id, name=event.part.tool_name)
                     elif isinstance(event, FunctionToolResultEvent):
-                        yield _event('tool_end', id=event.part.tool_call_id, name=event.part.tool_name)
+                        yield _event('tool_end', id=event.part.tool_call_id, name=event.part.tool_name,
+                                     **_tool_result(event.part))
                     elif isinstance(event, AgentRunResultEvent):
                         truncated = event.result.response.finish_reason == 'length'
                         usage = event.result.usage
@@ -162,19 +238,14 @@ async def chat_events(identity, message, history):
             raise
         except Exception as exc:
             # Provider exceptions may contain request/response details; never echo them to users or logs.
-            status = getattr(exc, 'status_code', None)
-            error = {401: 'DeepSeek Key 无效，请检查 Key 或主动切换模型来源',
-                     402: 'DeepSeek 余额不足，请充值或主动切换模型来源',
-                     429: '模型请求暂时受限，请稍后再试'}.get(status,
-                     '本轮未能完成，请查看已返回的结果；涉及业务提交时先查询记录再决定下一步')
             logger.warning('Web agent run failed: %s', type(exc).__name__)
             if messages:
                 yield _event('history', history=ModelMessagesTypeAdapter.dump_python(messages, mode='json'))
-            yield _event('error', message=error, configuration_error=isinstance(exc, ModelAPIError))
+            yield _event('error', **_run_error(exc))
             return
         yield _event('history', history=ModelMessagesTypeAdapter.dump_python(messages, mode='json'))
         if truncated:
-            yield _event('error', message='本轮回复达到长度上限，尚未完整结束；请核对已返回的结果，涉及业务提交时先查询记录再继续',
+            yield _event('error', code='output_limit', message='本轮回复达到长度上限，尚未完整结束；请核对已返回的结果，涉及业务提交时先查询记录再继续',
                          configuration_error=False)
             return
         yield _event('done')

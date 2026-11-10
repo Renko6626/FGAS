@@ -79,7 +79,7 @@ function selectKind(value: 'funds' | 'stock') { kind.value = value; step.value =
       </ul>
       <blockquote class="ai-example">“这次活动我垫了 100 元印刷费，还把 10 本刊物交给小林保管。帮我查一下对应账户和货物，整理需要登记的内容，先给我核对。”</blockquote>
       <p>你负责说明实际发生的事、补齐信息和核对结果。查找页面、拆分步骤、填写表单这些工作，大可以交给 Agent。</p>
-      <div v-if="assistantAvailable" class="next-option"><div><h3>直接用网页 AI</h3><p>打开右下角的网页助手，用日常语言描述要办的事，无需另外配置 Agent 客户端。模型尚未配置时，按面板提示设置即可。</p></div><NButton type="primary" @click="emit('assistant', prompt)">打开网页 AI</NButton></div>
+      <div v-if="assistantAvailable" class="next-option"><div><h3>直接用网页 AI</h3><p>打开右下角的网页助手，用日常语言描述要办的事，无需另外配置 Agent 客户端。首次使用按提示启用即可；社团已开通模型时，无需填写 Key。</p></div><NButton type="primary" @click="emit('assistant', prompt)">打开网页 AI</NButton></div>
       <p v-else class="guide-note">当前环境未启用网页 AI，可以连接自己的 Agent 使用。</p>
       <div class="next-option"><div><h3>也可以用自己的 coding agent</h3><p>支持 MCP 的 Agent 可以直接接入同一套业务工具，继续使用你熟悉的客户端。</p><ol class="agent-setup"><li>前往“Agent 连接”，创建本人连接。</li><li>把 MCP 地址、本人密钥和接入指南交给 Agent，让它帮你配置。</li><li>先让它核对身份和权限、做一次只读查询，再开始办理业务。</li></ol><a href="/agent-setup.md" target="_blank" rel="noopener">查看 Agent 接入指南</a></div><NButton @click="emit('connections')">前往 Agent 连接</NButton></div>
       <p class="ai-permissions">Agent 遵守你的权限。低权限连接提交的写申请仍需人工审批；高权限连接可直接办理，须先说明具体操作并获得你的明确确认。账号权限和连接密钥仍在网页管理。</p>
