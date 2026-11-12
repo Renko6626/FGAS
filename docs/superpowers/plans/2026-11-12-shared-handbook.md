@@ -71,3 +71,4 @@ Interface: 独立 API read/save；reader 消费 Markdown，自动目录及定位
 - 全套 `./tools/run_tests.sh`：104 passed、16 skipped（缺少可选 pydantic_ai）；迁移版本及 drift 检查通过。Markdown 两个用例通过，最终前端构建通过。
 - 只读审阅发现两处原生目录按钮在编辑表单内默认提交，已加 type=button；按 UI 验证约定不自动点击或新增 DOM 测试工程。最终构建包含修正，六张合成布局截图无错误或页面横向溢出。
 - 最终 `git diff --check` 及新文件行尾空白检查通过。临时预览入口及本次 Vite 进程已清理；截图及合成数据留在忽略的 temp 目录。未提交、推送或发布。
+- 用户随后明确授权“合并并正式部署”：功能提交 `5c8ea7886863538573a7eae11ee61d61c4a62015` 快进合入并推送 main，原有文档修改哈希不变。Actions `43235218467`、Coolify `cdyoxb1kid7mesevpftgw6th` 正常成功；公网版本、schema 0004、三服务健康、手册资源、运行时 MCP/提示词及匿名门禁通过。成对备份 `/data/fgas-backups/fgas-20261112T141831Z-3906067-{pre-migrate.dump,attachments.tar}` 均 0600 且可读。未进行生产业务写入或真实模型调用。发布证据位于忽略目录 `temp/handbook-release-20261112/`。

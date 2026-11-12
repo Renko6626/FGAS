@@ -62,6 +62,8 @@ npm run db:init    # Alembic upgrade + 开发种子
 
 ## 已知待办线索
 
+- 2026-11-12 共享手册已以 `5c8ea7886863` 合入 main 并正式上线。首页 Markdown 阅读、分层章节目录与可信用户编辑；MCP `handbook` 查询 low/high 均可、`handbook/update` 仅 high 可写，网页和 MCP 共用资料，AI 提示词已补充。Actions `43235218467` 与 Coolify `cdyoxb1kid7mesevpftgw6th` 正常成功，无应急发布；公网版本、schema `0004`、三服务 healthy、匿名门禁及数据库／附件备份可读已核对。迁移前备份前缀 VPS `/data/fgas-backups/fgas-20261112T141831Z-3906067`。未进行真实登录后的手册写入或模型调用；详见阶段记录。
+
 - 2026-11-10 Agent 体验优化已以 `2dc51b746f10` 上线，包含网页助手首次导引/近全屏/会话提示/业务结果与模型错误分类，以及外部连接完整接入说明。Actions `42787924918` 构建、基础检查、ACR 推送成功；Coolify 因 GitHub 超时失败，确认队列结束后沿既定 SSH 应急方式复用镜像发布。公网版本、schema `0003`、三服务 healthy 和数据库/附件备份可读已核对。快照 VPS `/data/fgas-manual-releases/20261110-2dc51b7`；运行 `docker-compose.yaml` 逐字保留。Coolify 共享 `.env` 会把两个镜像变量注入所有服务，比较配置时除 api/migrate/web image 外，只允许 environment 中同名 FGAS_API_IMAGE/FGAS_WEB_IMAGE 同步变化。MCP 四入口及业务契约未改，后续 MCP 优化暂缓。详见最新阶段记录。
 
 - 2026-11-10 本轮导航／ERP 记录、CSV 真实预览、私账结算与手机布局已以 `58fbe7921346` 上线。Coolify 重试仍因 GitHub TLS 中断失败，用户授权沿用 SSH 应急流程，复用 Actions `42610850413` 镜像。公网版本、schema `0003`、三服务 healthy 和数据库／附件备份可读已核对。平台实际渲染文件为 `docker-compose.yaml`，仓库 `docker-compose.coolify.yml` 是输入模板；误用会丢失路由／容器名／网络。部署脚本已优先选择前者。私有快照在 VPS `/data/fgas-manual-releases/20261110-58fbe79`，正确路由快照为 `rendered-compose-before.yml`；不要将本次 `compose-before.yml`（误选模板）或旧回退脚本当作现状。详见阶段记录。
