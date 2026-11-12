@@ -308,10 +308,12 @@ onMounted(async () => {
           </div>
           <DashboardView
             v-if="tab === 'home'"
+            :key="identityEpoch"
             :data="dashboard"
             :accounts="accounts"
             :loading="busy"
             :trusted="trusted"
+            :revision="revision"
             @navigate="navigate"
             @create="create()"
             @create-stock="createStock"

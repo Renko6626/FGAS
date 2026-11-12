@@ -1,11 +1,18 @@
 """Explicit Agent writes over the existing business services."""
-from backend.application import catalogs, funds, members, settlements, stock_workflows, stocktakes, warehouse, warehouse_catalogs
+from backend.application import catalogs, funds, members, settlements, stock_workflows, stocktakes, warehouse, warehouse_catalogs, handbook
 from backend.application.agent_access import AgentAccess, require_high
 from backend.application.agent_queries import money
 
 
 def _result(data):
     return dict(api_version='2', data=money(data))
+
+
+def update_handbook(db, access: AgentAccess, data: dict) -> dict:
+    require_high(access)
+    value = handbook.save(db, access.user, data)
+    return _result(dict(resource_type='handbook', status='saved', ledger_effect_applied=False,
+                        approval_required=False, object=value))
 
 
 def _resource(resource_type, identifier_key, value, *, applied=False, pending=False):

@@ -36,6 +36,7 @@ ALLOCATION = [dict(item_transfer_code='FT-000002', amount='120.50')]
 
 QUERIES = {
     'me': contract(queries.me, '查看当前真实登录用户的名称、角色，以及本连接名称和执行等级；返回单对象，不接受查询条件。', {}),
+    'handbook': contract(queries.get_handbook, '读取社团共享手册的标题、完整 Markdown 正文 content、最后修改人及时间；low/high 均可读，返回单对象，不接受查询条件。', {}),
     'fund_accounts': contract(queries.list_fund_accounts, '查资金账户及其公私分类、联系人和标签。', {'q': '公账', 'active': True}),
     'stock_accounts': contract(queries.list_stock_accounts, '查货物账户及 member_code/member_name 当前负责人；按 member_code 筛选，identifier 详情含负责人历史。', {'q': '仓库', 'active': True}),
     'skus': contract(queries.list_skus, '按业务SKU代号code精确查询，q搜代号/完整名称，tag筛选类别或角色；返回code、名称、标签和整数单位。', {'code': 'ARC-01-A'}),
@@ -64,6 +65,9 @@ PROPOSALS = {
     'stock_completion': contract(ops.propose_stock_completion, '报告整笔转移已完成、等待核实时使用；identifier 是父货物单编号 ST。返回待确认完成报告，主单仍待完成且库存不变；high 的 propose 也待确认。报告状态查父单详情的 confirmations。', COMPLETION),
 }
 EXECUTIONS = {
+    'handbook': {
+        'update': contract(ops.update_handbook, '保存社团共享手册，title/content 必填，整份替换，首次保存也用此动作；先读取原文并确认修改范围，不影响资金或库存。', {'title': '社团手册', 'content': '## 发票流程\n用户已确认的办理说明。'}),
+    },
     'fund_account': {
         'create': contract(ops.create_fund_account, '创建资金账户，不改变余额；kind 创建后固定。', {'name': '小王私账', 'kind': 'private'}),
         'update': contract(ops.update_fund_account, '修改指定字段；省略保留原值，允许清空的字段才可传 null。', {'identifier': 'FA-0001', 'name': '新的账户名称'}),
@@ -233,7 +237,7 @@ def describe(topic, resource, selected, action=None, detail=False, *, include_ou
     """Generate an exact, executable call schema only for the requested operation."""
     fields = {'resource': (Literal[resource], ...)}
     if topic == 'query':
-        if resource == 'me':
+        if resource in ('me', 'handbook'):
             example = dict(resource=resource)
         elif detail:
             fields['identifier'] = (str, Field(min_length=1))
@@ -252,12 +256,15 @@ def describe(topic, resource, selected, action=None, detail=False, *, include_ou
     model = create_model('OperationInput', __base__=Input, **fields)
     summary = selected.summary
     if topic in ('propose', 'execute'):
-        summary += ' 结果按各对象的业务编号、status、ledger_effect_applied（本次正式流水影响）与approval_required读取；未入账不等于未保存，后续动作仍须授权。'
+        if resource == 'handbook':
+            summary += ' status=saved 表示已保存，object 是保存后的手册；ledger_effect_applied=false、approval_required=false，不产生正式流水。'
+        else:
+            summary += ' 结果按各对象的业务编号、status、ledger_effect_applied（本次正式流水影响）与approval_required读取；未入账不等于未保存，后续动作仍须授权。'
         if resource == 'stock_completion' or action == 'complete':
             summary += ' 完成报告区分SC报告状态与ST主单stock_transfer_status。'
         if resource == 'stock_operation':
             summary += ' 钱货组合结果分别读取fund_transfer和stock_transfer，不共享入账状态。'
-    elif not detail and resource != 'me':
+    elif not detail and resource not in ('me', 'handbook'):
         summary += ' 列表按filters确认实际范围，page/has_more判断是否还有下一页；末页不代表查完所有历史。snapshot_at是查询时间，as_of是历史截止时间。'
     result = dict(summary=summary, input_schema=model.model_json_schema(), example=example)
     if include_output_schema:
@@ -285,7 +292,7 @@ def help_data(level, *, topic, resource=None, action=None, include_output_schema
     if topic == 'query':
         if resource not in QUERIES:
             invalid('resource', '未知查询对象', help_call(topic))
-        if resource in ('me', 'settlement_overview'):
+        if resource in ('me', 'handbook', 'settlement_overview'):
             return dict(resource=resource, object=describe(topic, resource, QUERIES[resource], detail=resource == 'settlement_overview', include_output_schema=include_output_schema))
         result = dict(resource=resource, list=describe(topic, resource, QUERIES[resource], include_output_schema=include_output_schema))
         if resource in DETAILS:

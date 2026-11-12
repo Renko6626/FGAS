@@ -14,6 +14,14 @@ class MeFilters(Input):
     pass
 
 
+class HandbookData(BaseModel):
+    title: str
+    content: str
+    updated_by_id: str | None
+    updated_by_name: str | None
+    updated_at: datetime | None
+
+
 class CurrentUser(BaseModel):
     display_name: str
     role: Literal['untrusted', 'trusted', 'admin']
@@ -459,6 +467,7 @@ class SettlementOutstandingData(PageData[SettlementOutstandingRow, SettlementOut
 
 QUERY_OUTPUT_SCHEMAS = {
     'me': QueryResult[MeData],
+    'get_handbook': QueryResult[HandbookData],
     'list_fund_accounts': QueryResult[PageData[AccountRow, AccountFilters]],
     'list_stock_accounts': QueryResult[PageData[StockAccountRow, StockAccountFilters]],
     'get_stock_account': QueryResult[StockAccountDetail],
@@ -481,6 +490,7 @@ QUERY_OUTPUT_SCHEMAS = {
 
 QUERY_INPUT_SCHEMAS = {
     'me': MeFilters,
+    'get_handbook': MeFilters,
     'list_fund_accounts': AccountFilters, 'list_stock_accounts': StockAccountFilters,
     'get_stock_account': IdentifierInput,
     'list_skus': SkuDirectoryFilters, 'list_members': DirectoryFilters,
@@ -545,6 +555,11 @@ class WriteEffect(BaseModel):
     status: str
     ledger_effect_applied: bool
     approval_required: bool
+
+
+class HandbookWriteData(WriteEffect):
+    resource_type: Literal['handbook']
+    object: HandbookData
 
 
 class FundWriteData(WriteEffect):
@@ -634,6 +649,7 @@ class StockOperationWriteData(BaseModel):
 # then dumps with mode='json'. Patch tools additionally use exclude_unset=True;
 # creation tools retain Schema defaults required by existing business services.
 OPERATION_INPUT_SCHEMAS = {
+    'update_handbook': business.HandbookInput,
     'propose_fund_transfer': business.Submit,
     'propose_stock_transfer': business.StockTransferInput,
     'propose_stock_completion': CompletionOperation,
@@ -669,6 +685,7 @@ OPERATION_INPUT_SCHEMAS = {
 }
 
 OPERATION_OUTPUT_SCHEMAS = {
+    'update_handbook': QueryResult[HandbookWriteData],
     'propose_fund_transfer': QueryResult[FundWriteData],
     'propose_stock_transfer': QueryResult[StockWriteData],
     'propose_stock_completion': QueryResult[CompletionWriteData],

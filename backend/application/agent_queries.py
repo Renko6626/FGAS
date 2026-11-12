@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from backend.application.agent_access import AgentAccess
 from backend.application.directory_views import by_code
 from backend.infrastructure.models import FundAccount
-from backend.application import directory_views, funds, warehouse, warehouse_catalogs, stocktakes, settlements
+from backend.application import directory_views, funds, warehouse, warehouse_catalogs, stocktakes, settlements, handbook
 from backend.infrastructure import store, stock_store, agent_store
 from backend.infrastructure.models import Transfer, StockTransfer
 from backend.kernel.accounting import DomainError
@@ -29,6 +29,10 @@ def money(value):
 
 DEFAULT_WINDOW = timedelta(days=30)
 TIME_KEYS = ('created_at_from', 'created_at_to', 'posted_at_from', 'posted_at_to', 'as_of')
+
+
+def get_handbook(db, access: AgentAccess, filters: dict) -> dict:
+    return dict(api_version='2', data=handbook.read(db))
 
 
 def _filters(filters):

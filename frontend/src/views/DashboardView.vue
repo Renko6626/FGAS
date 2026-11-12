@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { NButton } from 'naive-ui';
 import { money } from '../presentation/funds';
 import { dashboardRecord, type TransferRecordRow } from '../presentation/records';
@@ -7,8 +7,9 @@ import type { Dashboard } from '../api/dashboard';
 import type { Account } from '../api/accounts';
 import AccountAvatar from '../components/AccountAvatar.vue';
 import TransferRecordList from '../components/TransferRecordList.vue';
+const SharedHandbook = defineAsyncComponent(() => import('../components/SharedHandbook.vue'));
 
-const props = defineProps<{ data: Dashboard | null; accounts: Account[]; loading: boolean; trusted: boolean }>();
+const props = defineProps<{ data: Dashboard | null; accounts: Account[]; loading: boolean; trusted: boolean; revision: number }>();
 const emit = defineEmits<{
   navigate: [string, ('funds' | 'stock')?, string?];
   create: [];
@@ -43,6 +44,7 @@ function openOperation(row: TransferRecordRow) {
 
 <template>
   <div class="dashboard dashboard-overview" :aria-busy="loading">
+    <SharedHandbook :trusted="trusted" :revision="revision" />
     <template v-if="data">
       <section class="dashboard-pending" :aria-label="trusted ? '待办处理' : '记录进度'">
         <button class="pending-task" :class="{ 'has-items': data.counts.pendingFunds > 0 }" :title="trusted ? '批准后正式入账' : '等待审批后入账'" @click="emit('navigate', trusted ? 'approvals' : 'transfers', 'funds', trusted ? undefined : 'pending')">

@@ -159,5 +159,5 @@ def test_list_pagination_filters_and_health(client):
     assert client.get('/api/transfers',params={'q':first['code']}).json()['total'] == 1
     health = client.get('/api/health').json()
     assert health['status'] == 'ok'
-    assert health['schema_revision'] == '0003'
+    assert health['schema_revision'] == '0004'
     assert 'version' in health and 'git_sha' in health

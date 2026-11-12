@@ -10,7 +10,7 @@ from backend.kernel.accounting import DomainError
 from backend.application import funds, catalogs, warehouse_catalogs, members as member_service, settlements, identity as identities, sso
 from backend.entrypoints.schemas import *
 from backend.application import agent_access, attachments, web_agent
-from backend.application import dashboard, exports
+from backend.application import dashboard, exports, handbook
 from backend.entrypoints.mcp import create_mcp_app
 
 router = APIRouter()
@@ -170,6 +170,14 @@ def summary(user=Depends(identity), db=database_dependency):
 @router.get('/api/dashboard')
 def dashboard_overview(user=Depends(identity), db=database_dependency):
     return dashboard.overview(db)
+
+@router.get('/api/handbook')
+def read_handbook(user=Depends(identity), db=database_dependency):
+    return handbook.read(db)
+
+@router.put('/api/handbook')
+def save_handbook(data: HandbookInput, user=Depends(identity), db=database_dependency):
+    return handbook.save(db, user, data.model_dump())
 
 @router.get('/api/members')
 def members(user=Depends(identity), db=database_dependency):

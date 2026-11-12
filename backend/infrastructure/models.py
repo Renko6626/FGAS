@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import String, Integer, BigInteger, Boolean, Date, DateTime, ForeignKey, JSON, MetaData, UniqueConstraint, CheckConstraint, Index, text
+from sqlalchemy import String, Text, Integer, BigInteger, Boolean, Date, DateTime, ForeignKey, JSON, MetaData, UniqueConstraint, CheckConstraint, Index, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 def new_id(): return str(uuid4())
@@ -49,6 +49,13 @@ class WebAgentSettings(Base):
     __tablename__ = 'web_agent_settings'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     deepseek_api_key: Mapped[str] = mapped_column(String)
+class Handbook(Base):
+    __tablename__ = 'handbook'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String)
+    content: Mapped[str] = mapped_column(Text)
+    updated_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 class FundAccount(Base):
     __tablename__ = 'fund_accounts'
     __table_args__ = (CheckConstraint("kind IN ('public','private','external')", name='kind_valid'),)

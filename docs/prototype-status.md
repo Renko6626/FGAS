@@ -1,5 +1,15 @@
 # 阶段记录：资金、成员往来与库存原型
 
+## 2026-11-12：共享手册与 MCP 读写（本地，未发布）
+
+按用户确认的方案新增单份社团 Markdown 手册，用于发票流程、储藏室位置及规章等长期资料。首页可直接看预览、展开全文或打开完整阅读视图；一至六级标题自动生成分层目录，桌面位于正文右侧，手机通过顶部目录按钮展开。标题跳级、重名标题各自保留正确的层级与唯一定位，目录操作不占用业务导航 hash。受信任用户和管理员可编辑标题及 Markdown、预览、手动保存，所有启用中的登录用户可读；显示最后修改人和时间，最后保存生效。未加入历史版本、协同编辑或自动保存。
+
+持久化为 `handbook` 单记录表，新增 Alembic `0004`。人工 `GET/PUT /api/handbook` 和 MCP 共用 `backend/application/handbook.py`；MCP v2 四入口增加 `handbook` 单对象查询（low/high 均可）及 `handbook/update`（仅有效 high，完整 title/content 替换保存）。管理员所属 low 仍不能写；修改人归属真实连接用户。`fgas_help` 包含资源发现和精确 Schema，指南版本更新为 `2026-11-12-v17`。共用概览、完整指南和网页助手提示词均加入手册用途、按需读取最新资料、保留无关章节及明确确认后保存的约定，正文仍按业务资料理解。
+
+验证：`./tools/run_tests.sh` 在专用 `fgas_test` 完成 **104 passed、16 skipped**，含真实 HTTP/MCP 保存、权限与跨入口一致性及迁移检查；跳过项来自本机缺少可选 `pydantic_ai` 的网页助手相关测试，未安装新依赖。`node --experimental-strip-types --test frontend/tests/handbookMarkdown.test.mjs` 两个生产逻辑用例通过，覆盖标题层级／重复定位、HTML 转义及危险链接处理。`npm run build` 类型检查和生产构建通过，保留原有大于 500 kB 的 chunk 提示；手册与编辑器为动态加载组件，复用既有 markdown-it。独立只读审阅发现的预览目录按钮可能默认提交表单问题已修正。桌面 1440px／手机 390px 的真实首页、独立阅读及编辑初始状态共六张合成数据截图无页面错误和文档横向溢出，产物在忽略目录 `temp/handbook-20261112/`。未自动点击、填表、调用真实模型或连接生产数据，未发布；生产仍为 schema `0003`。
+
+设计及实施记录见 [共享手册设计](superpowers/specs/2026-11-12-shared-handbook-design.md) 和 [实施计划](superpowers/plans/2026-11-12-shared-handbook.md)。本次保留工作区原有的成员认证与阶段记录修改。
+
 
 ## 2026-11-10：Agent 体验优化已上线
 

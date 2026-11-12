@@ -30,6 +30,7 @@ Vue / 人工 HTTP       Agent / MCP
 | --- | --- |
 | `entrypoints` | 人工 HTTP 与 MCP 协议适配、Schema 校验和身份解析，调用应用服务 |
 | `application/identity.py` | 人工身份与会话、用户管理，以及共用的可信角色和目录写入授权检查 |
+| `application/handbook.py` | 单份共享 Markdown 手册的查询和可信用户保存，人工 HTTP 与仅 high 可写的 MCP 共用，不依赖资金或库存内核 |
 | `application/directory_views.py` | 联系人、账户、SKU 与负责人信息的基础视图；人工和 Agent 查询保留各自的输出字段 |
 | `application/agent_access.py` | 独立连接凭据、真实所属用户解析与 low/high 固定授权 |
 | `application/agent_queries.py`、`agent_operations.py` | 共同业务查询及明确命名的业务操作，复用原服务 |
@@ -44,6 +45,8 @@ Vue / 人工 HTTP       Agent / MCP
 | `infrastructure/inventory_queries.py` | 库存 SQL、筛选、分页与汇总查询；应用层组织数量格式及返回结果 |
 
 前端按数据加载与记录展示分工：`App.vue` 保留工作台壳、导航和全局编辑入口，会话及工作台资料加载由 composable 组织；API 类型和调用按身份、账户、成员、资金与货物等现有业务归属存放。资金和货物列表页面负责远程筛选与分页，盘点详情使用本地记录容器，两者共用记录展示和详情操作组件。资金关联搜索与账户筛选只复用已有简单逻辑，不增加通用查询框架或状态管理依赖。
+
+首页共享手册独立加载，失败不阻断资金与库存统计；正文和分层目录由同一次 Markdown 解析生成。手册保存在 `handbook` 单记录表（Alembic `0004`），最后一次保存生效；没有版本历史或协同编辑。人工 GET/PUT `/api/handbook` 使用 Cookie，启用用户可读、trusted/admin 可写；MCP 的 `handbook` 查询可由 low/high 使用，`handbook/update` 仅有效 high 写入，同一应用服务维护最后修改人和时间。
 
 ## 3 技术与实例边界
 

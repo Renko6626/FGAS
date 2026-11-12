@@ -12,6 +12,9 @@ class Input(BaseModel):
     def clean_code(cls, value):
         return value.strip().upper() if isinstance(value, str) else value
 class Login(Input): user_id: str
+class HandbookInput(Input):
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(max_length=200000)
 class AccountCreate(Input):
     name: str = Field(min_length=1,max_length=200)
     kind: Literal['public','private','external']
